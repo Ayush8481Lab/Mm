@@ -1852,42 +1852,65 @@
         IdbHelper.set('vibeSavedPlaylists', savedPlaylists).then(() => { showToast("Saved"); updateDownloadBtnUI(state.currentAlbumData); }).catch(() => { showToast("Save Failed"); savedPlaylists.pop(); }); 
     }
 
-    // ================= YOUTUBE INTEGRATION LOGIC =================
-    
-    // 1. SMART MATCH LOGIC
-    const ytClean = (s) => (s || "").toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
+    // // ================= YOUTUBE INTEGRATION LOGIC =================
 
-    function scoreAndSortYT(candidates, userSong, userArtist) {
-        const tSong = ytClean(userSong);
-        const tArtist = ytClean(userArtist);
-        const scored = candidates.map(item => {
-            const rTitle = ytClean(item.title);
-            let score = 0;
-            if (tArtist.length > 0) {
-                if (rTitle.includes(tArtist)) score += 100;
-                else {
-                    const parts = tArtist.split(' ');
-                    let partMatch = 0;
-                    parts.forEach(p => { if (rTitle.includes(p) && p.length > 2) partMatch++; });
-                    if (partMatch > 0) score += 50;
-                }
-            } else score += 50;
-            if (score > 0 || !tArtist) {
-                if (rTitle === tSong) score += 100;
-                else if (rTitle.includes(tSong)) score += 80;
-                else {
-                    const songParts = tSong.split(' ');
-                    let songPartMatch = 0;
-                    songParts.forEach(p => { if (rTitle.includes(p) && p.length > 2) songPartMatch++; });
-                    if (songPartMatch >= songParts.length) score += 50;
-                }
-            }
-            return { ...item, score };
-        });
-        scored.sort((a, b) => b.score - a.score);
-        return scored;
+async function fetchYouTubeId(songName, artistName, trackId) {
+    // Use cached YouTube ID if available
+    if (metaCache[trackId] && metaCache[trackId].ytId) {
+        return metaCache[trackId].ytId;
     }
 
+    // Extract top artists
+    let searchArtist = "";
+    if (artistName) {
+        searchArtist = artistName.split(',').slice(0, 3).join(' ');
+    }
+
+    const query = `${songName} ${searchArtist}`;
+    const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const jina = `https://r.jina.ai/${yt}`;
+    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(jina)}`;
+
+    try {
+        const res = await fetch(proxy);
+        const text = await res.text();
+
+        const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/g;
+        const candidates = [];
+        let m;
+
+        while ((m = regex.exec(text)) !== null) {
+            candidates.push({
+                title: m[1],
+                url: m[2],
+                id: m[3]
+            });
+        }
+
+        if (!candidates.length) return null;
+
+        // ✅ ALWAYS USE TOP RESULT
+        const top = candidates[0];
+
+        // Set video state (required for Switch to Video)
+        state.currentTrackYTId = top.id;
+
+        // Cache result
+        let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
+        cacheEntry.ytId = top.id;
+        metaCache[trackId] = cacheEntry;
+        IdbHelper.set('vibeMetaCache', metaCache);
+
+        return top.id;
+
+    } catch (e) {
+        console.log("YT Fetch error", e);
+    }
+
+    return null;
+}
+
+// ================= VIDEO PLAYER CONTROLS =================
     async function fetchYouTubeId(songName, artistName, trackId) {
     // Only fetch if not already found for this track
     if (metaCache[trackId] && metaCache[trackId].ytId) {

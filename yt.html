@@ -1968,78 +1968,53 @@
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
-        const miniLyrics = document.getElementById('mini-lyrics-player'); // Select lyrics element
 
         if (!state.videoMode) {
-            // ===========================
-            // SWITCH TO VIDEO MODE
-            // ===========================
+            // SWITCH TO VIDEO
             state.videoMode = true;
-
-            // 1. UI Switch: Show Video, Hide Art
             art.classList.remove('active');
             vidContainer.classList.add('active');
-
-            // 2. DISABLE CANVAS (Pause & Hide completely)
-            canvas.pause();
-            canvas.style.display = 'none'; 
-
-            // 3. DISABLE LYRICS (Hide completely)
-            miniLyrics.style.display = 'none';
-
-            // 4. Handle Audio (Pause Main Audio)
+            
             audio.pause();
-
-            // 5. Start YouTube Player
-            if(ytPlayer && ytPlayer.loadVideoById) {
+            canvas.pause(); canvas.style.opacity = '0';
+            
+            // Sync logic
+            if(ytPlayer) {
                 ytPlayer.loadVideoById({videoId: id, startSeconds: audio.currentTime});
             } else {
                 ytPlayer = new YT.Player("player", {
                     videoId: id,
                     playerVars: { 
-                        autoplay: 1, controls: 0, playsinline: 1, rel: 0, 
-                        modestbranding: 1, iv_load_policy: 3,
-                        start: Math.floor(audio.currentTime), disablekb: 1, fs: 0
+                        autoplay: 1, 
+                        controls: 0, 
+                        playsinline: 1, 
+                        rel: 0, 
+                        modestbranding: 1, 
+                        iv_load_policy: 3,
+                        start: Math.floor(audio.currentTime),
+                        disablekb: 1,
+                        fs: 0
                     },
                     events: { onReady: startYTTracker, onStateChange: onYTStateChange }
                 });
             }
             showToast("Switched to Video");
-
         } else {
-            // ===========================
-            // SWITCH BACK TO AUDIO MODE
-            // ===========================
+            // SWITCH TO AUDIO
             state.videoMode = false;
-
-            // 1. UI Switch: Hide Video, Show Art
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
-            // 2. Sync Time (Video -> Audio)
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 audio.currentTime = ytPlayer.getCurrentTime();
                 ytPlayer.pauseVideo();
             }
-
-            // 3. Resume Main Audio
             audio.play();
-
-            // 4. RESTORE CANVAS (Check User Settings)
-            if (state.showCanvas) {
-                canvas.style.display = 'block'; // Bring element back
-                canvas.style.opacity = '1';     // Ensure visible
-                canvas.play().catch(e => {});   // Resume playing
-            }
-
-            // 5. RESTORE LYRICS (Check User Settings & Data)
-            if (state.showLyrics && state.lyricsData) {
-                miniLyrics.style.display = 'block'; // Bring element back
-            }
-
+            if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
             showToast("Switched to Audio");
         }
     }
+
 
     function startYTTracker(event) {
         event.target.playVideo();

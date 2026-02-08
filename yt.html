@@ -327,15 +327,14 @@
         .list-item.buffering .buffering-overlay { display: flex; }
         .buf-spinner { width: 20px; height: 20px; border: 2px solid rgba(255,255,255,0.3); border-top: 2px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
         
-        /* Card Watermark for Playlists in Library */
+        /* Card Watermark for Playlists in Library (Corrected Position) */
         .card .watermark-logo { position: absolute !important; top: 4px !important; left: 4px !important; z-index: 99 !important; width: 20px !important; height: 20px !important; border-radius: 50% !important; border: 1px solid rgba(255,255,255,0.8) !important; box-shadow: 0 0 5px rgba(0,0,0,0.8) !important; display: block !important; background: #000 !important; object-fit: cover !important; pointer-events: none; }
 
-        /* NEW YOUTUBE VIDEO UI STYLES */
-        .outer-yt { position: relative; width: 100%; height: 100%; aspect-ratio: 16/9; background: #000; overflow: hidden; border-radius: 14px; z-index: 10; display: none; }
+        /* YOUTUBE VIDEO UI STYLES */
+        .outer-yt { position: absolute; width: 100%; height: 100%; background: #000; overflow: hidden; border-radius: 12px; z-index: 10; display: none; }
         .outer-yt.active { display: block; }
-        .outer-yt:fullscreen { width: 100%; height: 100%; max-width: none; border-radius: 0; }
         .video-cover { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 100%; height: 177.77%; pointer-events: none; }
-        #yt-wrap, #yt-player-frame, iframe { width: 100%; height: 100%; pointer-events: none; }
+        #yt-wrap, #yt-player, iframe { width: 100%; height: 100%; pointer-events: none; }
         .shield { position: absolute; inset: 0; z-index: 15; }
         .center-unlock { position: absolute; top: 50%; left: 50%; width: 90px; height: 90px; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: auto; }
         .block-area { position: absolute; inset: 0; pointer-events: auto; }
@@ -395,7 +394,7 @@
             <div id="search-results" style="padding-bottom: 20px;"></div>
         </div>
 
-        <!-- Library Tab -->
+        <!-- Library Tab (Redesigned) -->
         <div id="library-view" class="hidden">
             <div class="lib-header">
                 <div class="lib-title"><div class="lib-profile-icon">M</div> Your Library</div>
@@ -500,14 +499,14 @@
             <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-v"></i></button>
         </div>
         
-        <!-- Image Container for Art AND Video -->
+        <!-- Modified Image Container to hold Art AND Video -->
         <div class="fp-img-container" id="fp-img-area">
             <img id="fp-art" class="fp-img active" src="" alt="">
             
-            <!-- NEW Youtube Video Container -->
+            <!-- Youtube Video Container (Hidden by default) -->
             <div id="yt-view-container" class="outer-yt">
                 <div class="video-cover">
-                    <div id="yt-wrap"><div id="yt-player-frame"></div></div>
+                    <div id="yt-wrap"><div id="yt-player"></div></div>
                 </div>
                 <div class="shield">
                     <div class="block-area" id="blockTap"></div>
@@ -540,11 +539,7 @@
         <div class="fp-info">
             <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
             <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
-            <div class="fp-actions">
-                <i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i>
-                <!-- VIDEO SWITCH BUTTON -->
-                <i class="fas fa-video btn-ctrl" id="fp-video-btn" onclick="toggleVideoMode()" style="color:white; margin-left: 10px;"></i>
-            </div>
+            <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
         </div>
         <div class="slider-container">
             <input type="range" id="seek-slider" min="0" value="0">
@@ -559,6 +554,7 @@
         </div>
         <div class="fp-menu-overlay" id="fp-menu-overlay">
             <div class="fp-menu-header"><span>OPTIONS</span><span onclick="toggleFpMenu()" style="cursor:pointer; padding:5px;">CLOSE</span></div>
+            <div id="video-switch-btn"></div> <!-- Container for Switch Video Btn -->
             <div id="song-details-injection"></div>
             <div id="menu-download-btn" class="fp-menu-item" onclick="downloadCurrentSongAction()"><i class="fas fa-download"></i><span>Download Song</span></div>
             <div class="fp-menu-item">
@@ -827,7 +823,9 @@
                 if(cachedMeta.lyricsData && state.showLyrics) { state.lyricsData = cachedMeta.lyricsData; document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } 
                 if(cachedMeta.canvasUrl && state.showCanvas) document.getElementById('canvas-video').src = cachedMeta.canvasUrl; 
             }
+            // Check cache for YouTube ID
             if(cachedMeta && cachedMeta.ytId) { state.currentTrackYTId = cachedMeta.ytId; }
+            else { fetchYouTubeId(track.title, track.artist, track.id); }
         }
     }
 
@@ -1040,6 +1038,7 @@
         document.querySelectorAll('.list-item').forEach(el => el.classList.remove('buffering'));
         if (isBuffering && state.bufferingId) {
             // Already handled in click or playSong via class addition.
+            // This function is mainly for clearing or network events.
         }
     }
 
@@ -1069,7 +1068,7 @@
     async function loadAndPlay() {
         // RESET VIDEO MODE
         if (state.videoMode) {
-            toggleVideoMode(); 
+            toggleVideoMode(); // This sets it back to audio
         }
         state.videoMode = false;
         state.currentTrackYTId = null;
@@ -1079,6 +1078,7 @@
         state.metaFetchId++; const currentFetchId = state.metaFetchId;
         const track = state.queue[state.qIndex]; if(!track) return;
         
+        // Set Buffering State
         state.bufferingId = track.id;
         refreshCurrentListView(); 
 
@@ -1120,10 +1120,14 @@
         if (cachedMeta) {
             if (cachedMeta.canvasUrl && state.showCanvas) vid.src = cachedMeta.canvasUrl;
             if (cachedMeta.lyricsData) { state.lyricsData = cachedMeta.lyricsData; if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } }
+            if (cachedMeta.ytId) state.currentTrackYTId = cachedMeta.ytId;
         } else { 
             fetchMeta(track.title, track.artist, track.id, currentFetchId); 
+            fetchYouTubeId(track.title, track.artist, track.id);
         }
-        // YT search happens when switching to video
+        if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
+             fetchYouTubeId(track.title, track.artist, track.id);
+        }
     }
 
     async function fetchMeta(title, artist, trackId, fetchId) {
@@ -1241,6 +1245,12 @@
         if(document.getElementById('album-view').classList.contains('active') && state.currentAlbumData) {
             renderAlbumTracks(state.currentAlbumData.songs, state.currentAlbumData.img);
         }
+        
+        if(document.getElementById('library-view').classList.contains('active') || !document.getElementById('library-view').classList.contains('hidden')) {
+             if(state.bufferingId) {
+                 // Library view refreshes handled by filter switch or re-render mostly.
+             }
+        }
     }
     
     function initAudioContext() { if (audioCtx) return; const AudioContext = window.AudioContext || window.webkitAudioContext; audioCtx = new AudioContext(); audioSource = audioCtx.createMediaElementSource(audio); preGainNode = audioCtx.createGain(); let prevNode = audioSource; audioSource.connect(preGainNode); prevNode = preGainNode; djFrequencies.forEach((freq, index) => { const filter = audioCtx.createBiquadFilter(); filter.frequency.value = freq; filter.type = index <= 1 ? 'lowshelf' : (index >= 8 ? 'highshelf' : 'peaking'); filter.gain.value = 0; prevNode.connect(filter); prevNode = filter; }); prevNode.connect(audioCtx.destination); }
@@ -1291,9 +1301,11 @@
         history.pushState({view: 'album'}, null, '');
         const view = document.getElementById('album-view'); view.classList.add('active');
         
+        // --- RESET UI STATES IMMEDIATELY ---
         document.getElementById('album-art').src = preData.img;
         const wm = document.getElementById('album-watermark'); 
         
+        // Determine if we show watermark (Offline or Saved)
         const isSaved = savedPlaylists.some(p => p.title === preData.title);
         if(forceLogo || isOffline || isSaved) wm.classList.add('show'); else wm.classList.remove('show');
         
@@ -1523,6 +1535,15 @@
             const injection = document.getElementById('song-details-injection');
             injection.innerHTML = '';
             
+            // Video Switch Button
+            const vidSwitchContainer = document.getElementById('video-switch-btn');
+            vidSwitchContainer.innerHTML = '';
+            if (state.currentTrackYTId) {
+                const icon = state.videoMode ? 'fa-music' : 'fa-film';
+                const text = state.videoMode ? 'Switch to Audio' : 'Switch to Video';
+                vidSwitchContainer.innerHTML = `<div class="fp-menu-item" onclick="toggleFpMenu(); toggleVideoMode()"><i class="fas ${icon}"></i><span>${text}</span></div>`;
+            }
+
             const isDownloaded = downloads.some(d => d.id === track.id);
             const menuDownBtn = document.getElementById('menu-download-btn');
             if(isDownloaded) {
@@ -1833,17 +1854,115 @@
 
     // ================= YOUTUBE INTEGRATION LOGIC =================
     
-    // 1. VIDEO PLAYER CONTROLS
+    // 1. SMART MATCH LOGIC
+    const ytClean = (s) => (s || "").toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
+
+    function scoreAndSortYT(candidates, userSong, userArtist) {
+        const tSong = ytClean(userSong);
+        const tArtist = ytClean(userArtist);
+        const scored = candidates.map(item => {
+            const rTitle = ytClean(item.title);
+            let score = 0;
+            if (tArtist.length > 0) {
+                if (rTitle.includes(tArtist)) score += 100;
+                else {
+                    const parts = tArtist.split(' ');
+                    let partMatch = 0;
+                    parts.forEach(p => { if (rTitle.includes(p) && p.length > 2) partMatch++; });
+                    if (partMatch > 0) score += 50;
+                }
+            } else score += 50;
+            if (score > 0 || !tArtist) {
+                if (rTitle === tSong) score += 100;
+                else if (rTitle.includes(tSong)) score += 80;
+                else {
+                    const songParts = tSong.split(' ');
+                    let songPartMatch = 0;
+                    songParts.forEach(p => { if (rTitle.includes(p) && p.length > 2) songPartMatch++; });
+                    if (songPartMatch >= songParts.length) score += 50;
+                }
+            }
+            return { ...item, score };
+        });
+        scored.sort((a, b) => b.score - a.score);
+        return scored;
+    }
+
+    async function fetchYouTubeId(songName, artistName, trackId) {
+        // Only fetch if not already found for this track
+        if(metaCache[trackId] && metaCache[trackId].ytId) return metaCache[trackId].ytId;
+        
+        // Extract top 2 artists
+        let searchArtist = "";
+        if(artistName) {
+            searchArtist = artistName.split(',').slice(0,3).join(' ');
+        }
+        
+        const query = `${songName} ${searchArtist}`;
+        const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+        const jina = `https://r.jina.ai/${yt}`;
+        const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(jina)}`;
+
+        try {
+            const res = await fetch(proxy);
+            const text = await res.text();
+            const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/g;
+            const candidates = [];
+            let m;
+            while((m = regex.exec(text)) !== null) {
+                candidates.push({ title: m[1], url: m[2], id: m[3] });
+            }
+            if (!candidates.length) return null;
+
+            // ---- SIMPLE TOP RESULT WITH 2-KEYWORD MATCH ----
+const keywords = (songName + " " + searchArtist)
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 2);
+
+let firstId = null;
+let pickedId = null;
+
+for (const c of candidates) {
+    const title = c.title.toLowerCase();
+    if (!firstId) firstId = c.id;
+
+    let count = 0;
+    for (const k of keywords) {
+        if (title.includes(k)) count++;
+    }
+
+    if (count >= 2) {
+        pickedId = c.id;
+        break;
+    }
+}
+
+// fallback
+const finalId = pickedId || firstId;
+            if(finalId) {
+    state.currentTrackYTId = finalId;
+
+    let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
+    cacheEntry.ytId = finalId;
+    metaCache[trackId] = cacheEntry;
+    IdbHelper.set('vibeMetaCache', metaCache);
+
+    return finalId;
+}
+        } catch(e) { console.log("YT Fetch error", e); }
+        return null;
+    }
+
+    // 2. VIDEO PLAYER CONTROLS
     function toggleVideoMode() {
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
-        const btn = document.getElementById('fp-video-btn');
 
         if (!state.videoMode) {
             // SWITCH TO VIDEO
             state.videoMode = true;
-            btn.style.color = 'var(--primary)';
             
             // UI Switch
             art.classList.remove('active');
@@ -1853,21 +1972,24 @@
             audio.pause();
             canvas.pause(); canvas.style.opacity = '0';
             
-            // Fetch and Play using the NEW Logic
-            const track = state.queue[state.qIndex];
-            if(track) fetchAndPlayVideo(track.title, track.artist);
-
+            // Initialize YT Player
+            if(state.currentTrackYTId) {
+                loadYTPlayer(state.currentTrackYTId, audio.currentTime);
+            }
             showToast("Switched to Video");
         } else {
             // SWITCH TO AUDIO
             state.videoMode = false;
-            btn.style.color = 'white';
 
             // UI Switch
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
-            if(ytPlayer && ytPlayer.stopVideo) ytPlayer.stopVideo();
+            // Sync Time back to Audio
+            if(ytPlayer && ytPlayer.getCurrentTime) {
+                audio.currentTime = ytPlayer.getCurrentTime();
+                ytPlayer.pauseVideo();
+            }
 
             // Resume Audio
             audio.play();
@@ -1880,62 +2002,27 @@
         }
     }
 
-    // 2. NEW LOGIC: SEARCH & MATCH (FROM DONOR)
-    async function fetchAndPlayVideo(song, artist) {
-        if(!song) return;
-        
-        // Split Artist to get primary
-        if(artist && artist.includes(',')) artist = artist.split(',')[0];
-
-        const keywords = (song+" "+artist).toLowerCase().split(/\s+/).filter(w=>w.length>2);
-        
-        const yt=`https://www.youtube.com/results?search_query=${encodeURIComponent(song+" "+artist)}`;
-        const proxy=`https://api.allorigins.win/raw?url=${encodeURIComponent("https://r.jina.ai/"+yt)}`;
-        
-        try {
-            const res=await fetch(proxy);
-            const text=await res.text();
-
-            const regex=/\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/g;
-            let match, firstId=null;
-
-            while((match=regex.exec(text))!==null){
-                const title=match[1].toLowerCase();
-                if(!firstId) firstId=match[3];
-
-                let count=0;
-                keywords.forEach(k=>{ if(title.includes(k)) count++; });
-
-                if(count>=2){
-                    loadYTPlayer(match[3]);
-                    return;
-                }
-            }
-
-            if(firstId) loadYTPlayer(firstId);
-            else showToast("No video found");
-        } catch(e) { console.log("Video fetch error", e); showToast("Video Error"); }
-    }
-
-    // 3. PLAYER SETUP & TRACKING
-    function loadYTPlayer(id) {
+    function loadYTPlayer(id, startTime) {
+        ytLooped = false;
         if(ytPlayer) {
-            ytPlayer.loadVideoById(id);
+            ytPlayer.loadVideoById({videoId: id, startSeconds: startTime});
         } else {
-            ytPlayer = new YT.Player("yt-player-frame", {
+            ytPlayer = new YT.Player("yt-player", {
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, 
-                    controls: 1, 
+                    controls: 0, 
                     playsinline: 1, 
                     rel: 0, 
                     modestbranding: 1, 
-                    iv_load_policy: 3 
+                    iv_load_policy: 3, 
+                    start: Math.floor(startTime),
+                    disablekb: 1,
+                    fs: 0
                 },
                 events: { onReady: startYTTracker, onStateChange: onYTStateChange }
             });
         }
-        ytLooped = false;
     }
 
     function onYTStateChange(event) {
@@ -1947,24 +2034,28 @@
             updateIcons();
         } else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
-                if(state.isLoop) {
-                    ytPlayer.seekTo(0); ytPlayer.playVideo();
-                } else {
-                    playNext();
-                }
+                // Determine loop/next logic based on main player state
+                 if(state.isLoop) {
+                     ytPlayer.seekTo(0); ytPlayer.playVideo();
+                 } else {
+                     playNext();
+                 }
             }
         }
     }
 
     function startYTTracker(event) {
+        // Ensure it plays
         event.target.playVideo();
+        
+        // Polling for UI update
         setInterval(() => {
             if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
             let c = ytPlayer.getCurrentTime();
             let d = ytPlayer.getDuration();
             if(!d) return;
 
-            // Update Custom Video UI
+            // Update Video Player UI
             let p = c / d * 100;
             const fill = document.getElementById('yt-fill');
             const dot = document.getElementById('yt-dot');
@@ -1973,27 +2064,32 @@
             if(dot) dot.style.left = p + "%";
             if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
 
-            // Sync Main Player Slider (Visual only)
+            // Update Main Player UI (Slider & Time)
             const mainSlider = document.getElementById('seek-slider');
             const mainCurr = document.getElementById('curr-time');
             const mainTotal = document.getElementById('total-time');
+            
             if(mainSlider && !mainSlider.matches(':active')) {
-                mainSlider.max = d; mainSlider.value = c; mainSlider.style.backgroundSize = `${p}% 100%`;
+                mainSlider.max = d;
+                mainSlider.value = c;
+                mainSlider.style.backgroundSize = `${p}% 100%`;
             }
             if(mainCurr) mainCurr.innerText = fmtTime(c);
             if(mainTotal) mainTotal.innerText = fmtTime(d);
 
-            // Loop logic from donor file (last 3 seconds loop check)
-            if(d - c <= 3 && !ytLooped && state.isLoop){
+            // Manual Loop Logic (if needed)
+            /*
+            if(d - c <= 1 && !ytLooped && state.isLoop){
                 ytLooped = true;
                 ytPlayer.seekTo(0, true);
                 ytPlayer.playVideo();
                 setTimeout(() => ytLooped = false, 1500);
             }
+            */
         }, 200);
     }
 
-    // 4. CUSTOM VIDEO UI GESTURES
+    // Specific Video Gestures
     function setupYTOverlayGestures() {
         const controls = document.getElementById('yt-controls');
         const blockTap = document.getElementById('blockTap');
@@ -2040,4 +2136,3 @@
 </script>
 </body>
 </html>
-```

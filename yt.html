@@ -539,7 +539,10 @@
         <div class="fp-info">
             <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
             <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
-            <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
+            <div class="fp-actions">
+                <i class="fas fa-film btn-ctrl" id="fp-video-btn" onclick="toggleVideoMode()"></i>
+                <i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i>
+            </div>
         </div>
         <div class="slider-container">
             <input type="range" id="seek-slider" min="0" value="0">
@@ -1066,11 +1069,18 @@
     }
 
     async function loadAndPlay() {
-        // RESET VIDEO MODE
+        // RESET VIDEO MODE UI BUT KEEP BUTTON SYNCED
         if (state.videoMode) {
-            toggleVideoMode(); // This sets it back to audio
+            toggleVideoMode(); // This sets it back to audio and updates UI
         }
         state.videoMode = false;
+        
+        // Ensure the button shows "Film" icon (meaning switch to video)
+        const vidBtn = document.getElementById('fp-video-btn');
+        if(vidBtn) {
+            vidBtn.className = 'fas fa-film btn-ctrl';
+        }
+
         state.currentTrackYTId = null;
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
@@ -1539,6 +1549,8 @@
             const vidSwitchContainer = document.getElementById('video-switch-btn');
             vidSwitchContainer.innerHTML = '';
             if (state.currentTrackYTId) {
+                // NOTE: Button now also on main player, but keeping in menu is fine too or can remove.
+                // Keeping as fallback.
                 const icon = state.videoMode ? 'fa-music' : 'fa-film';
                 const text = state.videoMode ? 'Switch to Audio' : 'Switch to Video';
                 vidSwitchContainer.innerHTML = `<div class="fp-menu-item" onclick="toggleFpMenu(); toggleVideoMode()"><i class="fas ${icon}"></i><span>${text}</span></div>`;
@@ -1854,51 +1866,15 @@
 
     // ================= YOUTUBE INTEGRATION LOGIC =================
     
-    // 1. SMART MATCH LOGIC
+    // 1. UPDATED YOUTUBE FETCH LOGIC - USING TOP RESULT
     const ytClean = (s) => (s || "").toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
-
-    function scoreAndSortYT(candidates, userSong, userArtist) {
-        const tSong = ytClean(userSong);
-        const tArtist = ytClean(userArtist);
-        const scored = candidates.map(item => {
-            const rTitle = ytClean(item.title);
-            let score = 0;
-            if (tArtist.length > 0) {
-                if (rTitle.includes(tArtist)) score += 100;
-                else {
-                    const parts = tArtist.split(' ');
-                    let partMatch = 0;
-                    parts.forEach(p => { if (rTitle.includes(p) && p.length > 2) partMatch++; });
-                    if (partMatch > 0) score += 50;
-                }
-            } else score += 50;
-            if (score > 0 || !tArtist) {
-                if (rTitle === tSong) score += 100;
-                else if (rTitle.includes(tSong)) score += 80;
-                else {
-                    const songParts = tSong.split(' ');
-                    let songPartMatch = 0;
-                    songParts.forEach(p => { if (rTitle.includes(p) && p.length > 2) songPartMatch++; });
-                    if (songPartMatch >= songParts.length) score += 50;
-                }
-            }
-            return { ...item, score };
-        });
-        scored.sort((a, b) => b.score - a.score);
-        return scored;
-    }
 
     async function fetchYouTubeId(songName, artistName, trackId) {
         // Only fetch if not already found for this track
         if(metaCache[trackId] && metaCache[trackId].ytId) return metaCache[trackId].ytId;
         
-        // Extract top 2 artists
-        let searchArtist = "";
-        if(artistName) {
-            searchArtist = artistName.split(',').slice(0,1).join(' ');
-        }
-        
-        const query = `${songName} ${searchArtist}`;
+        // Use Song Name + Full Artist String (passed in args)
+        const query = `${songName} ${artistName || ''}`;
         const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
         const jina = `https://r.jina.ai/${yt}`;
         const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(jina)}`;
@@ -1914,7 +1890,9 @@
             }
             if (!candidates.length) return null;
 
-            const winner = scoreAndSortYT(candidates, songName, searchArtist)[0];
+            // UPDATED: Strictly use the top result (index 0) as requested
+            const winner = candidates[0];
+            
             if(winner) {
                 state.currentTrackYTId = winner.id;
                 // Cache it
@@ -1933,6 +1911,7 @@
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
+        const toggleBtn = document.getElementById('fp-video-btn');
 
         if (!state.videoMode) {
             // SWITCH TO VIDEO
@@ -1941,6 +1920,11 @@
             // UI Switch
             art.classList.remove('active');
             vidContainer.classList.add('active');
+            
+            // Update Button Icon to indicate "Switch back to Audio"
+            if(toggleBtn) {
+                toggleBtn.className = 'fas fa-music btn-ctrl active-ctrl';
+            }
             
             // Stop Audio / Canvas
             audio.pause();
@@ -1958,6 +1942,11 @@
             // UI Switch
             vidContainer.classList.remove('active');
             art.classList.add('active');
+
+            // Update Button Icon to indicate "Switch to Video"
+            if(toggleBtn) {
+                toggleBtn.className = 'fas fa-film btn-ctrl';
+            }
 
             // Sync Time back to Audio
             if(ytPlayer && ytPlayer.getCurrentTime) {
@@ -2109,5 +2098,4 @@
 
 </script>
 </body>
-</html>
-
+    </html>

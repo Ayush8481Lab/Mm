@@ -1963,87 +1963,82 @@
             doVideoSwitch(state.currentTrackYTId);
         }
     }
-function doVideoSwitch(id) {
-    const art = document.getElementById('fp-art');
-    const vidContainer = document.getElementById('yt-view-container');
-    const canvas = document.getElementById('canvas-video');
-    const miniLyrics = document.getElementById('mini-lyrics-player');
 
-    // 1. Check if we are currently in Audio Mode (switching TO Video)
-    if (!state.videoMode) {
-        state.videoMode = true;
+    function doVideoSwitch(id) {
+        const art = document.getElementById('fp-art');
+        const vidContainer = document.getElementById('yt-view-container');
+        const canvas = document.getElementById('canvas-video');
+        const miniLyrics = document.getElementById('mini-lyrics-player'); // Select lyrics element
 
-        // --- UI UPDATES FOR VIDEO MODE ---
-        
-        // Hide Album Art
-        art.classList.remove('active');
-        
-        // Show YouTube Container
-        vidContainer.classList.add('active');
+        if (!state.videoMode) {
+            // ===========================
+            // SWITCH TO VIDEO MODE
+            // ===========================
+            state.videoMode = true;
 
-        // CRITICAL FIX: Completely hide Canvas so it doesn't block video
-        canvas.style.display = 'none'; 
-        canvas.pause();
+            // 1. UI Switch: Show Video, Hide Art
+            art.classList.remove('active');
+            vidContainer.classList.add('active');
 
-        // Hide Lyrics
-        miniLyrics.style.display = 'none';
+            // 2. DISABLE CANVAS (Pause & Hide completely)
+            canvas.pause();
+            canvas.style.display = 'none'; 
 
-        // Pause Main Audio
-        audio.pause();
+            // 3. DISABLE LYRICS (Hide completely)
+            miniLyrics.style.display = 'none';
 
-        // Initialize/Load YouTube Player
-        if (ytPlayer && ytPlayer.loadVideoById) {
-            ytPlayer.loadVideoById({videoId: id, startSeconds: audio.currentTime});
+            // 4. Handle Audio (Pause Main Audio)
+            audio.pause();
+
+            // 5. Start YouTube Player
+            if(ytPlayer && ytPlayer.loadVideoById) {
+                ytPlayer.loadVideoById({videoId: id, startSeconds: audio.currentTime});
+            } else {
+                ytPlayer = new YT.Player("player", {
+                    videoId: id,
+                    playerVars: { 
+                        autoplay: 1, controls: 0, playsinline: 1, rel: 0, 
+                        modestbranding: 1, iv_load_policy: 3,
+                        start: Math.floor(audio.currentTime), disablekb: 1, fs: 0
+                    },
+                    events: { onReady: startYTTracker, onStateChange: onYTStateChange }
+                });
+            }
+            showToast("Switched to Video");
+
         } else {
-            ytPlayer = new YT.Player("yt-player", { // Ensure ID matches your HTML ID "yt-player" or "player"
-                videoId: id,
-                playerVars: { 
-                    autoplay: 1, controls: 0, playsinline: 1, rel: 0, 
-                    modestbranding: 1, iv_load_policy: 3,
-                    start: Math.floor(audio.currentTime), disablekb: 1, fs: 0
-                },
-                events: { onReady: startYTTracker, onStateChange: onYTStateChange }
-            });
+            // ===========================
+            // SWITCH BACK TO AUDIO MODE
+            // ===========================
+            state.videoMode = false;
+
+            // 1. UI Switch: Hide Video, Show Art
+            vidContainer.classList.remove('active');
+            art.classList.add('active');
+
+            // 2. Sync Time (Video -> Audio)
+            if(ytPlayer && ytPlayer.getCurrentTime) {
+                audio.currentTime = ytPlayer.getCurrentTime();
+                ytPlayer.pauseVideo();
+            }
+
+            // 3. Resume Main Audio
+            audio.play();
+
+            // 4. RESTORE CANVAS (Check User Settings)
+            if (state.showCanvas) {
+                canvas.style.display = 'block'; // Bring element back
+                canvas.style.opacity = '1';     // Ensure visible
+                canvas.play().catch(e => {});   // Resume playing
+            }
+
+            // 5. RESTORE LYRICS (Check User Settings & Data)
+            if (state.showLyrics && state.lyricsData) {
+                miniLyrics.style.display = 'block'; // Bring element back
+            }
+
+            showToast("Switched to Audio");
         }
-        showToast("Switched to Video");
-
-    } else {
-        // 2. Check if we are currently in Video Mode (switching BACK TO Audio)
-        state.videoMode = false;
-
-        // --- UI UPDATES FOR AUDIO MODE ---
-
-        // Hide YouTube Container
-        vidContainer.classList.remove('active');
-        
-        // Show Album Art
-        art.classList.add('active');
-
-        // Pause YouTube & Sync Time
-        if (ytPlayer && ytPlayer.getCurrentTime) {
-            audio.currentTime = ytPlayer.getCurrentTime();
-            ytPlayer.pauseVideo();
-        }
-
-        // Resume Main Audio
-        audio.play();
-
-        // --- RESTORE SETTINGS ---
-
-        // Restore Canvas ONLY if it was enabled in settings
-        if (state.showCanvas) {
-            canvas.style.display = 'block'; // Bring it back into layout
-            canvas.style.opacity = '1';     // Make it visible
-            canvas.play().catch(e => console.log(e));
-        }
-
-        // Restore Lyrics ONLY if enabled and data exists
-        if (state.showLyrics && state.lyricsData) {
-            miniLyrics.style.display = 'block';
-        }
-
-        showToast("Switched to Audio");
-    }
     }
 
     function startYTTracker(event) {
@@ -2108,4 +2103,3 @@ function doVideoSwitch(id) {
 </script>
 </body>
 </html>
-

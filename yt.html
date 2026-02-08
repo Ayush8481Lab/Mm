@@ -1899,11 +1899,11 @@
         const qArtist = clean(artistName);
         const query = `${qSong} ${qArtist}`;
         
-        // Keywords logic from new implementation (must have >= 2 keyword matches)
-        const keywords = query.split(/\s+/).filter(w => w.length > 2);
+        // Keywords logic from new implementation (must have >= 1 keyword matches)
+        const keywords = query.split(/\s+/).filter(w => w.length > 1);
 
         let attempts = 0;
-        const MAX_RETRIES = 5;
+        const MAX_RETRIES = 3;
 
         while(attempts < MAX_RETRIES) {
             try {
@@ -1928,7 +1928,7 @@
                     for(let cand of candidates) {
                         let count = 0;
                         keywords.forEach(k => { if (cand.title.includes(k)) count++; });
-                        if(count >= 2) {
+                        if(count >= 1) {
                             bestId = cand.id;
                             break; // Found acceptable match
                         }
@@ -2077,3 +2077,4 @@
 </script>
 </body>
 </html>
+

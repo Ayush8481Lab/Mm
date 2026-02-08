@@ -1889,70 +1889,54 @@
     }
 
     async function fetchYouTubeId(songName, artistName, trackId) {
-        // Only fetch if not already found for this track
-        if(metaCache[trackId] && metaCache[trackId].ytId) return metaCache[trackId].ytId;
-        
-        // Extract top 2 artists
-        let searchArtist = "";
-        if(artistName) {
-            searchArtist = artistName.split(',').slice(0,3).join(' ');
+    // Only fetch if not already found for this track
+    if (metaCache[trackId] && metaCache[trackId].ytId) {
+        return metaCache[trackId].ytId;
+    }
+
+    // Extract top artists (unchanged)
+    let searchArtist = "";
+    if (artistName) {
+        searchArtist = artistName.split(',').slice(0, 3).join(' ');
+    }
+
+    const query = `${songName} ${searchArtist}`;
+    const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+    const jina = `https://r.jina.ai/${yt}`;
+    const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(jina)}`;
+
+    try {
+        const res = await fetch(proxy);
+        const text = await res.text();
+
+        const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/g;
+        const candidates = [];
+        let m;
+
+        while ((m = regex.exec(text)) !== null) {
+            candidates.push({ title: m[1], url: m[2], id: m[3] });
         }
-        
-        const query = `${songName} ${searchArtist}`;
-        const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-        const jina = `https://r.jina.ai/${yt}`;
-        const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(jina)}`;
 
-        try {
-            const res = await fetch(proxy);
-            const text = await res.text();
-            const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/g;
-            const candidates = [];
-            let m;
-            while((m = regex.exec(text)) !== null) {
-                candidates.push({ title: m[1], url: m[2], id: m[3] });
-            }
-            if (!candidates.length) return null;
+        if (!candidates.length) return null;
 
-            // ---- SIMPLE TOP RESULT WITH 2-KEYWORD MATCH ----
-const keywords = (songName + " " + searchArtist)
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(w => w.length > 2);
+        // ✅ ONLY TOP RESULT (NO MATCHING LOGIC)
+        const top = candidates[0];
 
-let firstId = null;
-let pickedId = null;
+        state.currentTrackYTId = top.id;
 
-for (const c of candidates) {
-    const title = c.title.toLowerCase();
-    if (!firstId) firstId = c.id;
+        let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
+        cacheEntry.ytId = top.id;
+        metaCache[trackId] = cacheEntry;
+        IdbHelper.set('vibeMetaCache', metaCache);
 
-    let count = 0;
-    for (const k of keywords) {
-        if (title.includes(k)) count++;
+        return top.id;
+
+    } catch (e) {
+        console.log("YT Fetch error", e);
     }
 
-    if (count >= 2) {
-        pickedId = c.id;
-        break;
-    }
+    return null;
 }
-
-// fallback
-const finalId = pickedId || firstId;
-            if(finalId) {
-    state.currentTrackYTId = finalId;
-
-    let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
-    cacheEntry.ytId = finalId;
-    metaCache[trackId] = cacheEntry;
-    IdbHelper.set('vibeMetaCache', metaCache);
-
-    return finalId;
-}
-        } catch(e) { console.log("YT Fetch error", e); }
-        return null;
-    }
 
     // 2. VIDEO PLAYER CONTROLS
     function toggleVideoMode() {

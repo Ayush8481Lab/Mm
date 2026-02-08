@@ -1920,7 +1920,7 @@ async function fetchYouTubeId(songName, artistName, trackId) {
     // Extract top artists (unchanged)
     let searchArtist = "";
     if (artistName) {
-        searchArtist = artistName.split(',').slice(0, 3).join(' ');
+        searchArtist = artistName.split(',').slice(0, 0).join(' ');
     }
 
     const query = `${songName} ${searchArtist}`;
@@ -2143,3 +2143,4 @@ async function fetchYouTubeId(songName, artistName, trackId) {
 </script>
 </body>
 </html>
+

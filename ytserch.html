@@ -1370,14 +1370,23 @@
             if(state.qIndex > 0) state.qIndex--; else state.qIndex = state.queue.length - 1; loadAndPlay(); 
         } 
     }
-    function togglePlay() { 
-        if (state.videoMode && ytPlayer && ytPlayer.getPlayerState) {
-            const s = ytPlayer.getPlayerState();
-            if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
-            else ytPlayer.playVideo();
-        } else {
-            if(audio.paused) audio.play(); else audio.pause(); 
+function togglePlay() { 
+        // 1. Strict Video Mode Check
+        if (state.videoMode) {
+            if (ytPlayer && ytPlayer.getPlayerState) {
+                const s = ytPlayer.getPlayerState();
+                // Toggle video play/pause
+                if (s === YT.PlayerState.PLAYING || s === YT.PlayerState.BUFFERING) {
+                    ytPlayer.pauseVideo();
+                } else {
+                    ytPlayer.playVideo();
+                }
+            }
+            return; // CRITICAL: Stop here! Don't let Audio run below.
         }
+
+        // 2. Audio Mode Logic
+        if(audio.paused) audio.play(); else audio.pause(); 
     }
     
     function toggleShuffle() { state.isShuffle = !state.isShuffle; if(state.isShuffle) state.isLoop = false; document.getElementById('btn-shuffle').classList.toggle('active-ctrl', state.isShuffle); document.getElementById('btn-loop').classList.toggle('active-ctrl', state.isLoop); }
@@ -2069,6 +2078,7 @@
 
             // Load YouTube Video
             ytPlayer = new YT.Player("player", {
+            	host: 'https://www.youtube-nocookie.com', 
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, 
@@ -2181,8 +2191,15 @@
     }
 
     function onYTStateChange(event) {
-        if(event.data === YT.PlayerState.PLAYING) { state.isPlaying = true; updateIcons(); }
-        else if (event.data === YT.PlayerState.PAUSED) { state.isPlaying = false; updateIcons(); }
+        if(event.data === YT.PlayerState.PLAYING) { 
+            audio.pause(); // CRITICAL: Force audio to stop if video plays
+            state.isPlaying = true; 
+            updateIcons(); 
+        }
+        else if (event.data === YT.PlayerState.PAUSED) { 
+            state.isPlaying = false; 
+            updateIcons(); 
+        }
         else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
                 if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }

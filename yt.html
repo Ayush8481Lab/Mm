@@ -1893,18 +1893,15 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
             return metaCache[trackId].ytId;
         }
 
-        // Clean logic: only words and spaces
+        // Clean logic
         const clean = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
         const qSong = clean(songName);
         const qArtist = clean(artistName);
-        const qLabel = clean(label); // Clean the label
+        const qLabel = clean(label); 
         
-        // UPDATE: Include label in query
+        // Construct Query with Label
         const query = `${qSong} ${qArtist} ${qLabel}`.trim();
         
-        // Keywords logic (must have >= 1 keyword matches)
-        const keywords = query.split(/\s+/).filter(w => w.length > 1);
-
         let attempts = 0;
         const MAX_RETRIES = 5;
 
@@ -1917,25 +1914,13 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
                 if(!res.ok) throw new Error("Proxy error");
                 const text = await res.text();
 
-                const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/g;
-                let match, candidates = [];
+                // Regex to find the first video link
+                const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
+                const match = regex.exec(text);
 
-                while ((match = regex.exec(text)) !== null) {
-                    candidates.push({ title: match[1].toLowerCase(), id: match[3] });
-                }
-
-                if (candidates.length > 0) {
-                    let bestId = candidates[0].id; // Default to first
-
-                    // Try to find a better match based on keywords
-                    for(let cand of candidates) {
-                        let count = 0;
-                        keywords.forEach(k => { if (cand.title.includes(k)) count++; });
-                        if(count >= 1) {
-                            bestId = cand.id;
-                            break; 
-                        }
-                    }
+                // DIRECTLY USE TOP 1ST RESULT
+                if (match && match[3]) {
+                    let bestId = match[3]; 
 
                     // Save to cache
                     let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
@@ -1953,7 +1938,7 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
             if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
         }
 
-        return null;
+        return null; 
     }
     function toggleVideoMode() {
         if (!state.currentTrackYTId) {

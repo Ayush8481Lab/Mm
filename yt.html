@@ -1,4 +1,5 @@
 
+<!-- START OF FILE yt.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -332,16 +333,17 @@
 
         /* YOUTUBE PLAYER STYLES (IMPORTED & ADAPTED) */
         #yt-view-container { 
-            position: absolute; width: 100%; height: 100%; 
-            background: #000; overflow: hidden; border-radius: 12px; z-index: 10; display: none; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: black; overflow: hidden; border-radius: 12px; z-index: 20; display: none; 
+            /* Ensure it sits over the art but under other overlays if needed */
         }
         #yt-view-container.active { display: block; }
         .video-cover { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 100%; height: 177.77%; pointer-events: none; }
         #wrap, #player, iframe { width: 100%; height: 100%; pointer-events: none; }
-        .shield { position: absolute; inset: 0; z-index: 15; }
+        .shield { position: absolute; inset: 0; z-index: 25; }
         .center-unlock { position: absolute; top: 50%; left: 50%; width: 90px; height: 90px; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: auto; }
         .block-area { position: absolute; inset: 0; pointer-events: auto; }
-        .yt-controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: linear-gradient(to top,#000c,transparent); z-index: 20; transition: opacity .25s; pointer-events: none; }
+        .yt-controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: linear-gradient(to top,#000c,transparent); z-index: 30; transition: opacity .25s; pointer-events: none; }
         .yt-controls.show { opacity: 1; pointer-events: auto; }
         .yt-controls.hide { opacity: 0; pointer-events: none; }
         .bar-row { display: flex; align-items: center; gap: 10px; }
@@ -639,7 +641,7 @@
 
     const state = { 
         lang: 'hindi', quality: '320kbps', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
-        videoMode: false, currentTrackYTId: null 
+        videoMode: false, currentTrackYTId: null, videoSwitching: false 
     };
     const languages = ["Hindi", "English", "Punjabi", "Tamil", "Telugu", "Marathi", "Gujarati", "Bengali", "Kannada", "Bhojpuri", "Malayalam", "Haryanvi", "Rajasthani", "Odia", "Assamese"];
     const PROXY_LIST = ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url=", "https://thingproxy.freeboard.io/fetch/"];
@@ -822,6 +824,13 @@
         bar.addEventListener('pointerdown', e => { ytDragging = true; showYTControls(); ytSeek(e.clientX); });
         bar.addEventListener('pointermove', e => { if(ytDragging) ytSeek(e.clientX); });
         window.addEventListener('pointerup', () => { ytDragging = false; });
+        
+        // Auto Switch to Audio on Minimize/Home
+        document.addEventListener('visibilitychange', () => {
+             if (document.hidden && state.videoMode) {
+                 toggleVideoMode();
+             }
+        });
     });
 
     async function requestWakeLock() { try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); } } catch (err) { console.log(err); } }
@@ -883,14 +892,23 @@
     window.addEventListener('popstate', (e) => {
         const fullPlayer = document.getElementById('full-player'), albumView = document.getElementById('album-view'), lyrics = document.getElementById('full-lyrics-view'), artistView = document.getElementById('artist-view');
         if (lyrics.classList.contains('active')) { lyrics.classList.remove('active'); releaseWakeLock(); return; }
-        if (fullPlayer.classList.contains('active')) { fullPlayer.classList.remove('active', 'canvas-immersive'); return; }
+        if (fullPlayer.classList.contains('active')) { 
+             // Switch to audio if closing full player while in video mode
+             if (state.videoMode) toggleVideoMode();
+             fullPlayer.classList.remove('active', 'canvas-immersive'); 
+             return; 
+        }
         if (albumView.classList.contains('active')) { albumView.classList.remove('active'); return; }
         if (artistView.classList.contains('active')) { artistView.classList.remove('active'); return; }
     });
 
     function goBack() { 
         if (document.getElementById('full-lyrics-view').classList.contains('active')) closeFullLyrics();
-        else if (document.getElementById('full-player').classList.contains('active')) { history.back(); }
+        else if (document.getElementById('full-player').classList.contains('active')) { 
+            // Switch to audio if closing full player
+            if (state.videoMode) toggleVideoMode();
+            history.back(); 
+        }
         else if (document.getElementById('album-view').classList.contains('active')) { history.back(); }
         else if (document.getElementById('artist-view').classList.contains('active')) { history.back(); }
         else history.back(); 
@@ -1102,14 +1120,17 @@
     }
 
     async function loadAndPlay() {
-        // RESET VIDEO MODE
-        if (state.videoMode) {
-            toggleVideoMode(); // This sets it back to audio
-        }
+        // RESET VIDEO MODE STATES STRICTLY
         state.videoMode = false;
         state.currentTrackYTId = null;
+        state.videoSwitching = false; // Reset switching flag
+
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
+        // Ensure UI elements are visible (gradient)
+        document.getElementById('fp-bg-gradient').style.opacity = '1';
+        document.getElementById('fp-img-area').style.opacity = '1';
+        document.getElementById('full-player').classList.remove('canvas-immersive');
 
         state.metaFetchId++; const currentFetchId = state.metaFetchId;
         const track = state.queue[state.qIndex]; if(!track) return;
@@ -1144,8 +1165,6 @@
         updateUI(track);
 
         const vid = document.getElementById('canvas-video'); vid.style.opacity = '0'; vid.src = "";
-        document.getElementById('fp-bg-gradient').style.opacity = '1'; document.getElementById('fp-img-area').style.opacity = '1';
-        document.getElementById('full-player').classList.remove('canvas-immersive');
 
         state.lyricsData = null; state.activeLyricIndex = -1;
         document.getElementById('mini-lyrics-player').style.display = 'none'; document.getElementById('mini-lyric-text').innerText = "Loading lyrics...";
@@ -1156,14 +1175,16 @@
         if (cachedMeta) {
             if (cachedMeta.canvasUrl && state.showCanvas) vid.src = cachedMeta.canvasUrl;
             if (cachedMeta.lyricsData) { state.lyricsData = cachedMeta.lyricsData; if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } }
-            if (cachedMeta.ytId) state.currentTrackYTId = cachedMeta.ytId;
         } else { 
             fetchMeta(track.title, track.artist, track.id, currentFetchId); 
-fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
+            // Also fetch YT ID in background
+            fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
         }
-if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
-     fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
-}
+        
+        // If not cached, fetch YT ID now
+        if(!cachedMeta || !cachedMeta.ytId) {
+             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
+        }
     }
 
     async function fetchMeta(title, artist, trackId, fetchId) {
@@ -1203,7 +1224,7 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
             results.forEach((res, index) => { if(res.status === 'fulfilled' && res.value) { if(resultKeys[index] === 'canvas') newCacheEntry.canvasUrl = res.value; if(resultKeys[index] === 'lyrics') newCacheEntry.lyricsData = res.value; hasData = true; } });
             if (hasData) { 
                 metaCache[trackId] = newCacheEntry; IdbHelper.set('vibeMetaCache', metaCache); 
-                 if (state.currentTrackId === trackId) {
+                 if (state.currentTrackId === trackId && !state.videoMode) {
                      if(newCacheEntry.canvasUrl && state.showCanvas) document.getElementById('canvas-video').src = newCacheEntry.canvasUrl;
                      if(newCacheEntry.lyricsData) {
                          state.lyricsData = newCacheEntry.lyricsData;
@@ -1928,7 +1949,10 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
                     metaCache[trackId] = cacheEntry;
                     IdbHelper.set('vibeMetaCache', metaCache);
                     
-                    state.currentTrackYTId = bestId;
+                    // Only update currentTrackYTId if this fetch corresponds to the current track
+                    if (state.currentTrackId === trackId) {
+                        state.currentTrackYTId = bestId;
+                    }
                     return bestId;
                 }
             } catch (e) {
@@ -1940,12 +1964,21 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
 
         return null; 
     }
+    
     function toggleVideoMode() {
+        if(state.videoSwitching) return; // Prevent spam clicking
+        state.videoSwitching = true;
+
         if (!state.currentTrackYTId) {
-    const t = state.queue[state.qIndex];
-    fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
-                 if(id) doVideoSwitch(id);
-                 else showToast("Video not found");
+            const t = state.queue[state.qIndex];
+            showToast("Searching Video...");
+            fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
+                 if(id) {
+                     doVideoSwitch(id);
+                 } else {
+                     showToast("Video not found");
+                     state.videoSwitching = false;
+                 }
             });
         } else {
             doVideoSwitch(state.currentTrackYTId);
@@ -1956,12 +1989,19 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
+        const gradient = document.getElementById('fp-bg-gradient');
+
+        // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas, but KEEP Gradient
+        document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
             // SWITCH TO VIDEO
             state.videoMode = true;
             art.classList.remove('active');
             vidContainer.classList.add('active');
+            
+            // Explicitly ensure gradient remains visible
+            gradient.style.opacity = '1';
             
             audio.pause();
             canvas.pause(); canvas.style.opacity = '0';
@@ -1994,13 +2034,23 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
             art.classList.add('active');
 
             if(ytPlayer && ytPlayer.getCurrentTime) {
-                audio.currentTime = ytPlayer.getCurrentTime();
+                let yTime = ytPlayer.getCurrentTime();
+                // Fix Sync Issue: Ensure time doesn't exceed Audio Duration
+                if (audio.duration && yTime >= audio.duration) {
+                    yTime = 0; // Reset to start if video was longer
+                }
+                audio.currentTime = yTime;
                 ytPlayer.pauseVideo();
             }
             audio.play();
+            
+            // Restore UI Elements based on settings
             if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
+            if(state.showLyrics && state.lyricsData) document.getElementById('mini-lyrics-player').style.display = 'block';
+
             showToast("Switched to Audio");
         }
+        state.videoSwitching = false;
     }
 
 
@@ -2021,17 +2071,23 @@ if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
             if(dot) dot.style.left = p + "%";
             if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
 
-            // Update Main Slider (Sync)
+            // Update Main Slider (Sync with AUDIO Duration for scrubber consistency)
             const mainSlider = document.getElementById('seek-slider');
             const mainCurr = document.getElementById('curr-time');
             const mainTotal = document.getElementById('total-time');
             
+            // Use Audio Duration for the main slider context to prevent visual bugs when switching back
+            // But show video time
+            let audioDur = audio.duration || d;
+            let audioPct = (c / audioDur) * 100; 
+            
             if(mainSlider && !mainSlider.matches(':active')) {
-                mainSlider.max = d; mainSlider.value = c; mainSlider.style.backgroundSize = `${p}% 100%`;
+                mainSlider.max = audioDur; 
+                mainSlider.value = c; 
+                mainSlider.style.backgroundSize = `${audioPct}% 100%`;
             }
             if(mainCurr) mainCurr.innerText = fmtTime(c);
-            if(mainTotal) mainTotal.innerText = fmtTime(d);
-
+            
             // Manual Loop Logic (Match new implementation)
             if(d - c <= 3 && !ytLooped) {
                 if(state.isLoop) {

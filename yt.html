@@ -1990,28 +1990,40 @@
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
         const gradient = document.getElementById('fp-bg-gradient');
-        const fullPlayer = document.getElementById('full-player'); // Added reference
+        const fullPlayer = document.getElementById('full-player');
+        const fpImgArea = document.getElementById('fp-img-area');
+        
+        // Audio Player Elements for Resetting Duration
+        const mainSlider = document.getElementById('seek-slider');
+        const mainTotal = document.getElementById('total-time');
 
-        // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas, but KEEP Gradient
+        // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
-            // SWITCH TO VIDEO
+            // ===========================
+            // SWITCHING TO VIDEO MODE
+            // ===========================
             state.videoMode = true;
             
-            // FIX BUG 1: Remove immersive mode so the video container is visible
-            fullPlayer.classList.remove('canvas-immersive'); 
+            // FIX 1: Force Container Visibility (Overriding Immersive Mode)
+            fullPlayer.classList.remove('canvas-immersive');
+            fpImgArea.style.opacity = '1';
+            fpImgArea.style.pointerEvents = 'auto'; // Ensure clicks work
             
+            // Swap Art for Video
             art.classList.remove('active');
             vidContainer.classList.add('active');
             
-            // Explicitly ensure gradient remains visible
+            // Ensure Gradient stays visible (preserve UI)
             gradient.style.opacity = '1';
             
+            // Stop Audio & Canvas
             audio.pause();
-            canvas.pause(); canvas.style.opacity = '0';
+            canvas.pause(); 
+            canvas.style.opacity = '0';
             
-            // Sync logic
+            // Load YouTube Video
             if(ytPlayer && ytPlayer.loadVideoById) {
                 ytPlayer.loadVideoById({videoId: id, startSeconds: audio.currentTime});
             } else {
@@ -2032,26 +2044,44 @@
                 });
             }
             showToast("Switched to Video");
+
         } else {
-            // SWITCH TO AUDIO
+            // ===========================
+            // SWITCHING BACK TO AUDIO
+            // ===========================
             state.videoMode = false;
+            
+            // Swap Video for Art
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
+            // FIX 2: Manually Reset Duration UI to Audio values immediately
+            if(audio.duration) {
+                if(mainTotal) mainTotal.innerText = fmtTime(audio.duration);
+                if(mainSlider) mainSlider.max = audio.duration;
+            }
+
+            // Sync Time (Audio takes priority, reset if Video was longer)
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
-                // Fix Sync Issue: Ensure time doesn't exceed Audio Duration
                 if (audio.duration && yTime >= audio.duration) {
-                    yTime = 0; // Reset to start if video was longer
+                    yTime = 0; 
                 }
                 audio.currentTime = yTime;
                 ytPlayer.pauseVideo();
             }
+            
+            // Resume Audio
             audio.play();
             
-            // Restore UI Elements based on settings
-            if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
-            if(state.showLyrics && state.lyricsData) document.getElementById('mini-lyrics-player').style.display = 'block';
+            // Restore Canvas if enabled (Logic handled by handleCanvasPlay, but we ensure opacity)
+            if(state.showCanvas) { 
+                canvas.style.opacity = '1'; 
+                canvas.play().catch(e=>{}); 
+            }
+            if(state.showLyrics && state.lyricsData) {
+                document.getElementById('mini-lyrics-player').style.display = 'block';
+            }
 
             showToast("Switched to Audio");
         }

@@ -1990,6 +1990,7 @@
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
         const gradient = document.getElementById('fp-bg-gradient');
+        const fullPlayer = document.getElementById('full-player'); // Added reference
 
         // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas, but KEEP Gradient
         document.getElementById('mini-lyrics-player').style.display = 'none';
@@ -1997,6 +1998,10 @@
         if (!state.videoMode) {
             // SWITCH TO VIDEO
             state.videoMode = true;
+            
+            // FIX BUG 1: Remove immersive mode so the video container is visible
+            fullPlayer.classList.remove('canvas-immersive'); 
+            
             art.classList.remove('active');
             vidContainer.classList.add('active');
             
@@ -2007,7 +2012,7 @@
             canvas.pause(); canvas.style.opacity = '0';
             
             // Sync logic
-            if(ytPlayer) {
+            if(ytPlayer && ytPlayer.loadVideoById) {
                 ytPlayer.loadVideoById({videoId: id, startSeconds: audio.currentTime});
             } else {
                 ytPlayer = new YT.Player("player", {
@@ -2053,7 +2058,6 @@
         state.videoSwitching = false;
     }
 
-
     function startYTTracker(event) {
         event.target.playVideo();
         setInterval(() => {
@@ -2062,7 +2066,7 @@
             let d = ytPlayer.getDuration();
             if(!d) return;
 
-            // Update Custom Controls
+            // Update Custom YT Controls (Inside the video view)
             let p = c / d * 100;
             const fill = document.getElementById('yt-fill');
             const dot = document.getElementById('yt-dot');
@@ -2071,33 +2075,26 @@
             if(dot) dot.style.left = p + "%";
             if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
 
-            // Update Main Slider (Sync with AUDIO Duration for scrubber consistency)
+            // Update Main Player Slider & Time Text (FIX BUG 2)
             const mainSlider = document.getElementById('seek-slider');
             const mainCurr = document.getElementById('curr-time');
             const mainTotal = document.getElementById('total-time');
             
-            // Use Audio Duration for the main slider context to prevent visual bugs when switching back
-            // But show video time
-            let audioDur = audio.duration || d;
-            let audioPct = (c / audioDur) * 100; 
-            
             if(mainSlider && !mainSlider.matches(':active')) {
-                mainSlider.max = audioDur; 
+                mainSlider.max = d; // Set max to VIDEO duration
                 mainSlider.value = c; 
-                mainSlider.style.backgroundSize = `${audioPct}% 100%`;
+                mainSlider.style.backgroundSize = `${p}% 100%`;
             }
             if(mainCurr) mainCurr.innerText = fmtTime(c);
+            if(mainTotal) mainTotal.innerText = fmtTime(d); // Show VIDEO duration text
             
-            // Manual Loop Logic (Match new implementation)
+            // Manual Loop Logic
             if(d - c <= 3 && !ytLooped) {
                 if(state.isLoop) {
                     ytLooped = true;
                     ytPlayer.seekTo(0, true);
                     ytPlayer.playVideo();
                     setTimeout(() => ytLooped = false, 1500);
-                } else if (!state.isShuffle) {
-                     // Auto play next handled by state change usually, but if custom controls active:
-                     // Let ended event handle it
                 }
             }
         }, 200);

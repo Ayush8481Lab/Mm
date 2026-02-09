@@ -861,7 +861,7 @@
             }
             // Check cache for YouTube ID
             if(cachedMeta && cachedMeta.ytId) { state.currentTrackYTId = cachedMeta.ytId; }
-            else { fetchYouTubeId(track.title, track.artist, track.id); }
+            else { fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label); }
         }
     }
 
@@ -1159,11 +1159,11 @@
             if (cachedMeta.ytId) state.currentTrackYTId = cachedMeta.ytId;
         } else { 
             fetchMeta(track.title, track.artist, track.id, currentFetchId); 
-            fetchYouTubeId(track.title, track.artist, track.id);
+fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
         }
-        if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
-             fetchYouTubeId(track.title, track.artist, track.id);
-        }
+if(!state.currentTrackYTId && cachedMeta && !cachedMeta.ytId) {
+     fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
+}
     }
 
     async function fetchMeta(title, artist, trackId, fetchId) {
@@ -1887,19 +1887,22 @@
 
     // ================= NEW YOUTUBE LOGIC =================
 
-    async function fetchYouTubeId(songName, artistName, trackId) {
+    async function fetchYouTubeId(songName, artistName, trackId, label) {
         // Use cached YouTube ID if available
         if (metaCache[trackId] && metaCache[trackId].ytId) {
             return metaCache[trackId].ytId;
         }
 
-        // Clean logic: only words and spaces (NO SYMBOLS/COMMAS)
+        // Clean logic: only words and spaces
         const clean = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
         const qSong = clean(songName);
         const qArtist = clean(artistName);
-        const query = `${qSong} ${qArtist}`;
+        const qLabel = clean(label); // Clean the label
         
-        // Keywords logic from new implementation (must have >= 1 keyword matches)
+        // UPDATE: Include label in query
+        const query = `${qSong} ${qArtist} ${qLabel}`.trim();
+        
+        // Keywords logic (must have >= 1 keyword matches)
         const keywords = query.split(/\s+/).filter(w => w.length > 1);
 
         let attempts = 0;
@@ -1930,7 +1933,7 @@
                         keywords.forEach(k => { if (cand.title.includes(k)) count++; });
                         if(count >= 1) {
                             bestId = cand.id;
-                            break; // Found acceptable match
+                            break; 
                         }
                     }
 
@@ -1947,15 +1950,15 @@
                 console.log(`YT Attempt ${attempts+1} failed`, e);
             }
             attempts++;
-            if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000)); // Wait 1s
+            if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
         }
 
-        return null; // Failed after retries
+        return null;
     }
-
     function toggleVideoMode() {
         if (!state.currentTrackYTId) {
-            fetchYouTubeId(state.queue[state.qIndex].title, state.queue[state.qIndex].artist, state.queue[state.qIndex].id).then(id => {
+    const t = state.queue[state.qIndex];
+    fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
                  if(id) doVideoSwitch(id);
                  else showToast("Video not found");
             });

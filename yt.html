@@ -419,13 +419,24 @@
             <div class="setting-group">
                 <label class="setting-label">Music Language</label>
                 <div class="chip-grid" id="lang-grid"></div>
-                <label class="setting-label">Streaming Quality</label>
+                
+                <label class="setting-label">Audio Streaming Quality</label>
                 <div class="quality-row" id="quality-row">
                     <div class="quality-btn" onclick="updateQuality('320kbps')">320k</div>
                     <div class="quality-btn" onclick="updateQuality('160kbps')">160k</div>
                     <div class="quality-btn" onclick="updateQuality('96kbps')">96k</div>
                     <div class="quality-btn" onclick="updateQuality('48kbps')">48k</div>
                 </div>
+
+                <label class="setting-label">Video Streaming Quality</label>
+                <div class="quality-row" id="video-quality-row">
+                    <div class="quality-btn" onclick="updateVideoQuality('hd1080')">1080p</div>
+                    <div class="quality-btn" onclick="updateVideoQuality('hd720')">720p</div>
+                    <div class="quality-btn" onclick="updateVideoQuality('large')">480p</div>
+                    <div class="quality-btn" onclick="updateVideoQuality('medium')">360p</div>
+                    <div class="quality-btn" onclick="updateVideoQuality('default')">Auto</div>
+                </div>
+
                 <label class="setting-label">Preferences</label>
                 <div class="toggle-row">
                     <span class="toggle-text">Show Canvas (Video)</span>
@@ -640,7 +651,7 @@
     const BASE_API = "https://ayushm-psi.vercel.app/api";
 
     const state = { 
-        lang: 'hindi', quality: '320kbps', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
+        lang: 'hindi', quality: '320kbps', videoQuality: 'medium', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
         videoMode: false, currentTrackYTId: null, videoSwitching: false 
     };
     const languages = ["Hindi", "English", "Punjabi", "Tamil", "Telugu", "Marathi", "Gujarati", "Bengali", "Kannada", "Bhojpuri", "Malayalam", "Haryanvi", "Rajasthani", "Odia", "Assamese"];
@@ -709,6 +720,7 @@
         await IdbHelper.init();
         state.lang = localStorage.getItem('vibeLang') || 'hindi';
         state.quality = localStorage.getItem('vibeQuality') || '320kbps';
+        state.videoQuality = localStorage.getItem('vibeVideoQuality') || 'medium'; // Default to 360p
         state.showCanvas = localStorage.getItem('vibeCanvas') !== 'false';
         state.showLyrics = localStorage.getItem('vibeLyrics') !== 'false';
         
@@ -877,7 +889,13 @@
     function renderSettingsUI() {
         const langGrid = document.getElementById('lang-grid'); langGrid.innerHTML = '';
         languages.forEach(l => { const btn = document.createElement('div'); btn.className = `chip-btn ${state.lang === l.toLowerCase() ? 'active' : ''}`; btn.innerText = l; btn.onclick = () => updateLang(l.toLowerCase()); langGrid.appendChild(btn); });
-        document.querySelectorAll('.quality-btn').forEach(btn => { if(btn.getAttribute('onclick').includes(state.quality)) btn.classList.add('active'); else btn.classList.remove('active'); });
+        
+        // Update Audio Quality Buttons
+        document.querySelectorAll('#quality-row .quality-btn').forEach(btn => { if(btn.getAttribute('onclick').includes(state.quality)) btn.classList.add('active'); else btn.classList.remove('active'); });
+        
+        // Update Video Quality Buttons
+        document.querySelectorAll('#video-quality-row .quality-btn').forEach(btn => { if(btn.getAttribute('onclick').includes(state.videoQuality)) btn.classList.add('active'); else btn.classList.remove('active'); });
+
         document.getElementById('toggle-canvas').checked = state.showCanvas; document.getElementById('toggle-lyrics').checked = state.showLyrics;
     }
 
@@ -887,7 +905,21 @@
     }
 
     function updateLang(l) { state.lang = l; localStorage.setItem('vibeLang', l); document.getElementById('header-lang').innerText = l; IdbHelper.delete(`vibe_home_cache_${state.lang}`); renderSettingsUI(); loadHome(); }
-    function updateQuality(q) { state.quality = q; localStorage.setItem('vibeQuality', q); renderSettingsUI(); showToast(`Streaming Quality: ${q}`); }
+    function updateQuality(q) { state.quality = q; localStorage.setItem('vibeQuality', q); renderSettingsUI(); showToast(`Audio Quality: ${q}`); }
+    
+    function updateVideoQuality(q) {
+        state.videoQuality = q;
+        localStorage.setItem('vibeVideoQuality', q);
+        renderSettingsUI();
+        let displayTxt = "Auto";
+        if (q === 'hd1080') displayTxt = "Up to 1080p";
+        else if (q === 'hd720') displayTxt = "Up to 720p";
+        else if (q === 'large') displayTxt = "Up to 480p";
+        else if (q === 'medium') displayTxt = "Up to 360p";
+        showToast(`Video limit: ${displayTxt}`);
+        
+        if(ytPlayer && ytPlayer.setPlaybackQuality) ytPlayer.setPlaybackQuality(q);
+    }
 
     window.addEventListener('popstate', (e) => {
         const fullPlayer = document.getElementById('full-player'), albumView = document.getElementById('album-view'), lyrics = document.getElementById('full-lyrics-view'), artistView = document.getElementById('artist-view');
@@ -1120,6 +1152,12 @@
     }
 
     async function loadAndPlay() {
+        // CLEANUP VIDEO PLAYER IF EXISTS (Deletes Metadata/Cache for this session)
+        if (ytPlayer) {
+            try { ytPlayer.destroy(); } catch(e){}
+            ytPlayer = null;
+        }
+
         // RESET VIDEO MODE STATES STRICTLY
         state.videoMode = false;
         state.currentTrackYTId = null;
@@ -1332,14 +1370,23 @@
             if(state.qIndex > 0) state.qIndex--; else state.qIndex = state.queue.length - 1; loadAndPlay(); 
         } 
     }
-    function togglePlay() { 
-        if (state.videoMode && ytPlayer && ytPlayer.getPlayerState) {
-            const s = ytPlayer.getPlayerState();
-            if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
-            else ytPlayer.playVideo();
-        } else {
-            if(audio.paused) audio.play(); else audio.pause(); 
+function togglePlay() { 
+        // 1. Strict Video Mode Check
+        if (state.videoMode) {
+            if (ytPlayer && ytPlayer.getPlayerState) {
+                const s = ytPlayer.getPlayerState();
+                // Toggle video play/pause
+                if (s === YT.PlayerState.PLAYING || s === YT.PlayerState.BUFFERING) {
+                    ytPlayer.pauseVideo();
+                } else {
+                    ytPlayer.playVideo();
+                }
+            }
+            return; // CRITICAL: Stop here! Don't let Audio run below.
         }
+
+        // 2. Audio Mode Logic
+        if(audio.paused) audio.play(); else audio.pause(); 
     }
     
     function toggleShuffle() { state.isShuffle = !state.isShuffle; if(state.isShuffle) state.isLoop = false; document.getElementById('btn-shuffle').classList.toggle('active-ctrl', state.isShuffle); document.getElementById('btn-loop').classList.toggle('active-ctrl', state.isLoop); }
@@ -1928,7 +1975,7 @@
 
         while(attempts < MAX_RETRIES) {
             try {
-                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+                const ytUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
                 const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
                 
                 const res = await fetch(proxy);
@@ -1936,7 +1983,7 @@
                 const text = await res.text();
 
                 // Regex to find the first video link
-                const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
+                const regex = /music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/;
                 const match = regex.exec(text);
 
                 // DIRECTLY USE TOP 1ST RESULT
@@ -1992,6 +2039,7 @@
         const gradient = document.getElementById('fp-bg-gradient');
         const fullPlayer = document.getElementById('full-player');
         const fpImgArea = document.getElementById('fp-img-area');
+        const wrap = document.getElementById('wrap');
         
         // Audio Player Elements for Resetting Duration
         const mainSlider = document.getElementById('seek-slider');
@@ -2023,26 +2071,36 @@
             canvas.pause(); 
             canvas.style.opacity = '0';
             
-            // Load YouTube Video
-            if(ytPlayer && ytPlayer.loadVideoById) {
-                ytPlayer.loadVideoById({videoId: id, startSeconds: audio.currentTime});
-            } else {
-                ytPlayer = new YT.Player("player", {
-                    videoId: id,
-                    playerVars: { 
-                        autoplay: 1, 
-                        controls: 0, 
-                        playsinline: 1, 
-                        rel: 0, 
-                        modestbranding: 1, 
-                        iv_load_policy: 3,
-                        start: Math.floor(audio.currentTime),
-                        disablekb: 1,
-                        fs: 0
-                    },
-                    events: { onReady: startYTTracker, onStateChange: onYTStateChange }
-                });
+            // RE-APPEND PLAYER CONTAINER IF MISSING (Due to previous destruction)
+            if(!document.getElementById('player')) {
+                wrap.innerHTML = '<div id="player"></div>';
             }
+
+            // Load YouTube Video
+            ytPlayer = new YT.Player("player", {
+            	host: 'https://www.youtube-nocookie.com', 
+                videoId: id,
+                playerVars: { 
+                    autoplay: 1, 
+                    controls: 0, 
+                    playsinline: 1, 
+                    rel: 0, 
+                    modestbranding: 1, 
+                    iv_load_policy: 3,
+                    start: Math.floor(audio.currentTime),
+                    disablekb: 1,
+                    fs: 0,
+                    // Suggested quality not strictly supported in playerVars, but we set it immediately below
+                },
+                events: { 
+                    onReady: (e) => {
+                        e.target.setPlaybackQuality(state.videoQuality);
+                        startYTTracker(e);
+                    }, 
+                    onStateChange: onYTStateChange 
+                }
+            });
+            
             showToast("Switched to Video");
 
         } else {
@@ -2068,7 +2126,6 @@
                     yTime = 0; 
                 }
                 audio.currentTime = yTime;
-                ytPlayer.pauseVideo();
             }
             
             // Resume Audio
@@ -2082,6 +2139,9 @@
             if(state.showLyrics && state.lyricsData) {
                 document.getElementById('mini-lyrics-player').style.display = 'block';
             }
+            
+            // Destory YT player on switch back to save memory immediately
+            if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
 
             showToast("Switched to Audio");
         }
@@ -2131,8 +2191,15 @@
     }
 
     function onYTStateChange(event) {
-        if(event.data === YT.PlayerState.PLAYING) { state.isPlaying = true; updateIcons(); }
-        else if (event.data === YT.PlayerState.PAUSED) { state.isPlaying = false; updateIcons(); }
+        if(event.data === YT.PlayerState.PLAYING) { 
+            audio.pause(); // CRITICAL: Force audio to stop if video plays
+            state.isPlaying = true; 
+            updateIcons(); 
+        }
+        else if (event.data === YT.PlayerState.PAUSED) { 
+            state.isPlaying = false; 
+            updateIcons(); 
+        }
         else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
                 if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }

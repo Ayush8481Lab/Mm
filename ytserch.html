@@ -1496,7 +1496,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                         apiEndpoint = `${BASE_API}/albums?link=${encodeURIComponent(fetchUrl)}`;
                     }
 
-                    const res = await fetchWithFallback(apiEndpoint);
+                const res = await fetch(apiEndpoint);
                     if (thisRequestId !== globalLoadRequestId) return;
                     
                     const json = await res.json();

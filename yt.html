@@ -1956,64 +1956,90 @@ function togglePlay() {
     // ================= NEW YOUTUBE LOGIC =================
 
     async function fetchYouTubeId(songName, artistName, trackId, label) {
-        // Use cached YouTube ID if available
-        if (metaCache[trackId] && metaCache[trackId].ytId) {
-            return metaCache[trackId].ytId;
-        }
-
-        // Clean logic
-        const clean = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
-        const qSong = clean(songName);
-        const qArtist = clean(artistName);
-        const qLabel = clean(label); 
-        
-        // Construct Query with Label
-        const query = `${qSong} ${qArtist} ${qLabel}`.trim();
-        
-        let attempts = 0;
-        const MAX_RETRIES = 5;
-
-        while(attempts < MAX_RETRIES) {
-            try {
-                const ytUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
-                const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
-                
-                const res = await fetch(proxy);
-                if(!res.ok) throw new Error("Proxy error");
-                const text = await res.text();
-
-                    // Regex to find the first video link
-                
-                const regex = /\[([^\]]+)\]\(https:\/\/music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})\)[\s\S]*?Video\s*•/;
-const match = regex.exec(text);
-                
-
-                // DIRECTLY USE TOP 1ST RESULT
-                if (match && match[2]) {
-                    let bestId = match[2]; 
-
-                    // Save to cache
-                    let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
-                    cacheEntry.ytId = bestId;
-                    metaCache[trackId] = cacheEntry;
-                    IdbHelper.set('vibeMetaCache', metaCache);
-                    
-                    // Only update currentTrackYTId if this fetch corresponds to the current track
-                    if (state.currentTrackId === trackId) {
-                        state.currentTrackYTId = bestId;
-                    }
-                    return bestId;
-                }
-            } catch (e) {
-                console.log(`YT Attempt ${attempts+1} failed`, e);
-            }
-            attempts++;
-            if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
-        }
-
-        return null; 
+    // Use cached YouTube ID if available
+    if (metaCache[trackId] && metaCache[trackId].ytId) {
+        return metaCache[trackId].ytId;
     }
-    
+
+    // Clean logic (UNCHANGED)
+    const clean = (s) => (s || "")
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const qSong = clean(songName);
+    const qArtist = clean(artistName);
+    const qLabel = clean(label);
+
+    // Construct Query with Label (UNCHANGED)
+    const query = `${qSong} ${qArtist} ${qLabel}`.trim();
+
+    let attempts = 0;
+    const MAX_RETRIES = 5;
+
+    while (attempts < MAX_RETRIES) {
+        try {
+            const ytUrl = `https://music.youtube.com/search?q=${encodeURIComponent(query)}`;
+            const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
+
+            const res = await fetch(proxy);
+            if (!res.ok) throw new Error("Proxy error");
+
+            const text = await res.text();
+
+            // ================= FIXED VIDEO MATCH LOGIC =================
+
+            // 1️⃣ Get ALL watch IDs
+            const matches = [...text.matchAll(
+                /https:\/\/music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/g
+            )];
+
+            if (!matches.length) throw new Error("No watch links");
+
+            let bestId = null;
+
+            // 2️⃣ Prefer VIDEO result
+            for (const m of matches) {
+                const idx = m.index;
+                const snippet = text.slice(idx, idx + 400);
+
+                if (/Video\s*•/i.test(snippet)) {
+                    bestId = m[1];
+                    break;
+                }
+            }
+
+            // 3️⃣ Fallback to first result (song-only pages)
+            if (!bestId) {
+                bestId = matches[0][1];
+            }
+
+            // ================= CACHE & STATE (UNCHANGED) =================
+
+            let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
+            cacheEntry.ytId = bestId;
+            metaCache[trackId] = cacheEntry;
+            IdbHelper.set('vibeMetaCache', metaCache);
+
+            if (state.currentTrackId === trackId) {
+                state.currentTrackYTId = bestId;
+            }
+
+            return bestId;
+
+        } catch (e) {
+            console.log(`YT Attempt ${attempts + 1} failed`, e);
+        }
+
+        attempts++;
+        if (attempts < MAX_RETRIES) {
+            await new Promise(r => setTimeout(r, 1000));
+        }
+    }
+
+    return null;
+}
     function toggleVideoMode() {
         if(state.videoSwitching) return; // Prevent spam clicking
         state.videoSwitching = true;
@@ -2218,4 +2244,3 @@ const match = regex.exec(text);
 </script>
 </body>
 </html>
-

@@ -1557,11 +1557,8 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         while(hasMore) {
             if (requestId !== globalLoadRequestId) break;
 
-            // REMOVED: await new Promise(r => setTimeout(r, 500)); 
-
             try {
-                // Keep limit=10 for better chunking without delay
-                const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=10`; 
+                const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=5`;
                 const res = await fetch(apiUrl);
                 const json = await res.json();
                 const data = json.data || json;
@@ -1576,13 +1573,10 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                 const existingCount = state.currentAlbumData.songs.length;
 
                 rawSongs.forEach((s, i) => {
-                    // Prevent duplicates
                     if (state.currentAlbumData.songs.some(ex => ex.id === s.id)) return;
 
-                    // Force 50x50 for list items for speed
-                    let sImg = extractImg(s.image, '50'); 
+                    let sImg = extractImg(s.image, '50'); // <-- REQUEST 150 HERE
                     if(!sImg || sImg.includes('placeholder')) sImg = fallbackImg;
-                    
                     let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
                     
                     const newSongObj = { 
@@ -1622,13 +1616,14 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                 if (newSongs.length > 0) {
                     state.currentAlbumData.songs.push(...newSongs);
                     saveCache(cacheKey, state.currentAlbumData);
-                    
-                    // Recalculate duration
+
+                    // --- REAL-TIME DURATION CALCULATION ---
                     let totalSec = state.currentAlbumData.songs.reduce((acc, s) => acc + (parseInt(s.rawData.duration || 0)), 0);
                     let hrs = Math.floor(totalSec / 3600); 
                     let mins = Math.floor((totalSec % 3600) / 60);
                     
                     document.getElementById('album-meta').innerText = `${state.currentAlbumData.songs.length} Songs • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
+                    // --------------------------------------
 
                     window.observeMarquees();
                     page++; 

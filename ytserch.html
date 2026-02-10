@@ -1399,13 +1399,13 @@ function togglePlay() {
     async function checkCache(key) { const res = await IdbHelper.get(key); if(res && (Date.now() - res.ts < 86400000)) return res.data; return null; }
     function saveCache(key, data) { IdbHelper.set(key, { ts: Date.now(), data: data }); }
 
-    async function openCollection(type, url, preData, isOffline = false, forceLogo = false) {
+async function openCollection(type, url, preData, isOffline = false, forceLogo = false) {
         document.getElementById('full-player').classList.remove('active');
         const thisRequestId = ++globalLoadRequestId;
         history.pushState({view: 'album'}, null, '');
         const view = document.getElementById('album-view'); view.classList.add('active');
         
-        // --- RESET UI STATES IMMEDIATELY ---
+        // --- RESET UI STATES ---
         document.getElementById('album-art').src = preData.img;
         const wm = document.getElementById('album-watermark'); 
         
@@ -1429,16 +1429,14 @@ function togglePlay() {
         updateDownloadBtnUI(state.currentAlbumData);
 
         let songs = [];
-        let metaText = "";
         
         try {
             if (isOffline) {
-                // ... Existing Offline Logic ...
+                // --- OFFLINE/DOWNLOADED LOGIC (Unchanged) ---
                 state.currentAlbumData = preData; songs = preData.songs;
                 let totalSec = songs.reduce((acc, s) => acc + (parseInt(s.duration || s.rawData?.duration || 0)), 0);
                 let hrs = Math.floor(totalSec / 3600); let mins = Math.floor((totalSec % 3600) / 60);
-                metaText = `${songs.length} Songs • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
-                document.getElementById('album-meta').innerText = metaText;
+                document.getElementById('album-meta').innerText = `${songs.length} Songs • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
                 renderAlbumTracks(songs, preData.img);
                 updateDownloadBtnUI(state.currentAlbumData);
             } else {
@@ -1448,8 +1446,8 @@ function togglePlay() {
                 const cacheKey = `cache_collection_${preData.title}_${type}`;
                 const cached = await checkCache(cacheKey);
 
-                // Use Cache if available and fresh
                 if (cached) {
+                    // --- CACHE LOGIC (Unchanged) ---
                     state.currentAlbumData = cached;
                     songs = cached.songs;
                     let totalSec = songs.reduce((acc, s) => acc + (parseInt(s.rawData?.duration || 0)), 0);
@@ -1458,19 +1456,18 @@ function togglePlay() {
                     if (cached.subtitle) document.getElementById('album-subtitle').innerText = decodeStr(cached.subtitle);
                     renderAlbumTracks(songs, preData.img);
                     updateDownloadBtnUI(state.currentAlbumData);
-                    
-                    // If cached playlist was partial (small limit), trigger fetch rest? 
-                    // Optional: for now assume cache is full or rely on expiry.
+                    // For playlists, if cache is old or partial, we might want to re-fetch, but typically we trust cache
                 }
 
                 if (!cached || (Date.now() - cached.ts > 3600000)) { 
-                    // --- MODIFIED API CALL CONSTRUCTION ---
+                    // --- API CALL LOGIC ---
                     let apiEndpoint = '';
+                    
                     if (type === 'playlist') {
-                        // FORCE LIMIT 5 for FAST LOAD
+                        // STRICTLY PLAYLIST: Page 1, Limit 5
                         apiEndpoint = `${BASE_API}/playlists?link=${encodeURIComponent(fetchUrl)}&page=1&limit=5`;
                     } else {
-                        // Keep Album Logic Same
+                        // STRICTLY ALBUM: All songs (No change)
                         apiEndpoint = `${BASE_API}/albums?link=${encodeURIComponent(fetchUrl)}`;
                     }
 
@@ -1480,41 +1477,40 @@ function togglePlay() {
                     const json = await res.json();
                     const data = json.data || json;
                     songs = data.songs || data.list || [];
-                    const songCount = data.songCount || songs.length || 0; // Total count from API
                     const year = data.year || "";
                     const artists = getArtistName(data);
-                    
-                    // Calculate duration for just these 5 songs initially
-                    let totalSec = songs.reduce((acc, s) => acc + (parseInt(s.duration || 0)), 0);
-                    let hrs = Math.floor(totalSec / 3600); let mins = Math.floor((totalSec % 3600) / 60);
-                    
-                    // Show "5 Songs" initially, will update as packets arrive
-                    metaText = `${songs.length} Songs ${year ? '• ' + year : ''}`;
                     
                     if(artists && artists !== "Unknown Artist") document.getElementById('album-subtitle').innerText = decodeStr(artists);
                     else if (data.description) document.getElementById('album-subtitle').innerText = decodeStr(data.description);
                     if(!songs.length && data.media_url) songs = [data];
 
-                    state.currentAlbumData = { id: url, title: preData.title, img: preData.img, subtitle: document.getElementById('album-subtitle').innerText, songs: [], type: type };
-                    
-                    // Map the first 5 songs
-                    state.currentAlbumData.songs = songs.map(s => {
+                    // Process initial batch
+                    const formattedSongs = songs.map(s => {
                         let sImg = extractImg(s.image); if(!sImg || sImg.includes('placeholder')) sImg = preData.img;
                         let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
                         return { id: s.id, title: decodeStr(s.name || s.title || s.song), artist: decodeStr(getArtistName(s)), img: sImg, mediaUrl: s.media_url, downloadUrl: dUrl, url: s.url, rawData: s };
                     });
 
-                    // Initial Save
+                    state.currentAlbumData = { id: url, title: preData.title, img: preData.img, subtitle: document.getElementById('album-subtitle').innerText, songs: formattedSongs, type: type };
                     saveCache(cacheKey, state.currentAlbumData);
-                    
+
                     if (thisRequestId === globalLoadRequestId) {
+                        // Calculate stats for what we have so far
+                        let totalSec = formattedSongs.reduce((acc, s) => acc + (parseInt(s.rawData.duration || 0)), 0);
+                        let hrs = Math.floor(totalSec / 3600); let mins = Math.floor((totalSec % 3600) / 60);
+                        let metaText = `${formattedSongs.length} Songs`;
+                        
+                        // Only add duration/year if it's an Album (since playlists load partially)
+                        if(type === 'album') {
+                             metaText += ` ${year ? '• ' + year : ''} • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
+                        }
                         document.getElementById('album-meta').innerText = metaText;
+
                         renderAlbumTracks(state.currentAlbumData.songs, preData.img);
                         updateDownloadBtnUI(state.currentAlbumData);
                         
-                        // --- TRIGGER PACKET LOADING IF PLAYLIST ---
+                        // *** ONLY FOR PLAYLISTS: Fetch the rest in packets ***
                         if(type === 'playlist') {
-                            // Start from page 2, limit 5
                             fetchPlaylistInPackets(fetchUrl, preData.img, cacheKey, thisRequestId);
                         }
                     }
@@ -1525,28 +1521,29 @@ function togglePlay() {
             if (thisRequestId === globalLoadRequestId) {
                 document.getElementById('album-tracks').innerHTML = '<div style="text-align:center; padding:20px; color:#666;">Failed to load tracks.</div>';
                 document.getElementById('album-meta').innerText = "Error";
-                showToast("Failed to load album");
+                showToast("Failed to load content");
             }
         }
     }
-async function fetchPlaylistInPackets(url, fallbackImg, cacheKey, requestId) {
-        let page = 2;
+
+ async function fetchPlaylistInPackets(url, fallbackImg, cacheKey, requestId) {
+        let page = 2; // Start from page 2 since openCollection loaded page 1
         let hasMore = true;
         const container = document.getElementById('album-tracks');
 
         while(hasMore) {
-            // Stop if user navigated away
+            // Stop if user navigated away or opened a different album
             if (requestId !== globalLoadRequestId) break;
 
             try {
-                // Construct API URL for next packet
+                // API Call: Page X, Limit 5
                 const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=5`;
                 const res = await fetch(apiUrl);
                 const json = await res.json();
                 const data = json.data || json;
                 const rawSongs = data.songs || data.list || [];
 
-                // Stop if no songs returned
+                // If no songs returned, we are done
                 if (!rawSongs || rawSongs.length === 0) {
                     hasMore = false;
                     break;
@@ -1556,7 +1553,7 @@ async function fetchPlaylistInPackets(url, fallbackImg, cacheKey, requestId) {
                 const existingCount = state.currentAlbumData.songs.length;
 
                 rawSongs.forEach((s, i) => {
-                    // Check duplicate ID
+                    // Prevent duplicates
                     if (state.currentAlbumData.songs.some(ex => ex.id === s.id)) return;
 
                     let sImg = extractImg(s.image);
@@ -1575,32 +1572,66 @@ async function fetchPlaylistInPackets(url, fallbackImg, cacheKey, requestId) {
                     };
                     newSongs.push(newSongObj);
 
-                    // Append to DOM immediately
+                    // --- APPEND TO DOM MANUALLY (Preserves scroll) ---
                     const totalIdx = existingCount + i;
                     const div = document.createElement('div'); div.className = 'list-item';
-                    div.innerHTML = `<span style="width:20px;text-align:center;color:#666;font-size:12px;margin-right:10px;">${totalIdx+1}</span><div style="position:relative"><img src="${newSongObj.img}"></div><div class="list-info"><div class="marquee-container"><h4 class="marquee-content">${newSongObj.title}</h4></div><div class="marquee-container"><p class="marquee-content">${newSongObj.artist}</p></div></div>`;
-                    div.onclick = () => { state.queue = state.currentAlbumData.songs; state.qIndex = totalIdx; loadAndPlay(); };
+                    
+                    const isPlaying = state.currentTrackId === newSongObj.id;
+                    // Note: Buffering logic handled by setBuffering/click usually
+                    
+                    div.innerHTML = `
+                        <span style="width:20px;text-align:center;color:#666;font-size:12px;margin-right:10px;">${totalIdx+1}</span>
+                        <div style="position:relative"><img src="${newSongObj.img}"><div class="buffering-overlay"><div class="buf-spinner"></div></div></div>
+                        <div class="list-info">
+                            <div class="marquee-container"><h4 class="marquee-content ${isPlaying?'text-green':''}">${newSongObj.title}</h4></div>
+                            <div class="marquee-container"><p class="marquee-content">${newSongObj.artist}</p></div>
+                        </div>`;
+                        
+                    div.onclick = () => { 
+                        // Update queue to include all currently loaded songs
+                        state.queue = state.currentAlbumData.songs; 
+                        state.qIndex = totalIdx; 
+                        loadAndPlay(); 
+                    };
+                    
                     container.appendChild(div);
                 });
 
                 if (newSongs.length > 0) {
-                    // Update State
+                    // Update global state and cache
                     state.currentAlbumData.songs.push(...newSongs);
                     saveCache(cacheKey, state.currentAlbumData);
 
-                    // Update UI Counter
+                    // Update count text
                     document.getElementById('album-meta').innerText = `${state.currentAlbumData.songs.length} Songs`;
+                    
+                    // Trigger marquees for new elements
                     window.observeMarquees();
+                    
                     page++; // Next packet
                 } else {
                     hasMore = false;
                 }
 
             } catch (e) {
-                console.log("Packet load ended or failed", e);
+                console.log("Packet fetch stopped", e);
                 hasMore = false;
             }
         }
+    }
+
+    function renderAlbumTracks(songs, fallbackImg) {
+        const container = document.getElementById('album-tracks'); container.innerHTML = '';
+        if(!songs || !songs.length) { container.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">No songs found</div>'; return; }
+        songs.forEach((s, i) => {
+            const isPlaying = state.currentTrackId === s.id;
+            const isBuffering = state.bufferingId === s.id;
+            const div = document.createElement('div'); div.className = `list-item ${isBuffering ? 'buffering' : ''}`;
+            const bufferingHtml = `<div class="buffering-overlay"><div class="buf-spinner"></div></div>`;
+            div.innerHTML = `<span style="width:20px;text-align:center;color:#666;font-size:12px;margin-right:10px;">${i+1}</span><div style="position:relative"><img src="${s.img || fallbackImg}">${bufferingHtml}</div><div class="list-info"><div class="marquee-container"><h4 class="marquee-content ${isPlaying?'text-green':''}">${decodeStr(s.title)}</h4></div><div class="marquee-container"><p class="marquee-content">${decodeStr(s.artist)}</p></div></div>`;
+            div.onclick = () => { state.queue = songs; state.qIndex = i; loadAndPlay(); };
+            container.appendChild(div);
+        }); window.observeMarquees();
     }
     
     // --- ARTIST VIEW IMPLEMENTATION ---
@@ -2259,3 +2290,5 @@ async function fetchPlaylistInPackets(url, fallbackImg, cacheKey, requestId) {
 </script>
 </body>
 </html>
+
+

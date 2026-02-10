@@ -1975,7 +1975,7 @@ function togglePlay() {
 
         while(attempts < MAX_RETRIES) {
             try {
-                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=EgIQAQ%3D%3D`;
+                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
                 const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
                 
                 const res = await fetch(proxy);
@@ -2216,4 +2216,5 @@ function togglePlay() {
 </script>
 </body>
 </html>
+
 

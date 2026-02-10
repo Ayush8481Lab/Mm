@@ -1989,8 +1989,8 @@ const match = regex.exec(text);
                 
 
                 // DIRECTLY USE TOP 1ST RESULT
-                if (match && match[3]) {
-                    let bestId = match[3]; 
+                if (match && match[2]) {
+                    let bestId = match[2]; 
 
                     // Save to cache
                     let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
@@ -2218,3 +2218,4 @@ const match = regex.exec(text);
 </script>
 </body>
 </html>
+

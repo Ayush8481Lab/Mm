@@ -993,7 +993,7 @@
     async function fetchJina(url) { const res = await fetchWithFallback(`https://r.jina.ai/${url}`); const text = await res.text(); return parseJina(text); }
     function parseJina(text) {
         const regex = /\[!\[(.*?)\]\((.*?)\)\]\((.*?)\)/g; const items = []; let match;
-        while ((match = regex.exec(text)) !== null) { let title = decodeStr(match[1].replace(/Image \d+: /, '').split(']')[0].trim()); let img = match[2].split('?')[0].replace('150x150', '500x500').replace('50x50', '500x500'); let link = match[3]; let type = 'song'; if(link.includes('/album/')) type = 'album'; else if(link.includes('/featured') || link.includes('/playlist')) type = 'playlist'; items.push({ title, img, link, type }); }
+        while ((match = regex.exec(text)) !== null) { let title = decodeStr(match[1].replace(/Image \d+: /, '').split(']')[0].trim()); let img = match[2].split('?')[0].replace('150x150', '250x250').replace('50x50', '250x250'); let link = match[3]; let type = 'song'; if(link.includes('/album/')) type = 'album'; else if(link.includes('/featured') || link.includes('/playlist')) type = 'playlist'; items.push({ title, img, link, type }); }
         return items;
     }
 

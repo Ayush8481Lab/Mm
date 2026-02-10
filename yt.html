@@ -1983,7 +1983,8 @@ function togglePlay() {
                 const text = await res.text();
 
                     // Regex to find the first video link
-                const regex = /\[([^\]]+)\]\((https:\/\/music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
+                
+                const regex = /\[[^\]]+\]\(https:\/\/music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})\)\s+Video/;
                 const match = regex.exec(text);
                 
 

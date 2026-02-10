@@ -1982,9 +1982,10 @@ function togglePlay() {
                 if(!res.ok) throw new Error("Proxy error");
                 const text = await res.text();
 
-                // Regex to find the first video link
-                const regex = /music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/;
+                    // Regex to find the first video link
+                const regex = /\[([^\]]+)\]\((https:\/\/music\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
                 const match = regex.exec(text);
+                
 
                 // DIRECTLY USE TOP 1ST RESULT
                 if (match && match[3]) {

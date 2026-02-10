@@ -1034,7 +1034,7 @@
             const header = document.createElement('div'); header.className = 'search-header'; header.innerText = 'Songs'; resEl.appendChild(header);
             data.songs.forEach(s => {
                 const div = document.createElement('div'); div.className = 'list-item';
-                const img = extractImg(s.image);
+                const img =  extractImg(s.image, '50'); 
                 const title = decodeStr(s.name || s.title);
                 const artist = getArtistName(s);
                 const isPlaying = state.currentTrackId === s.id;
@@ -1048,7 +1048,7 @@
             const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
             data.albums.forEach(a => {
                 const div = document.createElement('div'); div.className = 'card';
-                const img = extractImg(a.image);
+                const img = extractImg(a.image, '250');
                 const title = decodeStr(a.name || a.title);
                 const albumUrl = a.url || a.perma_url || "";
                 div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p>Album</p>`;
@@ -1062,7 +1062,7 @@
             const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
             data.artists.forEach(a => {
                 const div = document.createElement('div'); div.className = 'card circle-img';
-                const img = extractImg(a.image);
+                const img = extractImg(a.image, '250');
                 const name = decodeStr(a.name);
                 div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${name}</h3></div><p>Artist</p>`;
                 div.onclick = () => openArtist(a.id);
@@ -1075,7 +1075,7 @@
             const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
             data.playlists.forEach(a => {
                 const div = document.createElement('div'); div.className = 'card';
-                const img = extractImg(a.image);
+                const img = extractImg(a.image, '250');
                 const title = decodeStr(a.name || a.title);
                 const plUrl = a.url || a.perma_url || "";
                 let logoHtml = `<img src="${APP_LOGO_URL}" class="card-logo">`;
@@ -1416,7 +1416,10 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         
         // --- RESET UI STATES ---
         // Load the provided image (usually 500 from card, or 150 from list)
-        document.getElementById('album-art').src = preData.img.replace('150x150', '500x500'); 
+        document.getElementById('album-art').src = preData.img
+    .replace('150x150', '500x500')
+    .replace('50x50', '500x500')
+    .replace('250x250', '500x500'); 
         const wm = document.getElementById('album-watermark'); 
         
         const isSaved = savedPlaylists.some(p => p.title === preData.title);
@@ -1490,7 +1493,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
 
                     // Process initial batch using size 150
                     const formattedSongs = songs.map(s => {
-                        let sImg = extractImg(s.image, '150'); // <-- REQUEST 150 HERE
+                        let sImg = extractImg(s.image, '50'); // <-- REQUEST 150 HERE
                         if(!sImg || sImg.includes('placeholder')) sImg = preData.img;
                         let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
                         return { id: s.id, title: decodeStr(s.name || s.title || s.song), artist: decodeStr(getArtistName(s)), img: sImg, mediaUrl: s.media_url, downloadUrl: dUrl, url: s.url, rawData: s };
@@ -1529,94 +1532,99 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         }
     }
  async function fetchPlaylistInPackets(url, fallbackImg, cacheKey, requestId) {
-        let page = 2; 
-        let hasMore = true;
-        const container = document.getElementById('album-tracks');
+    let page = 2; 
+    let hasMore = true;
+    const container = document.getElementById('album-tracks');
 
-        while(hasMore) {
-            if (requestId !== globalLoadRequestId) break;
+    while(hasMore) {
+        if (requestId !== globalLoadRequestId) break;
 
-            try {
-                const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=5`;
-                const res = await fetch(apiUrl);
-                const json = await res.json();
-                const data = json.data || json;
-                const rawSongs = data.songs || data.list || [];
+        // --- NEW UPDATE: 0.5 Second Delay for Performance ---
+        await new Promise(r => setTimeout(r, 500)); 
+        // ----------------------------------------------------
 
-                if (!rawSongs || rawSongs.length === 0) {
-                    hasMore = false;
-                    break;
-                }
+        try {
+            const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=10`; // Increased limit slightly since we have a delay now
+            const res = await fetch(apiUrl);
+            const json = await res.json();
+            const data = json.data || json;
+            const rawSongs = data.songs || data.list || [];
 
-                const newSongs = [];
-                const existingCount = state.currentAlbumData.songs.length;
+            if (!rawSongs || rawSongs.length === 0) {
+                hasMore = false;
+                break;
+            }
 
-                rawSongs.forEach((s, i) => {
-                    if (state.currentAlbumData.songs.some(ex => ex.id === s.id)) return;
+            const newSongs = [];
+            const existingCount = state.currentAlbumData.songs.length;
 
-                    let sImg = extractImg(s.image, '150'); // <-- REQUEST 150 HERE
-                    if(!sImg || sImg.includes('placeholder')) sImg = fallbackImg;
-                    let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
+            rawSongs.forEach((s, i) => {
+                if (state.currentAlbumData.songs.some(ex => ex.id === s.id)) return;
+
+                // --- NEW UPDATE: Force 50x50 for list items ---
+                let sImg = extractImg(s.image, '50'); 
+                // ----------------------------------------------
+                
+                if(!sImg || sImg.includes('placeholder')) sImg = fallbackImg;
+                let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
+                
+                const newSongObj = { 
+                    id: s.id, 
+                    title: decodeStr(s.name || s.title || s.song), 
+                    artist: decodeStr(getArtistName(s)), 
+                    img: sImg, 
+                    mediaUrl: s.media_url, 
+                    downloadUrl: dUrl, 
+                    url: s.url, 
+                    rawData: s 
+                };
+                newSongs.push(newSongObj);
+
+                const totalIdx = existingCount + i;
+                const div = document.createElement('div'); div.className = 'list-item';
+                
+                const isPlaying = state.currentTrackId === newSongObj.id;
+                
+                div.innerHTML = `
+                    <span style="width:20px;text-align:center;color:#666;font-size:12px;margin-right:10px;">${totalIdx+1}</span>
+                    <div style="position:relative"><img src="${newSongObj.img}"><div class="buffering-overlay"><div class="buf-spinner"></div></div></div>
+                    <div class="list-info">
+                        <div class="marquee-container"><h4 class="marquee-content ${isPlaying?'text-green':''}">${newSongObj.title}</h4></div>
+                        <div class="marquee-container"><p class="marquee-content">${newSongObj.artist}</p></div>
+                    </div>`;
                     
-                    const newSongObj = { 
-                        id: s.id, 
-                        title: decodeStr(s.name || s.title || s.song), 
-                        artist: decodeStr(getArtistName(s)), 
-                        img: sImg, 
-                        mediaUrl: s.media_url, 
-                        downloadUrl: dUrl, 
-                        url: s.url, 
-                        rawData: s 
-                    };
-                    newSongs.push(newSongObj);
+                div.onclick = () => { 
+                    state.queue = state.currentAlbumData.songs; 
+                    state.qIndex = totalIdx; 
+                    loadAndPlay(); 
+                };
+                
+                container.appendChild(div);
+            });
 
-                    const totalIdx = existingCount + i;
-                    const div = document.createElement('div'); div.className = 'list-item';
-                    
-                    const isPlaying = state.currentTrackId === newSongObj.id;
-                    
-                    div.innerHTML = `
-                        <span style="width:20px;text-align:center;color:#666;font-size:12px;margin-right:10px;">${totalIdx+1}</span>
-                        <div style="position:relative"><img src="${newSongObj.img}"><div class="buffering-overlay"><div class="buf-spinner"></div></div></div>
-                        <div class="list-info">
-                            <div class="marquee-container"><h4 class="marquee-content ${isPlaying?'text-green':''}">${newSongObj.title}</h4></div>
-                            <div class="marquee-container"><p class="marquee-content">${newSongObj.artist}</p></div>
-                        </div>`;
-                        
-                    div.onclick = () => { 
-                        state.queue = state.currentAlbumData.songs; 
-                        state.qIndex = totalIdx; 
-                        loadAndPlay(); 
-                    };
-                    
-                    container.appendChild(div);
-                });
+            if (newSongs.length > 0) {
+                state.currentAlbumData.songs.push(...newSongs);
+                saveCache(cacheKey, state.currentAlbumData);
+                
+                // Recalculate duration
+                let totalSec = state.currentAlbumData.songs.reduce((acc, s) => acc + (parseInt(s.rawData.duration || 0)), 0);
+                let hrs = Math.floor(totalSec / 3600); 
+                let mins = Math.floor((totalSec % 3600) / 60);
+                
+                document.getElementById('album-meta').innerText = `${state.currentAlbumData.songs.length} Songs • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
 
-                if (newSongs.length > 0) {
-                    state.currentAlbumData.songs.push(...newSongs);
-                    saveCache(cacheKey, state.currentAlbumData);
-
-                    // --- REAL-TIME DURATION CALCULATION ---
-                    let totalSec = state.currentAlbumData.songs.reduce((acc, s) => acc + (parseInt(s.rawData.duration || 0)), 0);
-                    let hrs = Math.floor(totalSec / 3600); 
-                    let mins = Math.floor((totalSec % 3600) / 60);
-                    
-                    document.getElementById('album-meta').innerText = `${state.currentAlbumData.songs.length} Songs • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
-                    // --------------------------------------
-
-                    window.observeMarquees();
-                    page++; 
-                } else {
-                    hasMore = false;
-                }
-
-            } catch (e) {
-                console.log("Packet fetch stopped", e);
+                window.observeMarquees();
+                page++; 
+            } else {
                 hasMore = false;
             }
+
+        } catch (e) {
+            console.log("Packet fetch stopped", e);
+            hasMore = false;
         }
     }
-
+}
     function renderAlbumTracks(songs, fallbackImg) {
         const container = document.getElementById('album-tracks'); container.innerHTML = '';
         if(!songs || !songs.length) { container.innerHTML = '<div style="text-align:center; padding:20px; color:#666;">No songs found</div>'; return; }

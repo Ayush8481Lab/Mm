@@ -1011,20 +1011,59 @@
         mp.addEventListener('click', (e) => { if (!isDragIntent && !e.target.closest('button') && !e.target.closest('.mp-heart')) openFullPlayer(); });
     }
 
-    async function loadHome() {
-        const rel = document.getElementById('new-releases'), chart = document.getElementById('top-charts'), play = document.getElementById('top-playlists');
-        const cachedData = await getHomeCache(state.lang);
-        if(cachedData) { renderGrid(rel, cachedData.releases, false); renderGrid(chart, cachedData.charts, true); renderGrid(play, cachedData.playlists, true); return; }
-        [rel, chart, play].forEach(e => e.innerHTML = '<div class="loader"></div>');
+    // Helper: Loads a specific section and shows a Retry button on failure
+    async function loadSection(el, url, showLogo) {
+        el.innerHTML = '<div class="loader"></div>';
         try {
-            let relData = [], chartData = [], playData = [];
-            try { relData = await fetchJina(`https://www.jiosaavn.com/new-releases/${state.lang}`); } catch(e){} renderGrid(rel, relData, false);
-            try { chartData = await fetchJina(`https://www.jiosaavn.com/charts`); } catch(e){} renderGrid(chart, chartData, true);
-            try { playData = await fetchJina(`https://www.jiosaavn.com/featured-playlists/${state.lang}`); } catch(e){} renderGrid(play, playData, true);
-            if (relData.length > 0 && chartData.length > 0 && playData.length > 0) setHomeCache(state.lang, { releases: relData, charts: chartData, playlists: playData });
-        } catch(e) { console.log("Partial load error"); }
+            const data = await fetchJina(url);
+            // If Jina fails, it often returns empty array, so we treat empty as an error to allow retry
+            if (!data || data.length === 0) throw new Error("Load failed");
+            renderGrid(el, data, showLogo);
+            return data;
+        } catch (e) {
+            el.innerHTML = '';
+            // Create Retry UI
+            const div = document.createElement('div');
+            div.style.cssText = "display:flex;flex-direction:column;align-items:center;padding:20px;gap:10px;width:100%;";
+            div.innerHTML = '<span style="font-size:12px;color:#666;">Failed to load</span>';
+            
+            const btn = document.createElement('button');
+            btn.innerText = "Retry";
+            btn.style.cssText = "padding:6px 16px;background:#1e222b;border:1px solid #333;color:white;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;pointer-events:auto;";
+            
+            // Re-trigger this specific function on click
+            btn.onclick = () => loadSection(el, url, showLogo);
+            
+            div.appendChild(btn);
+            el.appendChild(div);
+            return null;
+        }
     }
 
+    async function loadHome() {
+        const rel = document.getElementById('new-releases'), chart = document.getElementById('top-charts'), play = document.getElementById('top-playlists');
+        
+        // 1. Check Cache
+        const cachedData = await getHomeCache(state.lang);
+        if(cachedData) { 
+            renderGrid(rel, cachedData.releases, false); 
+            renderGrid(chart, cachedData.charts, true); 
+            renderGrid(play, cachedData.playlists, true); 
+            return; 
+        }
+
+        // 2. Load Sections in Parallel with Independent Retry Logic
+        const [d1, d2, d3] = await Promise.all([
+            loadSection(rel, `https://www.jiosaavn.com/new-releases/${state.lang}`, false),
+            loadSection(chart, `https://www.jiosaavn.com/charts`, true),
+            loadSection(play, `https://www.jiosaavn.com/featured-playlists/${state.lang}`, true)
+        ]);
+
+        // 3. Update Cache only if everything loaded successfully
+        if (d1 && d2 && d3) {
+            setHomeCache(state.lang, { releases: d1, charts: d2, playlists: d3 });
+        }
+    }
     async function fetchJina(url) { const res = await fetch(`https://r.jina.ai/${url}`); const text = await res.text(); return parseJina(text); }
     function parseJina(text) {
         const regex = /\[!\[(.*?)\]\((.*?)\)\]\((.*?)\)/g; 
@@ -1201,16 +1240,18 @@
     }
 
     async function loadAndPlay() {
-        // CLEANUP VIDEO PLAYER IF EXISTS (Deletes Metadata/Cache for this session)
+        // CLEANUP VIDEO PLAYER IF EXISTS
         if (ytPlayer) {
             try { ytPlayer.destroy(); } catch(e){}
             ytPlayer = null;
         }
+        
+        // FORCE DOM RESET: Ensures a completely fresh container for the next session
+        const wrap = document.getElementById('wrap');
+        if(wrap) wrap.innerHTML = '<div id="player"></div>';
 
         // RESET VIDEO MODE STATES STRICTLY
         state.videoMode = false;
-        state.currentTrackYTId = null;
-        state.videoSwitching = false; // Reset switching flag
 
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
@@ -2355,7 +2396,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
 
     function onYTStateChange(event) {
         if(event.data === YT.PlayerState.PLAYING) { 
-            audio.pause(); // CRITICAL: Force audio to stop if video plays
+            audio.pause(); 
             state.isPlaying = true; 
             updateIcons(); 
         }
@@ -2365,12 +2406,26 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         }
         else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
-                if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }
-                else playNext();
+                if(state.isLoop) {
+                    // If looping, keep the player alive and replay
+                    ytPlayer.seekTo(0); 
+                    ytPlayer.playVideo(); 
+                }
+                else {
+                    // DESTROY PLAYER IMMEDIATELY
+                    try { ytPlayer.destroy(); } catch(e){}
+                    ytPlayer = null;
+                    
+                    // Reset UI to Audio mode appearance immediately
+                    document.getElementById('yt-view-container').classList.remove('active');
+                    document.getElementById('fp-art').classList.add('active');
+                    
+                    // Play next song (This triggers loadAndPlay, creating a fresh session)
+                    playNext();
+                }
             }
         }
     }
-
     function toggleYtFull() {
         let el = document.getElementById("yt-view-container");
         document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen();

@@ -1240,35 +1240,31 @@
     }
 
     async function loadAndPlay() {
-        // --- FIX: STRICT RESET START ---
-        // 1. Immediately invalidate the current cached YT ID so video switch doesn't use old data
-        state.currentTrackYTId = null;
-        state.videoSwitching = false; // Cancel any pending switch
-
-        // 2. Destroy YT Player immediately to prevent overlap
+        // CLEANUP VIDEO PLAYER IF EXISTS (Deletes Metadata/Cache for this session)
         if (ytPlayer) {
             try { ytPlayer.destroy(); } catch(e){}
             ytPlayer = null;
         }
 
-        // 3. Force Video Mode OFF
+        // RESET VIDEO MODE STATES STRICTLY
         state.videoMode = false;
+
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
+        // Ensure UI elements are visible (gradient)
         document.getElementById('fp-bg-gradient').style.opacity = '1';
         document.getElementById('fp-img-area').style.opacity = '1';
         document.getElementById('full-player').classList.remove('canvas-immersive');
-        // --- FIX: STRICT RESET END ---
 
         state.metaFetchId++; const currentFetchId = state.metaFetchId;
         const track = state.queue[state.qIndex]; if(!track) return;
         
+        // Set Buffering State
         state.bufferingId = track.id;
         refreshCurrentListView(); 
 
         state.playSessionId++; state.currentTrackId = track.id;
         
-        // ... (Audio Source Logic remains same) ...
         let src = null;
         let blobKey = `blob_audio_${track.id}_${state.quality}`;
         let blob = await IdbHelper.get(blobKey);
@@ -1300,23 +1296,18 @@
         document.getElementById('immersive-lyric').innerText = "";
 
         const cachedMeta = metaCache[track.id];
-        
-        // Logic to restore cached data
         if (cachedMeta) {
             if (cachedMeta.canvasUrl && state.showCanvas) vid.src = cachedMeta.canvasUrl;
             if (cachedMeta.lyricsData) { state.lyricsData = cachedMeta.lyricsData; if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } }
-            
-            // --- FIX: Only set cached YT ID if it exists in cache
-            if (cachedMeta.ytId) { 
-                state.currentTrackYTId = cachedMeta.ytId; 
-            } else {
-                // If not in cache, fetch it now
-                fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
-            }
         } else { 
             fetchMeta(track.title, track.artist, track.id, currentFetchId); 
             // Also fetch YT ID in background
             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
+        }
+        
+        // If not cached, fetch YT ID now
+        if(!cachedMeta || !cachedMeta.ytId) {
+             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
         }
     }
 
@@ -2165,28 +2156,25 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
     // ================= NEW YOUTUBE LOGIC =================
 
     async function fetchYouTubeId(songName, artistName, trackId, label) {
-        // 1. Strict Context Check before starting
-        if (!trackId) return null;
-
+        // Use cached YouTube ID if available
         if (metaCache[trackId] && metaCache[trackId].ytId) {
-            // Even if cached, ensure we only update state if it matches current song
-            if (state.currentTrackId === trackId) {
-                state.currentTrackYTId = metaCache[trackId].ytId;
-            }
             return metaCache[trackId].ytId;
         }
 
+        // Clean logic
         const clean = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
-        const query = `${clean(songName)} ${clean(artistName)} ${clean(label)}`.trim();
+        const qSong = clean(songName);
+        const qArtist = clean(artistName);
+        const qLabel = clean(label); 
+        
+        // Construct Query with Label
+        const query = `${qSong} ${qArtist} ${qLabel}`.trim();
         
         let attempts = 0;
         const MAX_RETRIES = 5;
 
         while(attempts < MAX_RETRIES) {
             try {
-                // RACE CONDITION CHECK 1: Did song change while we were waiting/retrying?
-                if (state.currentTrackId !== trackId) return null;
-
                 const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
                 const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
                 
@@ -2194,21 +2182,21 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                 if(!res.ok) throw new Error("Proxy error");
                 const text = await res.text();
 
-                // RACE CONDITION CHECK 2: Check again after network request
-                if (state.currentTrackId !== trackId) return null;
-
+                // Regex to find the first video link
                 const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
                 const match = regex.exec(text);
 
+                // DIRECTLY USE TOP 1ST RESULT
                 if (match && match[3]) {
                     let bestId = match[3]; 
 
+                    // Save to cache
                     let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
                     cacheEntry.ytId = bestId;
                     metaCache[trackId] = cacheEntry;
                     IdbHelper.set('vibeMetaCache', metaCache);
                     
-                    // CRITICAL: Only update global state if this is still the active track
+                    // Only update currentTrackYTId if this fetch corresponds to the current track
                     if (state.currentTrackId === trackId) {
                         state.currentTrackYTId = bestId;
                     }
@@ -2220,28 +2208,18 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
             attempts++;
             if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
         }
+
         return null; 
     }
+    
     function toggleVideoMode() {
-        if(state.videoSwitching) return; 
+        if(state.videoSwitching) return; // Prevent spam clicking
         state.videoSwitching = true;
-
-        // Capture the ID of the song playing *when the button was clicked*
-        const targetTrackId = state.currentTrackId;
 
         if (!state.currentTrackYTId) {
             const t = state.queue[state.qIndex];
             showToast("Searching Video...");
-            
             fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
-                 // RACE CONDITION CHECK:
-                 // If the user skipped the song while we were searching, STOP.
-                 if (state.currentTrackId !== targetTrackId) {
-                     console.log("Track changed during search. Aborting video switch.");
-                     state.videoSwitching = false;
-                     return;
-                 }
-
                  if(id) {
                      doVideoSwitch(id);
                  } else {
@@ -2250,18 +2228,11 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                  }
             });
         } else {
-            // Even if we have an ID, verify it matches the current song
-            if (state.currentTrackId !== targetTrackId) {
-                 state.videoSwitching = false;
-                 return;
-            }
             doVideoSwitch(state.currentTrackYTId);
         }
     }
-    function doVideoSwitch(id) {
-        // Final Safety Check
-        if (!id) { state.videoSwitching = false; return; }
 
+    function doVideoSwitch(id) {
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2270,34 +2241,44 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
         
-        // Hide Lyrics
+        // Audio Player Elements for Resetting Duration
+        const mainSlider = document.getElementById('seek-slider');
+        const mainTotal = document.getElementById('total-time');
+
+        // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
-            // SWITCHING TO VIDEO
+            // ===========================
+            // SWITCHING TO VIDEO MODE
+            // ===========================
             state.videoMode = true;
             
+            // FIX 1: Force Container Visibility (Overriding Immersive Mode)
             fullPlayer.classList.remove('canvas-immersive');
             fpImgArea.style.opacity = '1';
-            fpImgArea.style.pointerEvents = 'auto'; 
+            fpImgArea.style.pointerEvents = 'auto'; // Ensure clicks work
             
+            // Swap Art for Video
             art.classList.remove('active');
             vidContainer.classList.add('active');
+            
+            // Ensure Gradient stays visible (preserve UI)
             gradient.style.opacity = '1';
             
+            // Stop Audio & Canvas
             audio.pause();
             canvas.pause(); 
             canvas.style.opacity = '0';
             
+            // RE-APPEND PLAYER CONTAINER IF MISSING (Due to previous destruction)
             if(!document.getElementById('player')) {
                 wrap.innerHTML = '<div id="player"></div>';
             }
 
-            // Ensure we kill any existing player before making a new one
-            if(ytPlayer) { try { ytPlayer.destroy(); } catch(e){} }
-
+            // Load YouTube Video
             ytPlayer = new YT.Player("player", {
-                host: 'https://www.youtube-nocookie.com', 
+            	host: 'https://www.youtube-nocookie.com', 
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, 
@@ -2309,6 +2290,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                     start: Math.floor(audio.currentTime),
                     disablekb: 1,
                     fs: 0,
+                    // Suggested quality not strictly supported in playerVars, but we set it immediately below
                 },
                 events: { 
                     onReady: (e) => {
@@ -2318,30 +2300,38 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                     onStateChange: onYTStateChange 
                 }
             });
+            
             showToast("Switched to Video");
 
         } else {
+            // ===========================
             // SWITCHING BACK TO AUDIO
+            // ===========================
             state.videoMode = false;
             
+            // Swap Video for Art
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
+            // FIX 2: Manually Reset Duration UI to Audio values immediately
             if(audio.duration) {
-                const mainTotal = document.getElementById('total-time');
-                const mainSlider = document.getElementById('seek-slider');
                 if(mainTotal) mainTotal.innerText = fmtTime(audio.duration);
                 if(mainSlider) mainSlider.max = audio.duration;
             }
 
+            // Sync Time (Audio takes priority, reset if Video was longer)
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
-                if (audio.duration && yTime >= audio.duration) yTime = 0; 
+                if (audio.duration && yTime >= audio.duration) {
+                    yTime = 0; 
+                }
                 audio.currentTime = yTime;
             }
             
+            // Resume Audio
             audio.play();
             
+            // Restore Canvas if enabled (Logic handled by handleCanvasPlay, but we ensure opacity)
             if(state.showCanvas) { 
                 canvas.style.opacity = '1'; 
                 canvas.play().catch(e=>{}); 
@@ -2350,12 +2340,14 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                 document.getElementById('mini-lyrics-player').style.display = 'block';
             }
             
+            // Destory YT player on switch back to save memory immediately
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
 
             showToast("Switched to Audio");
         }
         state.videoSwitching = false;
     }
+
     function startYTTracker(event) {
         event.target.playVideo();
         setInterval(() => {

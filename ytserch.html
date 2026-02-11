@@ -1240,15 +1240,11 @@
     }
 
     async function loadAndPlay() {
-        // CLEANUP VIDEO PLAYER IF EXISTS
+        // CLEANUP VIDEO PLAYER IF EXISTS (Deletes Metadata/Cache for this session)
         if (ytPlayer) {
             try { ytPlayer.destroy(); } catch(e){}
             ytPlayer = null;
         }
-        
-        // FORCE DOM RESET: Ensures a completely fresh container for the next session
-        const wrap = document.getElementById('wrap');
-        if(wrap) wrap.innerHTML = '<div id="player"></div>';
 
         // RESET VIDEO MODE STATES STRICTLY
         state.videoMode = false;
@@ -2396,7 +2392,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
 
     function onYTStateChange(event) {
         if(event.data === YT.PlayerState.PLAYING) { 
-            audio.pause(); 
+            audio.pause(); // CRITICAL: Force audio to stop if video plays
             state.isPlaying = true; 
             updateIcons(); 
         }
@@ -2406,23 +2402,8 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         }
         else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
-                if(state.isLoop) {
-                    // If looping, keep the player alive and replay
-                    ytPlayer.seekTo(0); 
-                    ytPlayer.playVideo(); 
-                }
-                else {
-                    // DESTROY PLAYER IMMEDIATELY
-                    try { ytPlayer.destroy(); } catch(e){}
-                    ytPlayer = null;
-                    
-                    // Reset UI to Audio mode appearance immediately
-                    document.getElementById('yt-view-container').classList.remove('active');
-                    document.getElementById('fp-art').classList.add('active');
-                    
-                    // Play next song (This triggers loadAndPlay, creating a fresh session)
-                    playNext();
-                }
+                if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }
+                else playNext();
             }
         }
     }

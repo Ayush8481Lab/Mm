@@ -996,7 +996,7 @@
         } catch(e) { console.log("Partial load error"); }
     }
 
-    async function fetchJina(url) { const res = await fetchWithFallback(`https://r.jina.ai/${url}`); const text = await res.text(); return parseJina(text); }
+    async function fetchJina(url) { const res = await fetch(`https://r.jina.ai/${url}`); const text = await res.text(); return parseJina(text); }
     function parseJina(text) {
         const regex = /\[!\[(.*?)\]\((.*?)\)\]\((.*?)\)/g; 
         const items = []; 
@@ -1491,7 +1491,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                     let apiEndpoint = '';
                     if (type === 'playlist') {
                         // Page 1, Limit 5
-                        apiEndpoint = `${BASE_API}/playlists?link=${encodeURIComponent(fetchUrl)}&page=1&limit=5`;
+                        apiEndpoint = `${BASE_API}/playlists?link=${encodeURIComponent(fetchUrl)}&page=1&limit=10`;
                     } else {
                         apiEndpoint = `${BASE_API}/albums?link=${encodeURIComponent(fetchUrl)}`;
                     }
@@ -1558,7 +1558,7 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
             if (requestId !== globalLoadRequestId) break;
 
             try {
-                const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=5`;
+                const apiUrl = `${BASE_API}/playlists?link=${encodeURIComponent(url)}&page=${page}&limit=10`;
                 const res = await fetch(apiUrl);
                 const json = await res.json();
                 const data = json.data || json;

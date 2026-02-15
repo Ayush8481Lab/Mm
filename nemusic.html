@@ -2323,7 +2323,7 @@ async function toggleFpMenu() {
             // === ENABLE VIDEO MODE ===
             state.videoMode = true;
             
-            // UI Setup (NO CSS CHANGES, just class toggles)
+            // UI Setup
             fullPlayer.classList.remove('canvas-immersive');
             fpImgArea.style.opacity = '1';
             fpImgArea.style.pointerEvents = 'auto'; 
@@ -2343,9 +2343,9 @@ async function toggleFpMenu() {
                 wrap.innerHTML = '<div id="player"></div>';
             }
 
-            // --- HEAVY AD-BLOCK SETUP ---
+            // --- HEAVY AD-BLOCK SETUP (Safe Mode) ---
             ytPlayer = new YT.Player("player", {
-            	host: 'https://www.youtube-nocookie.com', // Stricter Privacy Domain
+            	host: 'https://www.youtube-nocookie.com', // 1. Stricter Domain
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, 
@@ -2357,22 +2357,15 @@ async function toggleFpMenu() {
                     iv_load_policy: 3, 
                     disablekb: 1,
                     fs: 0,
-                    // Strict Origin Policy helps reduce targeted ads
-                    origin: window.location.origin 
+                    origin: window.location.origin // 2. Strict Origin
                 },
                 events: { 
                     onReady: (e) => {
-                        // --- 2026 SECURITY INJECTION ---
-                        try {
-                            const iframe = e.target.getIframe();
-                            // This attribute blocks popups while allowing the video to play.
-                            // It effectively kills the "click to open ad" behavior.
-                            iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-pointer-lock allow-forms");
-                        } catch(err) { console.warn("Sandbox injection failed", err); }
+                        // REMOVED: The sandbox injection. It broke the player.
                         
                         e.target.setPlaybackQuality(state.videoQuality);
                         
-                        // Pass the 'id' (The Song ID) to the tracker to verify content
+                        // 3. Start the Heavy Ad-Assassin Tracker
                         startYTTracker(e, id);
                     }, 
                     onStateChange: onYTStateChange 
@@ -2396,7 +2389,7 @@ async function toggleFpMenu() {
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
                 if (audio.duration && (yTime >= audio.duration || yTime < 0)) {
-                    // Invalid time, ignore
+                    // Invalid time
                 } else {
                     audio.currentTime = yTime;
                 }
@@ -2413,76 +2406,69 @@ async function toggleFpMenu() {
         
         setTimeout(() => { state.videoSwitching = false; }, 500);
     }
-
     function startYTTracker(event, expectedId) {
         event.target.playVideo();
         
-        // Internal state trackers
         let lastTime = -1;
         let stuckCount = 0;
-        let isAdSequence = false;
+        let adBurnerMode = false;
 
-        // "Heavy" interval: 100ms for faster reaction time
+        // HEAVY LOOP: 50ms interval for instant reaction
         setInterval(() => {
-            // Basic checks to ensure player exists
             if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
             
             try {
-                // --- 2026 AD-ASSASSIN LOGIC ---
+                // --- HEAVY AD DETECTION ---
+                const vData = ytPlayer.getVideoData();
+                const currentId = vData ? vData.video_id : null;
                 
-                // 1. Identification Phase
-                const videoData = ytPlayer.getVideoData();
-                const currentVideoId = videoData ? videoData.video_id : null;
-                
-                // If the ID playing is NOT the song ID, it is an Ad.
-                const isAdDetected = (currentVideoId && expectedId && currentVideoId !== expectedId);
+                // If YouTube injects a different ID, it is an Ad.
+                const isAd = (currentId && expectedId && currentId !== expectedId);
 
-                if (isAdDetected) {
-                    if (!isAdSequence) {
-                        // PHASE 1: NEUTRALIZE
-                        // Mute immediately so user hears nothing
+                if (isAd) {
+                    // PHASE 1: SILENCE
+                    if (!adBurnerMode) {
                         ytPlayer.mute(); 
-                        // Force playback speed to MAXIMUM to burn through the ad
-                        ytPlayer.setPlaybackRate(16); 
-                        isAdSequence = true;
-                    }
-
-                    // PHASE 2: ELIMINATE
-                    // Repeatedly try to skip to the end
-                    const adDuration = ytPlayer.getDuration();
-                    if (adDuration > 0) {
-                        ytPlayer.seekTo(adDuration - 0.1, true);
+                        adBurnerMode = true;
                     }
                     
-                    // Force play if the ad tries to pause itself to force interaction
+                    // PHASE 2: BURN (Speed up 16x)
+                    if(ytPlayer.getPlaybackRate() !== 16) {
+                         ytPlayer.setPlaybackRate(16);
+                    }
+
+                    // PHASE 3: SKIP
+                    const totalDur = ytPlayer.getDuration();
+                    if (totalDur > 0) {
+                        // Skip to the absolute end
+                        ytPlayer.seekTo(totalDur, true);
+                    }
+                    
+                    // Force play loop
                     if (ytPlayer.getPlayerState() === YT.PlayerState.PAUSED) {
                         ytPlayer.playVideo();
                     }
                     
-                    // PHASE 3: PROTECT UI
-                    // Return immediately. Do NOT update the slider or time text.
-                    // This freezes the UI on the song info, hiding the ad existence.
+                    // FREEZE UI: Do not update slider/time during ad
                     return; 
                 } 
                 else {
-                    // Normal Content Restoration
-                    if (isAdSequence) {
-                        // Ad is dead. Restore song settings.
+                    // NORMAL SONG
+                    if (adBurnerMode) {
+                        // Restore Normalcy
                         ytPlayer.unMute();
                         ytPlayer.setVolume(100);
                         ytPlayer.setPlaybackRate(1);
-                        isAdSequence = false;
+                        adBurnerMode = false;
                     }
                 }
-                // ------------------------------
+                // ---------------------------
 
-
-                // --- STANDARD UI UPDATE (Only runs when Ad is NOT detected) ---
-                
+                // --- STANDARD UI UPDATES ---
                 let c = ytPlayer.getCurrentTime();
                 let d = ytPlayer.getDuration();
                 
-                // Keep the manual loop logic
+                // Manual Loop Fix
                 if(d - c <= 2 && !ytLooped) {
                     if(state.isLoop) {
                         ytLooped = true;
@@ -2494,7 +2480,7 @@ async function toggleFpMenu() {
 
                 if(!d) return;
 
-                // Sync Custom YT Controls
+                // Sync Custom Controls
                 let p = c / d * 100;
                 const fill = document.getElementById('yt-fill');
                 const dot = document.getElementById('yt-dot');
@@ -2517,9 +2503,9 @@ async function toggleFpMenu() {
                 if(mainTotal) mainTotal.innerText = fmtTime(d); 
 
             } catch(e) {
-                // Ignore API errors during ad transitions
+                // Ignore transient errors
             }
-        }, 100); // 100ms interval for high-speed detection
+        }, 50); // 50ms = Heavy Monitoring
     }
     function onYTStateChange(event) {
         if(event.data === YT.PlayerState.PLAYING) { 

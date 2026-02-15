@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Premium YT Player – Ayush@8481</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root {
+  --accent: #ff2d55;
+}
+
+body {
+  margin: 0;
+  background: #0b0b0b;
+  color: #fff;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont;
+}
+
+/* ===== EXACT MUSIC CODE RATIO ===== */
+.player-wrap {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: 56.25%;
+  background: #000;
+  overflow: hidden;
+}
+
+/* INNER 177.77% COVER (IMPORTANT) */
+.video-cover {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 177.77%;
+  transform: translate(-50%, -50%);
+}
+
+/* YOUTUBE IFRAME */
+#player,
+iframe {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* ===== UI OVERLAY (VIDEO.JS STYLE) ===== */
+.controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 12px;
+  background: linear-gradient(to top, rgba(0,0,0,.85), rgba(0,0,0,0));
+}
+
+.big-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.big-play button {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0,0,0,.6);
+  color: #fff;
+  font-size: 30px;
+  cursor: pointer;
+}
+
+.big-play button:hover {
+  background: rgba(0,0,0,.85);
+}
+
+/* SEEK BAR */
+.bar {
+  width: 100%;
+  height: 4px;
+  background: #444;
+  border-radius: 3px;
+  position: relative;
+  cursor: pointer;
+}
+
+.fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+}
+
+.time {
+  font-size: 12px;
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  opacity: .8;
+}
+</style>
+</head>
+
+<body>
+
+<div class="player-wrap">
+  <div class="video-cover">
+    <div id="player"></div>
+  </div>
+
+  <!-- BIG PLAY -->
+  <div class="big-play" id="bigPlay">
+    <button id="playBtn">▶</button>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <div class="bar" id="bar">
+      <div class="fill" id="fill"></div>
+    </div>
+    <div class="time">
+      <span id="cur">0:00</span>
+      <span id="dur">0:00</span>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+/* ===== CHANGE ONLY THIS ===== */
+const VIDEO_ID = "yThYwOixjYg";
+
+let player, playing = false;
+
+/* INIT */
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player("player", {
+    videoId: VIDEO_ID,
+    playerVars: {
+      controls: 0,
+      modestbranding: 1,
+      rel: 0,
+      fs: 0,
+      playsinline: 1
+    },
+    events: {
+      onReady: () => setInterval(update, 500),
+      onStateChange: e => {
+        playing = e.data === YT.PlayerState.PLAYING;
+        document.getElementById("playBtn").textContent = playing ? "❚❚" : "▶";
+      }
+    }
+  });
+}
+
+/* PLAY / PAUSE */
+document.getElementById("playBtn").onclick = () => {
+  playing ? player.pauseVideo() : player.playVideo();
+};
+
+/* SEEK */
+document.getElementById("bar").onclick = e => {
+  const rect = e.currentTarget.getBoundingClientRect();
+  const pct = (e.clientX - rect.left) / rect.width;
+  player.seekTo(player.getDuration() * pct, true);
+};
+
+/* UPDATE UI */
+function update() {
+  if (!player || !player.getDuration) return;
+  const c = player.getCurrentTime();
+  const d = player.getDuration();
+  document.getElementById("fill").style.width = (c / d) * 100 + "%";
+  cur.textContent = fmt(c);
+  dur.textContent = fmt(d);
+}
+
+function fmt(s) {
+  s = Math.floor(s);
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+</script>
+
+</body>
+</html>

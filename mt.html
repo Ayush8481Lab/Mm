@@ -2015,49 +2015,31 @@ async function toggleFpMenu() {
         if(!state.currentAlbumData) return;
         if(state.downloadState.active) return;
         
-        // DEEP COPY SNAPSHOT to ensure we don't mess up the current view
+        // DEEP COPY SNAPSHOT of the album data to fix the bug where navigating away changes what gets saved
         const albumSnapshot = JSON.parse(JSON.stringify(state.currentAlbumData));
-        
-        // --- START FIX: Upgrade Images to 500x500 for Offline Storage ---
-        // 1. Upgrade the Album/Playlist Cover
-        if(albumSnapshot.img) {
-            albumSnapshot.img = albumSnapshot.img.replace(/150x150|50x50|250x250/g, '500x500');
-        }
-        
-        // 2. Upgrade every song inside the list
-        if(albumSnapshot.songs) {
-            albumSnapshot.songs.forEach(s => {
-                if(s.img) s.img = s.img.replace(/150x150|50x50|250x250/g, '500x500');
-            });
-        }
-        // --- END FIX ---
-
         const songs = albumSnapshot.songs;
+        
         if (!songs || songs.length === 0) return;
 
         state.downloadState = { active: true, id: albumSnapshot.id, total: songs.length, current: 0, abort: new AbortController() };
-        updateDownloadBtnUI(state.currentAlbumData); // UI Update for current view
+        updateDownloadBtnUI(state.currentAlbumData); // UI Update for current view if matches
 
         try {
             for (let i = 0; i < songs.length; i++) {
                 if (state.downloadState.abort.signal.aborted) throw new Error("Cancelled");
                 state.downloadState.current = i + 1;
-                
                 // Only update UI if user is still looking at the same album
                 if(state.currentAlbumData && state.currentAlbumData.id === albumSnapshot.id) {
                     updateDownloadBtnUI(state.currentAlbumData);
                 }
                 
                 if(!downloads.some(d => d.id === songs[i].id)) {
-                    // processDownload will handle the audio file
                     await processDownload(songs[i]);
-                    // Save the song with the NEW 500x500 image to downloads DB
                     downloads.push(songs[i]);
                     await IdbHelper.set('vibeDownloads', downloads);
                 }
             }
             
-            // Save the playlist with the NEW 500x500 image to offline DB
             offlinePlaylists.push(albumSnapshot);
             await IdbHelper.set('vibeOfflinePlaylists', offlinePlaylists);
             
@@ -2077,6 +2059,7 @@ async function toggleFpMenu() {
             else showToast("Download Failed (Network?)");
         }
     }
+
     function cancelDownload() {
         if(state.downloadState.abort) state.downloadState.abort.abort();
         state.downloadState.active = false;
@@ -2116,9 +2099,7 @@ async function toggleFpMenu() {
             gridDiv.className = 'grid-scroll'; 
             items.forEach(item => {
                 const div = document.createElement('div'); div.className = 'card lib-item-entry';
-                // Watermark for downloaded OR saved playlist
                 const isOfflinePlaylist = item.from === 'offline' || item.from === 'saved';
-                // Use correct class for top-left positioning
                 const watermarkHtml = isOfflinePlaylist ? `<img src="${APP_LOGO_URL}" class="watermark-logo">` : '';
 
                 div.innerHTML = `${watermarkHtml}<img src="${item.img}"><div class="marquee-container"><h3 class="marquee-content">${decodeStr(item.title)}</h3></div><p>${item.subtitle || 'Collection'}</p>`;
@@ -2128,17 +2109,27 @@ async function toggleFpMenu() {
             });
             section.appendChild(gridDiv);
         } else {
+            // --- LIST VIEW LOGIC ---
             const listDiv = document.createElement('div');
             listDiv.className = 'list-view';
             items.forEach(item => {
-                const div = document.createElement('div'); div.className = 'list-item lib-item-entry'; div.style.justifyContent = 'space-between';
+                const div = document.createElement('div'); 
+                div.className = 'list-item lib-item-entry'; 
+                
+                // We keep justify-content, but the inner div needs to fill the space
+                div.style.justifyContent = 'space-between';
+                
                 div.onclick = () => { state.queue = items; state.qIndex = items.indexOf(item); loadAndPlay(); };
                 
                 const isBuffering = state.bufferingId === item.id;
                 if(isBuffering) div.classList.add('buffering');
                 const bufferingHtml = `<div class="buffering-overlay"><div class="buf-spinner"></div></div>`;
 
-                div.innerHTML = `<div style="position:relative;display:flex;"><img src="${item.img}">${bufferingHtml}<div class="list-info"><div class="marquee-container"><h4 class="marquee-content">${decodeStr(item.title)}</h4></div><div class="marquee-container"><p class="marquee-content">${decodeStr(item.artist || 'Artist')}</p></div></div></div>`;
+                // --- CRITICAL CHANGE BELOW ---
+                // Added: flex:1; min-width:0; overflow:hidden;
+                // This forces the wrapper to clamp to the screen width, triggering the marquee.
+                div.innerHTML = `<div style="position:relative; display:flex; flex:1; min-width:0; overflow:hidden; align-items:center;"><img src="${item.img}">${bufferingHtml}<div class="list-info"><div class="marquee-container"><h4 class="marquee-content">${decodeStr(item.title)}</h4></div><div class="marquee-container"><p class="marquee-content">${decodeStr(item.artist || 'Artist')}</p></div></div></div>`;
+                
                 setupLongPress(div, () => openModal(() => deleteItem(item)));
                 listDiv.appendChild(div);
             });
@@ -2147,7 +2138,7 @@ async function toggleFpMenu() {
         return section;
     }
 
-function switchLibFilter(filter, el) {
+    function switchLibFilter(filter, el) {
         if (el) {
             document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
             el.classList.add('active');
@@ -2190,8 +2181,19 @@ function switchLibFilter(filter, el) {
             if(!content.hasChildNodes()) content.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">No Songs</div>';
         }
         
-        // FIX: Added timeout to ensure marquee calculates correctly after rendering
-        setTimeout(() => { window.observeMarquees(); }, 200);
+        window.observeMarquees();
+    }
+
+    function deleteItem(item) {
+        if (item.from === 'liked') { const idx = likedSongs.findIndex(x=>x.id===item.id); if(idx>-1) likedSongs.splice(idx,1); IdbHelper.set('vibeLiked', likedSongs); }
+        else if (item.from === 'saved') { const idx = savedPlaylists.findIndex(x=>x.title===item.title); if(idx>-1) savedPlaylists.splice(idx,1); IdbHelper.set('vibeSavedPlaylists', savedPlaylists); }
+        else if (item.from === 'downloaded') { const idx = downloads.findIndex(x=>x.id===item.id); if(idx>-1) downloads.splice(idx,1); IdbHelper.set('vibeDownloads', downloads); IdbHelper.delete(`blob_audio_${item.id}_${state.quality}`); }
+        else if (item.from === 'offline') { const idx = offlinePlaylists.findIndex(x=>x.title===item.title); if(idx>-1) offlinePlaylists.splice(idx,1); IdbHelper.set('vibeOfflinePlaylists', offlinePlaylists); }
+        
+        const activeChip = document.querySelector('.filter-chip.active');
+        const filterName = activeChip ? activeChip.innerText.toLowerCase() : 'all';
+        switchLibFilter(filterName, null); 
+        showToast("Deleted");
     }
 
     function openFullPlayer() { history.pushState({view: 'player'}, null, ''); document.getElementById('full-player').classList.add('active'); }

@@ -1941,9 +1941,18 @@ async function toggleFpMenu() {
         const track = state.queue[state.qIndex]; if(!track) return;
         if(downloads.some(d => d.id === track.id)) { showToast("Already Downloaded"); return; }
         showToast("Downloading Song...");
+        
+        // --- START FIX: Create HQ Copy for Saving ---
+        const trackToSave = JSON.parse(JSON.stringify(track)); // Clone it so we don't disturb UI
+        if(trackToSave.img) {
+            // Force 500x500
+            trackToSave.img = trackToSave.img.replace(/150x150|50x50|250x250/g, '500x500');
+        }
+        // --- END FIX ---
+
         try {
-            await processDownload(track);
-            downloads.push(track);
+            await processDownload(trackToSave); // Download using HQ data
+            downloads.push(trackToSave);        // Save HQ data to DB
             await IdbHelper.set('vibeDownloads', downloads);
             showToast("Song Downloaded");
         } catch(e) { showToast("Download Failed"); console.error(e); }
@@ -2006,31 +2015,49 @@ async function toggleFpMenu() {
         if(!state.currentAlbumData) return;
         if(state.downloadState.active) return;
         
-        // DEEP COPY SNAPSHOT of the album data to fix the bug where navigating away changes what gets saved
+        // DEEP COPY SNAPSHOT to ensure we don't mess up the current view
         const albumSnapshot = JSON.parse(JSON.stringify(state.currentAlbumData));
-        const songs = albumSnapshot.songs;
         
+        // --- START FIX: Upgrade Images to 500x500 for Offline Storage ---
+        // 1. Upgrade the Album/Playlist Cover
+        if(albumSnapshot.img) {
+            albumSnapshot.img = albumSnapshot.img.replace(/150x150|50x50|250x250/g, '500x500');
+        }
+        
+        // 2. Upgrade every song inside the list
+        if(albumSnapshot.songs) {
+            albumSnapshot.songs.forEach(s => {
+                if(s.img) s.img = s.img.replace(/150x150|50x50|250x250/g, '500x500');
+            });
+        }
+        // --- END FIX ---
+
+        const songs = albumSnapshot.songs;
         if (!songs || songs.length === 0) return;
 
         state.downloadState = { active: true, id: albumSnapshot.id, total: songs.length, current: 0, abort: new AbortController() };
-        updateDownloadBtnUI(state.currentAlbumData); // UI Update for current view if matches
+        updateDownloadBtnUI(state.currentAlbumData); // UI Update for current view
 
         try {
             for (let i = 0; i < songs.length; i++) {
                 if (state.downloadState.abort.signal.aborted) throw new Error("Cancelled");
                 state.downloadState.current = i + 1;
+                
                 // Only update UI if user is still looking at the same album
                 if(state.currentAlbumData && state.currentAlbumData.id === albumSnapshot.id) {
                     updateDownloadBtnUI(state.currentAlbumData);
                 }
                 
                 if(!downloads.some(d => d.id === songs[i].id)) {
+                    // processDownload will handle the audio file
                     await processDownload(songs[i]);
+                    // Save the song with the NEW 500x500 image to downloads DB
                     downloads.push(songs[i]);
                     await IdbHelper.set('vibeDownloads', downloads);
                 }
             }
             
+            // Save the playlist with the NEW 500x500 image to offline DB
             offlinePlaylists.push(albumSnapshot);
             await IdbHelper.set('vibeOfflinePlaylists', offlinePlaylists);
             
@@ -2050,7 +2077,6 @@ async function toggleFpMenu() {
             else showToast("Download Failed (Network?)");
         }
     }
-
     function cancelDownload() {
         if(state.downloadState.abort) state.downloadState.abort.abort();
         state.downloadState.active = false;
@@ -2121,7 +2147,7 @@ async function toggleFpMenu() {
         return section;
     }
 
-    function switchLibFilter(filter, el) {
+function switchLibFilter(filter, el) {
         if (el) {
             document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
             el.classList.add('active');
@@ -2164,19 +2190,8 @@ async function toggleFpMenu() {
             if(!content.hasChildNodes()) content.innerHTML = '<div style="text-align:center; padding:50px; color:#666;">No Songs</div>';
         }
         
-        window.observeMarquees();
-    }
-
-    function deleteItem(item) {
-        if (item.from === 'liked') { const idx = likedSongs.findIndex(x=>x.id===item.id); if(idx>-1) likedSongs.splice(idx,1); IdbHelper.set('vibeLiked', likedSongs); }
-        else if (item.from === 'saved') { const idx = savedPlaylists.findIndex(x=>x.title===item.title); if(idx>-1) savedPlaylists.splice(idx,1); IdbHelper.set('vibeSavedPlaylists', savedPlaylists); }
-        else if (item.from === 'downloaded') { const idx = downloads.findIndex(x=>x.id===item.id); if(idx>-1) downloads.splice(idx,1); IdbHelper.set('vibeDownloads', downloads); IdbHelper.delete(`blob_audio_${item.id}_${state.quality}`); }
-        else if (item.from === 'offline') { const idx = offlinePlaylists.findIndex(x=>x.title===item.title); if(idx>-1) offlinePlaylists.splice(idx,1); IdbHelper.set('vibeOfflinePlaylists', offlinePlaylists); }
-        
-        const activeChip = document.querySelector('.filter-chip.active');
-        const filterName = activeChip ? activeChip.innerText.toLowerCase() : 'all';
-        switchLibFilter(filterName, null); 
-        showToast("Deleted");
+        // FIX: Added timeout to ensure marquee calculates correctly after rendering
+        setTimeout(() => { window.observeMarquees(); }, 200);
     }
 
     function openFullPlayer() { history.pushState({view: 'player'}, null, ''); document.getElementById('full-player').classList.add('active'); }

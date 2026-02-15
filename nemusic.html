@@ -361,7 +361,7 @@
         #yt-view-container.active { display: block; }
         .video-cover { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 100%; height: 177.77%; pointer-events: none; }
         #wrap, #player, iframe { width: 100%; height: 100%; pointer-events: none; }
-        .shield { position: absolute; inset: 0; z-index: 25; }
+        .shield { position: absolute; inset: 0; z-index: 28; }
         .center-unlock { position: absolute; top: 50%; left: 50%; width: 90px; height: 90px; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: auto; }
         .block-area { position: absolute; inset: 0; pointer-events: auto; }
    /* --- NEW PREMIUM YOUTUBE UI --- */
@@ -944,21 +944,30 @@ let targetStartSec = 0; // The second we wanted to start at (e.g., 21s)
             showYTControls();
         });
 
-        function ytSeek(x) {
-            let r = bar.getBoundingClientRect();
-            let p = Math.max(0, Math.min(1, (x - r.left) / r.width));
+        // REPLACE your existing ytSeek function with this:
+function ytSeek(x) {
+    const bar = document.getElementById('yt-bar');
+    let r = bar.getBoundingClientRect();
+    let p = Math.max(0, Math.min(1, (x - r.left) / r.width));
+
+    // 1. Fallback Player (API Video)
+    if (fallbackActive) {
+        const vid = document.getElementById('fallback-video');
+        if (vid && vid.duration) {
+            vid.currentTime = vid.duration * p;
             
-            // NEW: Fallback Seek
-            if (fallbackActive) {
-                const vid = document.getElementById('fallback-video');
-                if(vid && vid.duration) vid.currentTime = vid.duration * p;
-                return;
-            }
-
-            // Normal YT Seek
-            if(ytPlayer && ytPlayer.getDuration) ytPlayer.seekTo(ytPlayer.getDuration()*p, true);
+            // Update UI immediately for smoothness
+            document.getElementById('yt-fill').style.width = (p * 100) + "%";
+            document.getElementById('yt-time').innerText = fmtTime(vid.currentTime) + " / " + fmtTime(vid.duration);
         }
+        return;
+    }
 
+    // 2. Normal YouTube Player
+    if (ytPlayer && ytPlayer.getDuration) {
+        ytPlayer.seekTo(ytPlayer.getDuration() * p, true);
+    }
+}
         bar.addEventListener('pointerdown', e => { ytDragging = true; showYTControls(); ytSeek(e.clientX); });
         bar.addEventListener('pointermove', e => { if(ytDragging) ytSeek(e.clientX); });
         window.addEventListener('pointerup', () => { ytDragging = false; });
@@ -2429,46 +2438,64 @@ async function getRapidVideoUrl(videoId) {
 
 // 2. Function to Activate Fallback Player
 async function switchToFallback(videoId, startAt) {
-    if(fallbackActive) return; // Prevent double trigger
+    if (fallbackActive) return; 
     fallbackActive = true;
-    showToast("Ad Detected. Switching to Premium Player...");
+    showToast("Ad detected. Switching to Premium Player...");
 
-    // Destroy Iframe
-    if(ytPlayer) { try { ytPlayer.destroy(); } catch(e){} ytPlayer = null; }
+    // 1. Clean up YouTube Iframe
+    if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; }
     document.getElementById('player').innerHTML = '';
 
-    // Fetch Link
+    // 2. Get Link
     const url = await getRapidVideoUrl(videoId);
-    
-    if(url) {
+
+    if (url) {
         const vid = document.getElementById('fallback-video');
         vid.src = url;
         vid.style.display = 'block';
-        vid.currentTime = startAt; // Resume from 21s (or wherever we were)
+        vid.currentTime = startAt || 0; 
         
+        // Update branding
+        const brand = document.querySelector('.yt-brand');
+        if(brand) brand.innerText = "PREMIUM 360p";
+
         vid.play().then(() => {
             state.isPlaying = true;
             updateIcons();
-            document.querySelector('.yt-brand').innerText = "PREMIUM 360p";
-        }).catch(e => console.log(e));
+        }).catch(e => console.log("Auto-play blocked", e));
 
-        // Sync UI events for Fallback Player
+        // --- FIXED SYNC LOGIC ---
         vid.ontimeupdate = () => {
             const c = vid.currentTime;
-            const d = vid.duration || 0;
-            // Update YT UI Bars
-            document.getElementById('yt-time').innerText = fmtTime(c) + " / " + fmtTime(d);
-            document.getElementById('yt-fill').style.width = ((c/d)*100) + "%";
-            // Update Main Audio UI (Background sync)
+            const d = vid.duration;
+            if (!d) return;
+
+            // A. Update Green Line (Width)
+            const fill = document.getElementById('yt-fill');
+            if (fill) fill.style.width = ((c / d) * 100) + "%";
+
+            // B. Update Time Text
+            const timeEl = document.getElementById('yt-time');
+            if (timeEl) timeEl.innerText = fmtTime(c) + " / " + fmtTime(d);
+
+            // C. Sync Main Audio Player (Hidden UI)
             document.getElementById('curr-time').innerText = fmtTime(c);
+            document.getElementById('total-time').innerText = fmtTime(d);
             const slider = document.getElementById('seek-slider');
-            if(slider) { slider.value = c; slider.max = d; }
+            if (slider && !slider.matches(':active')) {
+                slider.max = d; 
+                slider.value = c;
+            }
         };
-        
-        vid.onended = () => { if(state.isLoop) { vid.currentTime=0; vid.play(); } else playNext(); };
+
+        vid.onended = () => {
+            if (state.isLoop) { vid.currentTime = 0; vid.play(); } 
+            else { playNext(); }
+        };
+
     } else {
-        showToast("Premium unavailable, switching to Audio");
-        toggleVideoMode(); // Go back to audio if API fails
+        showToast("Premium unavailable. Switching to Audio.");
+        toggleVideoMode(); 
     }
 }
 
@@ -2695,24 +2722,33 @@ async function switchToFallback(videoId, startAt) {
         }
     }
     function toggleYtPlay() {
-    // A. Fallback Player Logic
-    if(fallbackActive) {
+    // 1. Fallback (API Video) Logic
+    if (fallbackActive) {
         const vid = document.getElementById('fallback-video');
-        if(vid.paused) { vid.play(); state.isPlaying=true; } 
-        else { vid.pause(); state.isPlaying=false; }
+        if (vid.paused) {
+            vid.play();
+            state.isPlaying = true;
+        } else {
+            vid.pause();
+            state.isPlaying = false;
+        }
         
-        // Update Icon
+        // Force Icon Update
         const icon = document.querySelector('#yt-play-btn i');
-        icon.className = state.isPlaying ? 'fas fa-pause' : 'fas fa-play';
-        showYTControls();
+        if(icon) icon.className = state.isPlaying ? 'fas fa-pause' : 'fas fa-play';
+        
+        showYTControls(); // Show controls when tapped
         return;
     }
 
-    // B. Normal YouTube Logic
-    if(!ytPlayer || !ytPlayer.getPlayerState) return;
+    // 2. Standard YouTube Logic
+    if (!ytPlayer || !ytPlayer.getPlayerState) return;
     const s = ytPlayer.getPlayerState();
-    if (s === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
-    else ytPlayer.playVideo();
+    if (s === YT.PlayerState.PLAYING) {
+        ytPlayer.pauseVideo();
+    } else {
+        ytPlayer.playVideo();
+    }
     showYTControls();
 }
 

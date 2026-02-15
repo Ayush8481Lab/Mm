@@ -2568,10 +2568,62 @@ function toggleYtMute() {
     }
     showYTControls();
 }
-    function toggleYtFull() {
-        let el = document.getElementById("yt-view-container");
-        document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen();
+    async function toggleYtFull() {
+    const el = document.getElementById("yt-view-container");
+
+    if (!document.fullscreenElement) {
+        // --- ENTER FULLSCREEN & LANDSCAPE ---
+        try {
+            // 1. Request Fullscreen
+            if (el.requestFullscreen) {
+                await el.requestFullscreen();
+            } else if (el.webkitRequestFullscreen) { /* Safari/iOS */
+                await el.webkitRequestFullscreen();
+            } else if (el.msRequestFullscreen) { /* IE11 */
+                await el.msRequestFullscreen();
+            }
+
+            // 2. Lock Orientation to Landscape (Android/Chrome/PWA)
+            // Note: This works best on Android. iOS Safari generally ignores this 
+            // and relies on the user physically turning the phone.
+            if (screen.orientation && screen.orientation.lock) {
+                await screen.orientation.lock("landscape").catch(e => {
+                    // Fail silently if device doesn't support locking (like some desktops)
+                    console.log("Landscape lock not supported on this device/browser");
+                });
+            }
+        } catch (err) {
+            console.error("Fullscreen error:", err);
+        }
+
+    } else {
+        // --- EXIT FULLSCREEN & PORTRAIT ---
+        try {
+            // 3. Exit Fullscreen
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                await document.webkitExitFullscreen();
+            }
+
+            // 4. Unlock/Reset Orientation
+            if (screen.orientation && screen.orientation.unlock) {
+                screen.orientation.unlock();
+            }
+        } catch (err) {
+            console.error("Exit error:", err);
+        }
     }
+}
+// Add this to handle Hardware Back Button or Escape Key
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) {
+        // The user exited fullscreen, so force Portrait/Unlock
+        if (screen.orientation && screen.orientation.unlock) {
+            screen.orientation.unlock();
+        }
+    }
+});
 
 </script>
 </body>

@@ -681,7 +681,7 @@
 
     const state = { 
         lang: 'hindi', quality: '320kbps', videoQuality: 'medium', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
-        videoMode: false, currentTrackYTId: null, videoSwitching: false ,isClearingAds: false
+        videoMode: false, currentTrackYTId: null, videoSwitching: false 
     };
     const languages = ["Hindi", "English", "Punjabi", "Tamil", "Telugu", "Marathi", "Gujarati", "Bengali", "Kannada", "Bhojpuri", "Malayalam", "Haryanvi", "Rajasthani", "Odia", "Assamese"];
     const PROXY_LIST = ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url=", "https://thingproxy.freeboard.io/fetch/"];
@@ -2300,41 +2300,6 @@ async function toggleFpMenu() {
             doVideoSwitch(state.currentTrackYTId, ytTargetTime);
         }
     }
-    function playAdClearer(originalId, resumeTime) {
-    if (state.isClearingAds) return; 
-    state.isClearingAds = true;
-    console.log("Ad detected. Playing Cleaner Video...");
-
-    // 1. Destroy current player to stop the ad
-    if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
-    
-    // 2. Clear the container
-    document.getElementById('wrap').innerHTML = '<div id="player"></div>'; 
-
-    // 3. Load YOUR silent video (iYGK5j6bBD4)
-    ytPlayer = new YT.Player("player", {
-        host: 'https://www.youtube-nocookie.com',
-        videoId: 'iYGK5j6bBD4', // Your silent video ID
-        playerVars: { 
-            autoplay: 1, controls: 0, playsinline: 1, 
-            modestbranding: 1, disablekb: 1, fs: 0, rel: 0
-        },
-        events: {
-            onReady: (e) => {
-                // NO MUTE NEEDED (Video is silent)
-                e.target.playVideo();
-                
-                // 4. Wait 2 seconds, then reload original song
-                setTimeout(() => {
-                    console.log("Restoring original song...");
-                    state.isClearingAds = false;
-                    // Reload original video at the specific timestamp
-                    doVideoSwitch(originalId, resumeTime);
-                }, 2000); 
-            }
-        }
-    });
-}
 
     function doVideoSwitch(id, startTime = 0) {
         const art = document.getElementById('fp-art');
@@ -2370,7 +2335,7 @@ async function toggleFpMenu() {
             wrap.innerHTML = '<div id="player"></div>'; 
 
             ytPlayer = new YT.Player("player", {
-                host: 'https://www.youtube-nocookie.com', 
+                host: 'https://www.youtube.com', 
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, controls: 0, playsinline: 1, rel: 0, 
@@ -2420,75 +2385,84 @@ async function toggleFpMenu() {
     }
 
     function startYTTracker(event, intendedTime = 0) {
-    const player = event.target;
-    player.playVideo();
-    
-    // Flag: Did we successfully start at the intended time?
-    let hasReachedTarget = false;
-    
-    // If starting at 0, mark as reached immediately
-    if(intendedTime < 2) hasReachedTarget = true; 
-
-    // Force seek to ensure we start where we left off
-    if(intendedTime > 0) player.seekTo(intendedTime, true);
-
-    const trackerInterval = setInterval(() => {
-        // Stop tracking if we are switching, clearing ads, or player is gone
-        if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || state.isClearingAds) {
-            clearInterval(trackerInterval); return;
-        }
-        if(ytDragging) return;
-
-        let c = ytPlayer.getCurrentTime();
-        let d = ytPlayer.getDuration();
+        const player = event.target;
+        player.playVideo();
         
-        // --- AD DETECTION LOGIC ---
-
-        // 1. Mark target as reached if we are near the resume time
-        if (!hasReachedTarget && c >= (intendedTime - 1)) {
-            hasReachedTarget = true;
-        }
-
-        // 2. DETECT BOUNCE: 
-        // We reached the target time (e.g. 21s), but now time is < 2s.
-        // This means an ad hijacked the player.
-        if (hasReachedTarget && intendedTime > 5 && c < 2) {
-            console.log("Ad Bounce Detected. Flushing with cleaner video...");
-            clearInterval(trackerInterval);
-            // Trigger your silent video
-            playAdClearer(state.currentTrackYTId, intendedTime);
-            return;
-        }
-        // -----------------------------
-
-        // UI Updates (Standard Stuff)
-        let p = c / d * 100;
-        const fill = document.getElementById('yt-fill');
-        const dot = document.getElementById('yt-dot');
-        const time = document.getElementById('yt-time');
+        // FLAG: Have we successfully reached the 21s mark yet?
+        let hasReachedTarget = false;
         
-        if(fill) fill.style.width = p + "%";
-        if(dot) dot.style.left = p + "%";
-        if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
+        // If we are starting at 0, we don't need this logic
+        if(intendedTime < 2) hasReachedTarget = true; 
 
-        const mainSlider = document.getElementById('seek-slider');
-        if(mainSlider && !mainSlider.matches(':active')) {
-            mainSlider.max = d; mainSlider.value = c; 
-            mainSlider.style.backgroundSize = `${p}% 100%`;
-        }
-        document.getElementById('curr-time').innerText = fmtTime(c);
-        document.getElementById('total-time').innerText = fmtTime(d); 
-        
-        // Loop logic
-        if(d - c <= 3 && !ytLooped && state.isLoop) {
-            ytLooped = true; ytPlayer.seekTo(0, true); ytPlayer.playVideo();
-            setTimeout(() => ytLooped = false, 1500);
-        }
-    }, 200);
-}
+        // Force seek on start just to be sure
+        if(intendedTime > 0) player.seekTo(intendedTime, true);
+
+        const trackerInterval = setInterval(() => {
+            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration) {
+                clearInterval(trackerInterval); return;
+            }
+            if(ytDragging) return;
+
+            let c = ytPlayer.getCurrentTime();
+            let d = ytPlayer.getDuration();
+            
+            // ============================================
+            //        BOUNCE DETECTION LOGIC
+            // ============================================
+            
+            // 1. CHECK SUCCESS: If we are close to 21s (e.g., > 20s), mark as reached.
+            if (!hasReachedTarget && c >= (intendedTime - 1)) {
+                hasReachedTarget = true;
+                // console.log("Target reached successfully");
+            }
+
+            // 2. CHECK FAILURE: 
+            // Condition: We have previously reached the target (21s)
+            // BUT NOW the time has dropped back near 0 (Ad bounce)
+            if (hasReachedTarget && intendedTime > 5 && c < 2 && ytRetryCount < MAX_YT_RETRIES) {
+                
+                console.log("Ad Bounce Detected (21s -> 0s). Resetting...");
+                clearInterval(trackerInterval);
+                
+                // TRIGGER HARD RESET
+                ytRetryCount++;
+                state.videoMode = false; // Toggle flag so doVideoSwitch treats it as "Enable"
+                doVideoSwitch(state.currentTrackYTId, intendedTime);
+                return;
+            }
+            // ============================================
+
+            if(!d) return;
+
+            // UI UPDATES (No changes here)
+            let p = c / d * 100;
+            const fill = document.getElementById('yt-fill');
+            const dot = document.getElementById('yt-dot');
+            const time = document.getElementById('yt-time');
+            if(fill) fill.style.width = p + "%";
+            if(dot) dot.style.left = p + "%";
+            if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
+
+            const mainSlider = document.getElementById('seek-slider');
+            const mainCurr = document.getElementById('curr-time');
+            const mainTotal = document.getElementById('total-time');
+            
+            if(mainSlider && !mainSlider.matches(':active')) {
+                mainSlider.max = d; mainSlider.value = c; 
+                mainSlider.style.backgroundSize = `${p}% 100%`;
+            }
+            if(mainCurr) mainCurr.innerText = fmtTime(c);
+            if(mainTotal) mainTotal.innerText = fmtTime(d); 
+            
+            if(d - c <= 3 && !ytLooped) {
+                if(state.isLoop) {
+                    ytLooped = true; ytPlayer.seekTo(0, true); ytPlayer.playVideo();
+                    setTimeout(() => ytLooped = false, 1500);
+                }
+            }
+        }, 200);
+    }
     function onYTStateChange(event) {
-    	// ADD THIS LINE: Ignore events if cleaning ads
-    if (state.isClearingAds) return; 
         if(event.data === YT.PlayerState.PLAYING) { 
             audio.pause(); // CRITICAL: Force audio to stop if video plays
             state.isPlaying = true; 

@@ -681,7 +681,8 @@
 
     const state = { 
         lang: 'hindi', quality: '320kbps', videoQuality: 'medium', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
-        videoMode: false, currentTrackYTId: null, videoSwitching: false 
+        videoMode: false, currentTrackYTId: null, videoSwitching: false ,
+        expectedDuration: 0 
     };
     const languages = ["Hindi", "English", "Punjabi", "Tamil", "Telugu", "Marathi", "Gujarati", "Bengali", "Kannada", "Bhojpuri", "Malayalam", "Haryanvi", "Rajasthani", "Odia", "Assamese"];
     const PROXY_LIST = ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url=", "https://thingproxy.freeboard.io/fetch/"];
@@ -2304,6 +2305,9 @@ async function toggleFpMenu() {
     }
 
     function doVideoSwitch(id) {
+        if(state.videoSwitching) return; // Prevent double-clicks
+        state.videoSwitching = true;
+
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2312,13 +2316,17 @@ async function toggleFpMenu() {
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
         
-        // UI Cleanup
+        // CLEANUP UI
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
             // === SWITCH TO VIDEO ===
             state.videoMode = true;
-            state.currentTrackYTId = id; // STRICTLY SET TARGET ID
+            state.currentTrackYTId = id; 
+            
+            // CAPTURE DURATION FOR SECURITY CHECK
+            // If audio.duration is available, use it. Otherwise use 0 (logic will skip check if 0)
+            state.expectedDuration = (audio && audio.duration) ? audio.duration : 0;
 
             fullPlayer.classList.remove('canvas-immersive');
             fpImgArea.style.opacity = '1';
@@ -2331,7 +2339,7 @@ async function toggleFpMenu() {
             canvas.pause(); 
             canvas.style.opacity = '0';
             
-            // CLEAN RESTART
+            // HARD CLEANUP
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
             if(ytSupervisor) clearInterval(ytSupervisor);
             
@@ -2339,7 +2347,7 @@ async function toggleFpMenu() {
 
             // INITIALIZE PLAYER
             ytPlayer = new YT.Player("player", {
-                host: 'https://www.youtube-nocookie.com', // No-Cookie Domain
+                host: 'https://www.youtube-nocookie.com',
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, 
@@ -2347,31 +2355,24 @@ async function toggleFpMenu() {
                     playsinline: 1, 
                     rel: 0, 
                     modestbranding: 1, 
-                    iv_load_policy: 3, // Hide annotations
+                    iv_load_policy: 3,
                     start: Math.floor(audio.currentTime),
                     disablekb: 1,
                     fs: 0,
-                    origin: window.location.origin // Security strictness
+                    origin: window.location.origin
                 },
                 events: { 
                     onReady: (e) => {
                         e.target.setPlaybackQuality(state.videoQuality);
-                        
-                        // --- HEAVY AD BLOCK: SANDBOX INJECTION ---
-                        // This strictly prevents the iframe from opening popups/tabs
+                        // Heavy Sandbox Injection
                         const iframe = e.target.getIframe();
-                        if(iframe) {
-                            iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-pointer-lock");
-                        }
+                        if(iframe) iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-pointer-lock");
                         
-                        startYTSupervisor(id); // START THE WATCHDOG
+                        // START THE HEAVY WATCHDOG
+                        startYTSupervisor(id); 
                     }, 
                     onStateChange: onYTStateChange,
-                    onError: (e) => {
-                        console.log("YT Error:", e.data);
-                        // If error, force kill and retry
-                        handleYTFailure(id);
-                    }
+                    onError: (e) => handleYTFailure(id) // Instant kill on error
                 }
             });
             
@@ -2381,7 +2382,6 @@ async function toggleFpMenu() {
             // === SWITCH BACK TO AUDIO ===
             state.videoMode = false;
             
-            // Stop Supervisor
             if(ytSupervisor) clearInterval(ytSupervisor);
 
             vidContainer.classList.remove('active');
@@ -2394,32 +2394,25 @@ async function toggleFpMenu() {
                 if(mainSlider) mainSlider.max = audio.duration;
             }
 
-            // Sync Time
+            // Sync Time back to audio
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
-                // Sanity check: If video time is way longer than audio (e.g. ad played), reset
-                if (audio.duration && yTime >= audio.duration + 5) yTime = 0; 
+                // Prevent syncing ad time (if < 0 or > duration)
+                if (audio.duration && (yTime > audio.duration || yTime < 0)) yTime = 0; 
                 audio.currentTime = yTime;
             }
             
             audio.play();
             
-            if(state.showCanvas) { 
-                canvas.style.opacity = '1'; 
-                canvas.play().catch(e=>{}); 
-            }
-            if(state.showLyrics && state.lyricsData) {
-                document.getElementById('mini-lyrics-player').style.display = 'block';
-            }
+            if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
+            if(state.showLyrics && state.lyricsData) { document.getElementById('mini-lyrics-player').style.display = 'block'; }
             
-            // Destroy immediately
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
 
             showToast("Switched to Audio");
         }
         state.videoSwitching = false;
     }
-
     // --- HEAVY SUPERVISOR LOGIC ---
     function startYTSupervisor(targetId) {
         if(ytSupervisor) clearInterval(ytSupervisor);
@@ -2428,59 +2421,84 @@ async function toggleFpMenu() {
         ytSupervisor = setInterval(() => {
             if(!state.videoMode || !ytPlayer || !ytPlayer.getVideoData) return;
 
-            // 1. TRACKER UPDATE (UI)
             try {
-                const c = ytPlayer.getCurrentTime();
-                const d = ytPlayer.getDuration();
+                // DATA FETCH
+                const currentData = ytPlayer.getVideoData();
+                const currentId = currentData ? currentData.video_id : null;
+                const duration = ytPlayer.getDuration();
+                const currentTime = ytPlayer.getCurrentTime();
                 
-                // Update UI Bars (Custom Controls)
-                if(d) {
-                    const p = c / d * 100;
+                // === SECURITY CHECK 1: ID MATCHING ===
+                let isAd = (currentId && currentId !== targetId);
+
+                // === SECURITY CHECK 2: DURATION ANOMALY ===
+                // If we expect a 3min song (180s) and get a 15s video, IT IS AN AD.
+                // We allow a 20 second variance for different versions/intros.
+                if (!isAd && state.expectedDuration > 30 && duration > 0) {
+                    const diff = Math.abs(duration - state.expectedDuration);
+                    // If difference is massive (e.g., > 40 seconds), assume wrong video/ad
+                    if (diff > 40) {
+                        console.log(`Security: Duration Mismatch! Expected ${state.expectedDuration}, Got ${duration}`);
+                        isAd = true;
+                    }
+                }
+
+                // === ACTION: NUKE AD ===
+                if (isAd) {
+                    console.log("Security: AD DETECTED. Nuking...");
+                    
+                    // 1. Mute instantly so user doesn't hear ad
+                    if(!ytPlayer.isMuted()) ytPlayer.mute();
+
+                    // 2. Hide the video visually (Optional, avoids flashing)
+                    document.getElementById('yt-view-container').style.opacity = '0.1';
+
+                    // 3. Force Reload Content at current calculated time
+                    // We calculate where we *should* be based on audio time or previous intervals
+                    const restoreTime = Math.max(0, Math.min(currentTime, state.expectedDuration));
+                    
+                    ytPlayer.loadVideoById({
+                        videoId: targetId,
+                        startSeconds: restoreTime
+                    });
+                    
+                    ytErrorCount++;
+                    
+                    // 4. Hard Reset if stuck in loop (3 fails)
+                    if(ytErrorCount > 3) {
+                        handleYTFailure(targetId);
+                    }
+                    return; // Stop processing UI updates during ad
+                } 
+                else {
+                    // Content is safe
+                    if(ytPlayer.isMuted()) ytPlayer.unMute();
+                    document.getElementById('yt-view-container').style.opacity = '1';
+                    ytErrorCount = 0;
+                }
+
+                // === UI UPDATES (Only if safe) ===
+                if(duration) {
+                    const p = currentTime / duration * 100;
                     const fill = document.getElementById('yt-fill');
                     const dot = document.getElementById('yt-dot');
                     const time = document.getElementById('yt-time');
                     if(fill) fill.style.width = p + "%";
                     if(dot) dot.style.left = p + "%";
-                    if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
+                    if(time) time.textContent = fmtTime(currentTime) + " / " + fmtTime(duration);
 
-                    // Update Main Slider
                     const mainSlider = document.getElementById('seek-slider');
                     const mainCurr = document.getElementById('curr-time');
                     const mainTotal = document.getElementById('total-time');
                     if(mainSlider && !mainSlider.matches(':active')) {
-                        mainSlider.max = d; mainSlider.value = c; mainSlider.style.backgroundSize = `${p}% 100%`;
+                        mainSlider.max = duration; mainSlider.value = currentTime; mainSlider.style.backgroundSize = `${p}% 100%`;
                     }
-                    if(mainCurr) mainCurr.innerText = fmtTime(c);
-                    if(mainTotal) mainTotal.innerText = fmtTime(d);
+                    if(mainCurr) mainCurr.innerText = fmtTime(currentTime);
+                    if(mainTotal) mainTotal.innerText = fmtTime(duration);
                 }
 
-                // 2. STRICT ID MATCHING & AD DETECTION
-                const currentData = ytPlayer.getVideoData();
-                const currentId = currentData ? currentData.video_id : null;
-
-                // Check if playing ID matches our Target ID
-                if (currentId && currentId !== targetId) {
-                    console.log("Security: Mismatch Detected. Ad or Autoplay?");
-                    
-                    // HEAVY ACTION: Mute player immediately if ID is wrong (Ad is playing)
-                    if(!ytPlayer.isMuted()) ytPlayer.mute();
-
-                    // Force load correct video
-                    ytPlayer.loadVideoById(targetId);
-                    
-                    ytErrorCount++;
-                    // If we fail to enforce ID 3 times, KILL IT.
-                    if(ytErrorCount > 3) {
-                        handleYTFailure(targetId);
-                    }
-                } else if (currentId === targetId) {
-                    // ID Matches -> Unmute if muted
-                    if(ytPlayer.isMuted()) ytPlayer.unMute();
-                    ytErrorCount = 0; // Reset error count on success
-                }
-
-                // 3. LOOP LOGIC
-                if(d && c && (d - c <= 2) && !ytLooped && state.isLoop) {
+                // Loop Logic
+                if(duration && currentTime && (duration - currentTime <= 2) && !ytLooped && state.isLoop) {
                      ytLooped = true;
                      ytPlayer.seekTo(0);
                      ytPlayer.playVideo();
@@ -2488,28 +2506,31 @@ async function toggleFpMenu() {
                 }
 
             } catch(e) {
-                // If Player API crashes, count as error
                 console.warn("Supervisor Exception", e);
             }
 
-        }, 500); // Check every 500ms
+        }, 400); // Faster check (400ms) to catch ads quicker
     }
 
     function handleYTFailure(targetId) {
-        console.log("Critical Player Failure. Re-initializing...");
+        console.log("Critical Player Failure. hard resetting...");
         if(ytSupervisor) clearInterval(ytSupervisor);
         
-        // KILL
+        // 1. Destroy Instance
         if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} }
         
-        // REOPEN (Short delay to allow cleanup)
+        // 2. Visual Feedback (Buffering)
+        document.getElementById('wrap').innerHTML = '<div class="loader"></div>';
+        
+        // 3. Re-Trigger Switch after 500ms
         setTimeout(() => {
             if(state.videoMode && state.currentTrackYTId === targetId) {
-                // Only restart if user is still in video mode and on the same song
-                state.videoMode = false; // Toggle flag to force re-entry logic
+                // Fake the state to false so doVideoSwitch runs the "Turn On" logic
+                state.videoMode = false; 
+                state.videoSwitching = false; // Reset lock
                 doVideoSwitch(targetId);
             }
-        }, 200);
+        }, 500);
     }
 
     function onYTStateChange(event) {

@@ -1240,18 +1240,17 @@
     }
 
     async function loadAndPlay() {
-        // CLEANUP VIDEO PLAYER IF EXISTS (Deletes Metadata/Cache for this session)
+        // ... (keep all the top code: cleanup, resetting video mode, playSessionId++, etc.) ...
+        
+        // --- EXISTING CODE START (Keep this) ---
+        // CLEANUP VIDEO PLAYER IF EXISTS
         if (ytPlayer) {
             try { ytPlayer.destroy(); } catch(e){}
             ytPlayer = null;
         }
-
-        // RESET VIDEO MODE STATES STRICTLY
         state.videoMode = false;
-
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
-        // Ensure UI elements are visible (gradient)
         document.getElementById('fp-bg-gradient').style.opacity = '1';
         document.getElementById('fp-img-area').style.opacity = '1';
         document.getElementById('full-player').classList.remove('canvas-immersive');
@@ -1259,12 +1258,19 @@
         state.metaFetchId++; const currentFetchId = state.metaFetchId;
         const track = state.queue[state.qIndex]; if(!track) return;
         
-        // Set Buffering State
         state.bufferingId = track.id;
         refreshCurrentListView(); 
 
         state.playSessionId++; state.currentTrackId = track.id;
+        // --- EXISTING CODE END ---
+
+
+        // === INSERT/MODIFY THIS SECTION === 
         
+        // 1. CRITICAL FIX: Reset the YouTube ID immediately so we don't use the previous song's ID
+        state.currentTrackYTId = null; 
+
+        // ... (Keep your existing Audio Element src loading logic here) ...
         let src = null;
         let blobKey = `blob_audio_${track.id}_${state.quality}`;
         let blob = await IdbHelper.get(blobKey);
@@ -1296,18 +1302,23 @@
         document.getElementById('immersive-lyric').innerText = "";
 
         const cachedMeta = metaCache[track.id];
+        
+        // 2. Logic to handle Metadata and YT ID
         if (cachedMeta) {
             if (cachedMeta.canvasUrl && state.showCanvas) vid.src = cachedMeta.canvasUrl;
             if (cachedMeta.lyricsData) { state.lyricsData = cachedMeta.lyricsData; if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } }
+            
+            // If cached, set it. If NOT, it remains NULL (safe).
+            if (cachedMeta.ytId) {
+                state.currentTrackYTId = cachedMeta.ytId;
+            } else {
+                // Not in cache, fetch background
+                fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label); 
+            }
         } else { 
             fetchMeta(track.title, track.artist, track.id, currentFetchId); 
-            // Also fetch YT ID in background
+            // Fetch YT ID in background
             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
-        }
-        
-        // If not cached, fetch YT ID now
-        if(!cachedMeta || !cachedMeta.ytId) {
-             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
         }
     }
 
@@ -2237,13 +2248,28 @@ async function toggleFpMenu() {
     }
     
     function toggleVideoMode() {
-        if(state.videoSwitching) return; // Prevent spam clicking
+        if(state.videoSwitching) return; 
         state.videoSwitching = true;
+
+        const currentTrackWhenClicked = state.currentTrackId; // Snapshot ID at click time
 
         if (!state.currentTrackYTId) {
             const t = state.queue[state.qIndex];
+            
+            // Safety: Ensure we actually have a track to search for
+            if(!t) { state.videoSwitching = false; return; }
+
             showToast("Searching Video...");
+            
             fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
+                 // RACE CONDITION CHECK:
+                 // If the user changed the song while we were searching, STOP.
+                 if (state.currentTrackId !== currentTrackWhenClicked) {
+                     console.log("Song changed during video fetch. Aborting switch.");
+                     state.videoSwitching = false;
+                     return;
+                 }
+
                  if(id) {
                      doVideoSwitch(id);
                  } else {
@@ -2252,6 +2278,8 @@ async function toggleFpMenu() {
                  }
             });
         } else {
+            // We have an ID, but let's double check it matches the current song 
+            // (Only needed if cache was somehow desynced, but good for safety)
             doVideoSwitch(state.currentTrackYTId);
         }
     }

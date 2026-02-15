@@ -680,9 +680,9 @@
     const BASE_API = "https://ayushm-psi.vercel.app/api";
 
     const state = { 
-    lang: 'hindi', quality: '320kbps', videoQuality: 'medium', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
-    videoMode: false, currentTrackYTId: null, videoSwitching: false, ytAdRetries: 0 
-};
+        lang: 'hindi', quality: '320kbps', videoQuality: 'medium', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
+        videoMode: false, currentTrackYTId: null, videoSwitching: false 
+    };
     const languages = ["Hindi", "English", "Punjabi", "Tamil", "Telugu", "Marathi", "Gujarati", "Bengali", "Kannada", "Bhojpuri", "Malayalam", "Haryanvi", "Rajasthani", "Odia", "Assamese"];
     const PROXY_LIST = ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url=", "https://thingproxy.freeboard.io/fetch/"];
     
@@ -710,6 +710,10 @@
 
     // YOUTUBE PLAYER VARS
     let ytPlayer, ytDragging = false, ytLooped = false, ytHideTimer = null;
+    // --- NEW VARIABLES FOR AD BOUNCE FIX ---
+let ytTargetTime = 0;       // The timestamp we want (e.g., 21s)
+let ytRetryCount = 0;       // Counts how many times we've hard-reset
+const MAX_YT_RETRIES = 2;   // Stop after 2 tries to prevent infinite looping
 
     function decodeStr(html) { if (!html) return ""; const txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value; }
     
@@ -1519,9 +1523,8 @@
     }
 function togglePlay() { 
         // 1. Strict Video Mode Check
-   // 1. Strict Video Mode Check
         if (state.videoMode) {
-            if (ytPlayer && typeof ytPlayer.getPlayerState === 'function') {
+            if (ytPlayer && ytPlayer.getPlayerState) {
                 const s = ytPlayer.getPlayerState();
                 // Toggle video play/pause
                 if (s === YT.PlayerState.PLAYING || s === YT.PlayerState.BUFFERING) {
@@ -1529,13 +1532,10 @@ function togglePlay() {
                 } else {
                     ytPlayer.playVideo();
                 }
-            } else {
-                // If player is dead (mid-reset), try to recover
-                state.videoMode = false;
-                toggleVideoMode(); 
             }
-            return; 
+            return; // CRITICAL: Stop here! Don't let Audio run below.
         }
+
         // 2. Audio Mode Logic
         if(audio.paused) audio.play(); else audio.pause(); 
     }
@@ -2272,40 +2272,36 @@ async function toggleFpMenu() {
         if(state.videoSwitching) return; 
         state.videoSwitching = true;
 
-        const currentTrackWhenClicked = state.currentTrackId; // Snapshot ID at click time
+        const currentTrackWhenClicked = state.currentTrackId;
+
+        // 1. Capture Time logic
+        if (!state.videoMode) {
+            ytTargetTime = audio.currentTime; // Save the 21s
+            ytRetryCount = 0; // Reset retries
+        }
 
         if (!state.currentTrackYTId) {
             const t = state.queue[state.qIndex];
-            
-            // Safety: Ensure we actually have a track to search for
             if(!t) { state.videoSwitching = false; return; }
-
             showToast("Searching Video...");
             
             fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
-                 // RACE CONDITION CHECK:
-                 // If the user changed the song while we were searching, STOP.
                  if (state.currentTrackId !== currentTrackWhenClicked) {
-                     console.log("Song changed during video fetch. Aborting switch.");
-                     state.videoSwitching = false;
-                     return;
+                     state.videoSwitching = false; return;
                  }
-
                  if(id) {
-                     doVideoSwitch(id);
+                     doVideoSwitch(id, ytTargetTime);
                  } else {
                      showToast("Video not found");
                      state.videoSwitching = false;
                  }
             });
         } else {
-            // We have an ID, but let's double check it matches the current song 
-            // (Only needed if cache was somehow desynced, but good for safety)
-            doVideoSwitch(state.currentTrackYTId);
+            doVideoSwitch(state.currentTrackYTId, ytTargetTime);
         }
     }
 
-    function doVideoSwitch(id, startTime = null) {
+    function doVideoSwitch(id, startTime = 0) {
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2314,126 +2310,131 @@ async function toggleFpMenu() {
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
         
-        // Audio Player Elements for Resetting Duration
-        const mainSlider = document.getElementById('seek-slider');
-        const mainTotal = document.getElementById('total-time');
-
-        // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
-            // ===========================
-            // SWITCHING TO VIDEO MODE
-            // ===========================
+            // SWITCHING TO VIDEO
             state.videoMode = true;
             
-            // Reset Ad Retries on fresh user click, but keep if looping
-            if(startTime === null) state.ytAdRetries = 0;
-
-            // FIX 1: Force Container Visibility
             fullPlayer.classList.remove('canvas-immersive');
             fpImgArea.style.opacity = '1';
             fpImgArea.style.pointerEvents = 'auto'; 
             
-            // Swap Art for Video
             art.classList.remove('active');
             vidContainer.classList.add('active');
-            
-            // Ensure Gradient stays visible
             gradient.style.opacity = '1';
             
-            // Stop Audio & Canvas
             audio.pause();
             canvas.pause(); 
             canvas.style.opacity = '0';
             
-            // RE-APPEND PLAYER CONTAINER IF MISSING (Kill/Reset Logic)
-            if(!document.getElementById('player')) {
-                wrap.innerHTML = '<div id="player"></div>';
-            }
+            // --- HARD RESET LOGIC ---
+            if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
+            
+            // Wipe the DOM to ensure fresh iframe
+            wrap.innerHTML = '<div id="player"></div>'; 
 
-            // Determine Start Time (Passed time OR current Audio time)
-            let startSec = startTime !== null ? startTime : Math.floor(audio.currentTime);
-
-            // Load YouTube Video
             ytPlayer = new YT.Player("player", {
-            	host: 'https://www.youtube-nocookie.com', 
+                host: 'https://www.youtube-nocookie.com', 
                 videoId: id,
                 playerVars: { 
-                    autoplay: 1, 
-                    controls: 0, 
-                    playsinline: 1, 
-                    rel: 0, 
-                    modestbranding: 1, 
-                    iv_load_policy: 3,
-                    start: startSec,
-                    disablekb: 1,
-                    fs: 0,
+                    autoplay: 1, controls: 0, playsinline: 1, rel: 0, 
+                    modestbranding: 1, iv_load_policy: 3,
+                    start: Math.floor(startTime), // Request 21s start
+                    disablekb: 1, fs: 0,
                 },
                 events: { 
                     onReady: (e) => {
                         e.target.setPlaybackQuality(state.videoQuality);
-                        startYTTracker(e);
+                        // PASS THE TARGET TIME TO TRACKER
+                        startYTTracker(e, startTime);
                     }, 
                     onStateChange: onYTStateChange 
                 }
             });
             
-            if(startTime === null) showToast("Switched to Video");
+            if(ytRetryCount === 0) showToast("Switched to Video");
 
         } else {
-            // ===========================
             // SWITCHING BACK TO AUDIO
-            // ===========================
             state.videoMode = false;
-            state.ytAdRetries = 0; // Reset count
-            
-            // Swap Video for Art
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
-            // FIX 2: Manually Reset Duration UI to Audio values immediately
+            // Restore Duration UI
             if(audio.duration) {
-                if(mainTotal) mainTotal.innerText = fmtTime(audio.duration);
-                if(mainSlider) mainSlider.max = audio.duration;
+                document.getElementById('total-time').innerText = fmtTime(audio.duration);
+                document.getElementById('seek-slider').max = audio.duration;
             }
 
-            // Sync Time (Audio takes priority)
+            // Sync Time
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
                 if (audio.duration && yTime >= audio.duration) yTime = 0; 
                 audio.currentTime = yTime;
             }
             
-            // Resume Audio
             audio.play();
+            if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
+            if(state.showLyrics && state.lyricsData) { document.getElementById('mini-lyrics-player').style.display = 'block'; }
             
-            // Restore Canvas
-            if(state.showCanvas) { 
-                canvas.style.opacity = '1'; 
-                canvas.play().catch(e=>{}); 
-            }
-            if(state.showLyrics && state.lyricsData) {
-                document.getElementById('mini-lyrics-player').style.display = 'block';
-            }
-            
-            // Destroy YT player immediately
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
-
             showToast("Switched to Audio");
         }
         state.videoSwitching = false;
     }
 
-    function startYTTracker(event) {
-        event.target.playVideo();
-        setInterval(() => {
-            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
+    function startYTTracker(event, intendedTime = 0) {
+        const player = event.target;
+        player.playVideo();
+        
+        // FLAG: Have we successfully reached the 21s mark yet?
+        let hasReachedTarget = false;
+        
+        // If we are starting at 0, we don't need this logic
+        if(intendedTime < 2) hasReachedTarget = true; 
+
+        // Force seek on start just to be sure
+        if(intendedTime > 0) player.seekTo(intendedTime, true);
+
+        const trackerInterval = setInterval(() => {
+            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration) {
+                clearInterval(trackerInterval); return;
+            }
+            if(ytDragging) return;
+
             let c = ytPlayer.getCurrentTime();
             let d = ytPlayer.getDuration();
+            
+            // ============================================
+            //        BOUNCE DETECTION LOGIC
+            // ============================================
+            
+            // 1. CHECK SUCCESS: If we are close to 21s (e.g., > 20s), mark as reached.
+            if (!hasReachedTarget && c >= (intendedTime - 1)) {
+                hasReachedTarget = true;
+                // console.log("Target reached successfully");
+            }
+
+            // 2. CHECK FAILURE: 
+            // Condition: We have previously reached the target (21s)
+            // BUT NOW the time has dropped back near 0 (Ad bounce)
+            if (hasReachedTarget && intendedTime > 5 && c < 2 && ytRetryCount < MAX_YT_RETRIES) {
+                
+                console.log("Ad Bounce Detected (21s -> 0s). Resetting...");
+                clearInterval(trackerInterval);
+                
+                // TRIGGER HARD RESET
+                ytRetryCount++;
+                state.videoMode = false; // Toggle flag so doVideoSwitch treats it as "Enable"
+                doVideoSwitch(state.currentTrackYTId, intendedTime);
+                return;
+            }
+            // ============================================
+
             if(!d) return;
 
-            // Update Custom YT Controls (Inside the video view)
+            // UI UPDATES (No changes here)
             let p = c / d * 100;
             const fill = document.getElementById('yt-fill');
             const dot = document.getElementById('yt-dot');
@@ -2442,74 +2443,28 @@ async function toggleFpMenu() {
             if(dot) dot.style.left = p + "%";
             if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
 
-            // Update Main Player Slider & Time Text (FIX BUG 2)
             const mainSlider = document.getElementById('seek-slider');
             const mainCurr = document.getElementById('curr-time');
             const mainTotal = document.getElementById('total-time');
             
             if(mainSlider && !mainSlider.matches(':active')) {
-                mainSlider.max = d; // Set max to VIDEO duration
-                mainSlider.value = c; 
+                mainSlider.max = d; mainSlider.value = c; 
                 mainSlider.style.backgroundSize = `${p}% 100%`;
             }
             if(mainCurr) mainCurr.innerText = fmtTime(c);
-            if(mainTotal) mainTotal.innerText = fmtTime(d); // Show VIDEO duration text
+            if(mainTotal) mainTotal.innerText = fmtTime(d); 
             
-            // Manual Loop Logic
             if(d - c <= 3 && !ytLooped) {
                 if(state.isLoop) {
-                    ytLooped = true;
-                    ytPlayer.seekTo(0, true);
-                    ytPlayer.playVideo();
+                    ytLooped = true; ytPlayer.seekTo(0, true); ytPlayer.playVideo();
                     setTimeout(() => ytLooped = false, 1500);
                 }
             }
         }, 200);
     }
-
     function onYTStateChange(event) {
-        // 1. Detect Ad State or Duration Mismatch
-        if(event.data === YT.PlayerState.PLAYING) {
-            
-            const player = event.target;
-            const currentYTTime = player.getCurrentTime();
-            const duration = player.getDuration();
-            const expectedDuration = audio.duration; // Use audio metadata as reference
-            
-            // HEURISTIC: AD DETECTION
-            // If duration is suspiciously short (< 45s) BUT the actual song is long (> 90s)
-            // OR if the player reports Playing but duration is 0 (Live Ad / Pre-roll)
-            const isDurationMismatch = (duration < 45 && expectedDuration > 90);
-            const isZeroDuration = (duration === 0);
-            
-            if (isDurationMismatch || isZeroDuration) {
-                console.log("Ad Detected: Killing and Resetting...");
-                
-                if (state.ytAdRetries < 10) { // Loop limit to prevent crash
-                    state.ytAdRetries++;
-                    
-                    // KILL PLAYER
-                    try { ytPlayer.destroy(); } catch(e){}
-                    ytPlayer = null;
-                    document.getElementById('wrap').innerHTML = '<div id="player"></div>';
-                    
-                    // HARD RESET OPEN FRESH (Recursive Loop)
-                    // We toggle videoMode to false momentarily to bypass checks in doVideoSwitch, then call it
-                    state.videoMode = false; 
-                    
-                    // Small delay to ensure clean DOM reset
-                    setTimeout(() => {
-                        doVideoSwitch(state.currentTrackYTId, currentYTTime); // Pass current time to resume
-                    }, 100);
-                    return; // Stop execution here
-                }
-            } else {
-                // If legitimate playing, reset retries
-                state.ytAdRetries = 0;
-            }
-
-            // Standard Play Logic
-            audio.pause(); 
+        if(event.data === YT.PlayerState.PLAYING) { 
+            audio.pause(); // CRITICAL: Force audio to stop if video plays
             state.isPlaying = true; 
             updateIcons(); 
         }

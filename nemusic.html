@@ -710,7 +710,9 @@
 
     // YOUTUBE PLAYER VARS
     let ytPlayer, ytDragging = false, ytLooped = false, ytHideTimer = null;
-
+// ADD THIS NEW VARIABLE:
+let ytSupervisor = null; 
+let ytErrorCount = 0;
     function decodeStr(html) { if (!html) return ""; const txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value; }
     
     function extractImg(img, size = '500') {
@@ -2302,9 +2304,6 @@ async function toggleFpMenu() {
     }
 
     function doVideoSwitch(id) {
-        if(state.videoSwitching) return; 
-        state.videoSwitching = true;
-
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2313,205 +2312,228 @@ async function toggleFpMenu() {
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
         
-        // Reset Audio UI
-        const mainSlider = document.getElementById('seek-slider');
-        const mainTotal = document.getElementById('total-time');
-
+        // UI Cleanup
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
-            // === ENABLE VIDEO MODE ===
+            // === SWITCH TO VIDEO ===
             state.videoMode = true;
-            
-            // UI Setup
+            state.currentTrackYTId = id; // STRICTLY SET TARGET ID
+
             fullPlayer.classList.remove('canvas-immersive');
             fpImgArea.style.opacity = '1';
-            fpImgArea.style.pointerEvents = 'auto'; 
-            
+            fpImgArea.style.pointerEvents = 'auto';
             art.classList.remove('active');
             vidContainer.classList.add('active');
-            
-            // Ensure gradient is visible
             gradient.style.opacity = '1';
             
-            // Stop Audio
             audio.pause();
             canvas.pause(); 
             canvas.style.opacity = '0';
             
-            if(!document.getElementById('player')) {
-                wrap.innerHTML = '<div id="player"></div>';
-            }
+            // CLEAN RESTART
+            if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
+            if(ytSupervisor) clearInterval(ytSupervisor);
+            
+            wrap.innerHTML = '<div id="player"></div>';
 
-            // --- HEAVY AD-BLOCK SETUP (Safe Mode) ---
+            // INITIALIZE PLAYER
             ytPlayer = new YT.Player("player", {
-            	host: 'https://www.youtube-nocookie.com', // 1. Stricter Domain
+                host: 'https://www.youtube-nocookie.com', // No-Cookie Domain
                 videoId: id,
                 playerVars: { 
                     autoplay: 1, 
                     controls: 0, 
                     playsinline: 1, 
                     rel: 0, 
-                    showinfo: 0, 
                     modestbranding: 1, 
-                    iv_load_policy: 3, 
+                    iv_load_policy: 3, // Hide annotations
+                    start: Math.floor(audio.currentTime),
                     disablekb: 1,
                     fs: 0,
-                    origin: window.location.origin // 2. Strict Origin
+                    origin: window.location.origin // Security strictness
                 },
                 events: { 
                     onReady: (e) => {
-                        // REMOVED: The sandbox injection. It broke the player.
-                        
                         e.target.setPlaybackQuality(state.videoQuality);
                         
-                        // 3. Start the Heavy Ad-Assassin Tracker
-                        startYTTracker(e, id);
+                        // --- HEAVY AD BLOCK: SANDBOX INJECTION ---
+                        // This strictly prevents the iframe from opening popups/tabs
+                        const iframe = e.target.getIframe();
+                        if(iframe) {
+                            iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-pointer-lock");
+                        }
+                        
+                        startYTSupervisor(id); // START THE WATCHDOG
                     }, 
-                    onStateChange: onYTStateChange 
+                    onStateChange: onYTStateChange,
+                    onError: (e) => {
+                        console.log("YT Error:", e.data);
+                        // If error, force kill and retry
+                        handleYTFailure(id);
+                    }
                 }
             });
             
             showToast("Switched to Video");
 
         } else {
-            // === DISABLE VIDEO MODE ===
+            // === SWITCH BACK TO AUDIO ===
             state.videoMode = false;
             
+            // Stop Supervisor
+            if(ytSupervisor) clearInterval(ytSupervisor);
+
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
             if(audio.duration) {
+                const mainSlider = document.getElementById('seek-slider');
+                const mainTotal = document.getElementById('total-time');
                 if(mainTotal) mainTotal.innerText = fmtTime(audio.duration);
                 if(mainSlider) mainSlider.max = audio.duration;
             }
 
+            // Sync Time
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
-                if (audio.duration && (yTime >= audio.duration || yTime < 0)) {
-                    // Invalid time
-                } else {
-                    audio.currentTime = yTime;
-                }
+                // Sanity check: If video time is way longer than audio (e.g. ad played), reset
+                if (audio.duration && yTime >= audio.duration + 5) yTime = 0; 
+                audio.currentTime = yTime;
             }
             
             audio.play();
             
-            if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
-            if(state.showLyrics && state.lyricsData) { document.getElementById('mini-lyrics-player').style.display = 'block'; }
+            if(state.showCanvas) { 
+                canvas.style.opacity = '1'; 
+                canvas.play().catch(e=>{}); 
+            }
+            if(state.showLyrics && state.lyricsData) {
+                document.getElementById('mini-lyrics-player').style.display = 'block';
+            }
             
+            // Destroy immediately
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
+
             showToast("Switched to Audio");
         }
-        
-        setTimeout(() => { state.videoSwitching = false; }, 500);
+        state.videoSwitching = false;
     }
-    function startYTTracker(event, expectedId) {
-        event.target.playVideo();
-        
-        let lastTime = -1;
-        let stuckCount = 0;
-        let adBurnerMode = false;
 
-        // HEAVY LOOP: 50ms interval for instant reaction
-        setInterval(() => {
-            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
-            
+    // --- HEAVY SUPERVISOR LOGIC ---
+    function startYTSupervisor(targetId) {
+        if(ytSupervisor) clearInterval(ytSupervisor);
+        ytErrorCount = 0;
+
+        ytSupervisor = setInterval(() => {
+            if(!state.videoMode || !ytPlayer || !ytPlayer.getVideoData) return;
+
+            // 1. TRACKER UPDATE (UI)
             try {
-                // --- HEAVY AD DETECTION ---
-                const vData = ytPlayer.getVideoData();
-                const currentId = vData ? vData.video_id : null;
+                const c = ytPlayer.getCurrentTime();
+                const d = ytPlayer.getDuration();
                 
-                // If YouTube injects a different ID, it is an Ad.
-                const isAd = (currentId && expectedId && currentId !== expectedId);
+                // Update UI Bars (Custom Controls)
+                if(d) {
+                    const p = c / d * 100;
+                    const fill = document.getElementById('yt-fill');
+                    const dot = document.getElementById('yt-dot');
+                    const time = document.getElementById('yt-time');
+                    if(fill) fill.style.width = p + "%";
+                    if(dot) dot.style.left = p + "%";
+                    if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
 
-                if (isAd) {
-                    // PHASE 1: SILENCE
-                    if (!adBurnerMode) {
-                        ytPlayer.mute(); 
-                        adBurnerMode = true;
+                    // Update Main Slider
+                    const mainSlider = document.getElementById('seek-slider');
+                    const mainCurr = document.getElementById('curr-time');
+                    const mainTotal = document.getElementById('total-time');
+                    if(mainSlider && !mainSlider.matches(':active')) {
+                        mainSlider.max = d; mainSlider.value = c; mainSlider.style.backgroundSize = `${p}% 100%`;
                     }
-                    
-                    // PHASE 2: BURN (Speed up 16x)
-                    if(ytPlayer.getPlaybackRate() !== 16) {
-                         ytPlayer.setPlaybackRate(16);
-                    }
-
-                    // PHASE 3: SKIP
-                    const totalDur = ytPlayer.getDuration();
-                    if (totalDur > 0) {
-                        // Skip to the absolute end
-                        ytPlayer.seekTo(totalDur, true);
-                    }
-                    
-                    // Force play loop
-                    if (ytPlayer.getPlayerState() === YT.PlayerState.PAUSED) {
-                        ytPlayer.playVideo();
-                    }
-                    
-                    // FREEZE UI: Do not update slider/time during ad
-                    return; 
-                } 
-                else {
-                    // NORMAL SONG
-                    if (adBurnerMode) {
-                        // Restore Normalcy
-                        ytPlayer.unMute();
-                        ytPlayer.setVolume(100);
-                        ytPlayer.setPlaybackRate(1);
-                        adBurnerMode = false;
-                    }
-                }
-                // ---------------------------
-
-                // --- STANDARD UI UPDATES ---
-                let c = ytPlayer.getCurrentTime();
-                let d = ytPlayer.getDuration();
-                
-                // Manual Loop Fix
-                if(d - c <= 2 && !ytLooped) {
-                    if(state.isLoop) {
-                        ytLooped = true;
-                        ytPlayer.seekTo(0, true);
-                        ytPlayer.playVideo();
-                        setTimeout(() => ytLooped = false, 1500);
-                    }
+                    if(mainCurr) mainCurr.innerText = fmtTime(c);
+                    if(mainTotal) mainTotal.innerText = fmtTime(d);
                 }
 
-                if(!d) return;
+                // 2. STRICT ID MATCHING & AD DETECTION
+                const currentData = ytPlayer.getVideoData();
+                const currentId = currentData ? currentData.video_id : null;
 
-                // Sync Custom Controls
-                let p = c / d * 100;
-                const fill = document.getElementById('yt-fill');
-                const dot = document.getElementById('yt-dot');
-                const time = document.getElementById('yt-time');
-                if(fill) fill.style.width = p + "%";
-                if(dot) dot.style.left = p + "%";
-                if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
+                // Check if playing ID matches our Target ID
+                if (currentId && currentId !== targetId) {
+                    console.log("Security: Mismatch Detected. Ad or Autoplay?");
+                    
+                    // HEAVY ACTION: Mute player immediately if ID is wrong (Ad is playing)
+                    if(!ytPlayer.isMuted()) ytPlayer.mute();
 
-                // Sync Main Player UI
-                const mainSlider = document.getElementById('seek-slider');
-                const mainCurr = document.getElementById('curr-time');
-                const mainTotal = document.getElementById('total-time');
-                
-                if(mainSlider && !mainSlider.matches(':active')) {
-                    mainSlider.max = d;
-                    mainSlider.value = c; 
-                    mainSlider.style.backgroundSize = `${p}% 100%`;
+                    // Force load correct video
+                    ytPlayer.loadVideoById(targetId);
+                    
+                    ytErrorCount++;
+                    // If we fail to enforce ID 3 times, KILL IT.
+                    if(ytErrorCount > 3) {
+                        handleYTFailure(targetId);
+                    }
+                } else if (currentId === targetId) {
+                    // ID Matches -> Unmute if muted
+                    if(ytPlayer.isMuted()) ytPlayer.unMute();
+                    ytErrorCount = 0; // Reset error count on success
                 }
-                if(mainCurr) mainCurr.innerText = fmtTime(c);
-                if(mainTotal) mainTotal.innerText = fmtTime(d); 
+
+                // 3. LOOP LOGIC
+                if(d && c && (d - c <= 2) && !ytLooped && state.isLoop) {
+                     ytLooped = true;
+                     ytPlayer.seekTo(0);
+                     ytPlayer.playVideo();
+                     setTimeout(() => ytLooped = false, 1500);
+                }
 
             } catch(e) {
-                // Ignore transient errors
+                // If Player API crashes, count as error
+                console.warn("Supervisor Exception", e);
             }
-        }, 50); // 50ms = Heavy Monitoring
+
+        }, 500); // Check every 500ms
     }
+
+    function handleYTFailure(targetId) {
+        console.log("Critical Player Failure. Re-initializing...");
+        if(ytSupervisor) clearInterval(ytSupervisor);
+        
+        // KILL
+        if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} }
+        
+        // REOPEN (Short delay to allow cleanup)
+        setTimeout(() => {
+            if(state.videoMode && state.currentTrackYTId === targetId) {
+                // Only restart if user is still in video mode and on the same song
+                state.videoMode = false; // Toggle flag to force re-entry logic
+                doVideoSwitch(targetId);
+            }
+        }, 200);
+    }
+
     function onYTStateChange(event) {
+        // Enforce ID check on every state change
+        if(ytPlayer && ytPlayer.getVideoData) {
+            const data = ytPlayer.getVideoData();
+            if(data && data.video_id && state.currentTrackYTId && data.video_id !== state.currentTrackYTId) {
+                // If state changed but ID is wrong, it's an Ad or Autoplay.
+                // Stop it and force correct ID.
+                event.target.stopVideo();
+                event.target.loadVideoById(state.currentTrackYTId);
+                return;
+            }
+        }
+
         if(event.data === YT.PlayerState.PLAYING) { 
-            audio.pause(); // CRITICAL: Force audio to stop if video plays
+            audio.pause(); 
             state.isPlaying = true; 
             updateIcons(); 
+            
+            // Double check mute status on play
+            if(ytPlayer.getVideoData().video_id === state.currentTrackYTId) {
+                ytPlayer.unMute();
+            }
         }
         else if (event.data === YT.PlayerState.PAUSED) { 
             state.isPlaying = false; 
@@ -2519,8 +2541,14 @@ async function toggleFpMenu() {
         }
         else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
-                if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }
-                else playNext();
+                if(state.isLoop) { 
+                    ytPlayer.seekTo(0); 
+                    ytPlayer.playVideo(); 
+                }
+                else {
+                    // Properly end session
+                    playNext();
+                }
             }
         }
     }
@@ -2532,3 +2560,5 @@ async function toggleFpMenu() {
 </script>
 </body>
 </html>
+
+

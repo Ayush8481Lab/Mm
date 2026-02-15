@@ -1,3 +1,5 @@
+
+<!-- START OF FILE yt.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -540,8 +542,6 @@
             
             <!-- Youtube Video Container (From new implementation) -->
             <div id="yt-view-container">
-                <!-- Native Video Element -->
-                <video id="native-yt-video" playsinline style="width:100%;height:100%;object-fit:contain;display:none;pointer-events:none;"></video>
                 <div class="video-cover">
                     <div id="wrap"><div id="player"></div></div>
                 </div>
@@ -676,13 +676,6 @@
     function getRapidKey() { return RAPID_KEYS[rapidKeyIdx]; }
     function rotateRapidKey() { rapidKeyIdx = (rapidKeyIdx + 1) % RAPID_KEYS.length; console.log("Rotated API Key"); }
     const RAPID_API_HOST = "spotify81.p.rapidapi.com";
-    
-    // Video Stream API Keys
-    const YT_STREAM_KEYS = ["6cf7f03014msh787c51a713c0264p15c20djsna1f9a9f6a378"];
-    let ytStreamKeyIdx = 0;
-    function getYtStreamKey() { return YT_STREAM_KEYS[ytStreamKeyIdx]; }
-    function rotateYtStreamKey() { ytStreamKeyIdx = (ytStreamKeyIdx + 1) % YT_STREAM_KEYS.length; }
-
     const APP_LOGO_URL = "https://i.ibb.co/zhg1w3dw/file-00000000aca472308a4675a6979753cb.png";
     const BASE_API = "https://ayushm-psi.vercel.app/api";
 
@@ -716,13 +709,15 @@
     let globalLoadRequestId = 0;
 
     // YOUTUBE PLAYER VARS
-    let ytPlayer, nativePlayer = null, ytDragging = false, ytLooped = false, ytHideTimer = null;
+    let ytPlayer, ytDragging = false, ytLooped = false, ytHideTimer = null;
 
     function decodeStr(html) { if (!html) return ""; const txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value; }
     
     function extractImg(img, size = '500') {
         let url = '';
         if(Array.isArray(img)) {
+            // Grab the last element (usually highest quality) to ensure we have a good base URL
+            // Then we will force-resize it using string manipulation below
             const best = img[img.length-1];
             url = best.url || best.link;
         } else {
@@ -731,6 +726,7 @@
 
         if(!url) return `https://via.placeholder.com/${size}`;
         
+        // Robust replacement: finds 150, 50, or 500 and forces the requested size
         return url
             .replace('150x150', `${size}x${size}`)
             .replace('50x50', `${size}x${size}`)
@@ -746,25 +742,10 @@
         return "Unknown Artist";
     }
 
-    function getCurrentVideoPlayer() {
-        if (nativePlayer && nativePlayer.style.display !== 'none') return nativePlayer;
-        if (ytPlayer && ytPlayer.getPlayerState) return ytPlayer;
-        return null;
-    }
-
     function updateMediaSessionPosition() {
         if ('mediaSession' in navigator) {
-            let duration = 0, currentTime = 0;
-            if(state.videoMode) {
-                 const vp = getCurrentVideoPlayer();
-                 if(vp) {
-                     duration = vp.getDuration ? vp.getDuration() : (vp.duration || 0);
-                     currentTime = vp.getCurrentTime ? vp.getCurrentTime() : (vp.currentTime || 0);
-                 }
-            } else {
-                duration = audio.duration;
-                currentTime = audio.currentTime;
-            }
+            let duration = state.videoMode && ytPlayer && ytPlayer.getDuration ? ytPlayer.getDuration() : audio.duration;
+            let currentTime = state.videoMode && ytPlayer && ytPlayer.getCurrentTime ? ytPlayer.getCurrentTime() : audio.currentTime;
             
             if (duration && !isNaN(duration)) {
                 try { navigator.mediaSession.setPositionState({ duration: duration, playbackRate: 1, position: currentTime }); } catch(e) {}
@@ -776,7 +757,7 @@
         await IdbHelper.init();
         state.lang = localStorage.getItem('vibeLang') || 'hindi';
         state.quality = localStorage.getItem('vibeQuality') || '320kbps';
-        state.videoQuality = localStorage.getItem('vibeVideoQuality') || 'medium'; 
+        state.videoQuality = localStorage.getItem('vibeVideoQuality') || 'medium'; // Default to 360p
         state.showCanvas = localStorage.getItem('vibeCanvas') !== 'false';
         state.showLyrics = localStorage.getItem('vibeLyrics') !== 'false';
         
@@ -786,14 +767,6 @@
         offlinePlaylists = (await IdbHelper.get('vibeOfflinePlaylists')) || [];
         searchCache = (await IdbHelper.get('vibeSearchCache')) || {};
         metaCache = (await IdbHelper.get('vibeMetaCache')) || {};
-
-        nativePlayer = document.getElementById('native-yt-video');
-        nativePlayer.addEventListener('timeupdate', () => {
-            if(state.videoMode) syncVideoControls(nativePlayer.currentTime, nativePlayer.duration);
-        });
-        nativePlayer.addEventListener('ended', onYTStateChange.bind(null, {data: 0})); 
-        nativePlayer.addEventListener('pause', onYTStateChange.bind(null, {data: 2}));
-        nativePlayer.addEventListener('play', onYTStateChange.bind(null, {data: 1}));
 
         document.getElementById('header-lang').innerText = state.lang;
         renderSettingsUI();
@@ -851,12 +824,10 @@
             e.target.style.backgroundSize = `${val}% 100%`; 
         });
         slider.addEventListener('change', (e) => { 
-            const val = e.target.value;
-            if(state.videoMode) {
-                if(nativePlayer && nativePlayer.style.display !== 'none') nativePlayer.currentTime = val;
-                else if(ytPlayer && ytPlayer.seekTo) ytPlayer.seekTo(val, true);
+            if(state.videoMode && ytPlayer && ytPlayer.seekTo) {
+                ytPlayer.seekTo(e.target.value, true);
             } else {
-                audio.currentTime = val; 
+                audio.currentTime = e.target.value; 
             }
         });
 
@@ -888,44 +859,28 @@
         blockTap.addEventListener('pointerdown', e => { e.preventDefault(); showYTControls(); });
         centerTap.addEventListener('pointerdown', e => {
             e.preventDefault();
-            const vp = getCurrentVideoPlayer();
-            if(!vp) return;
-            // Native or IFrame toggle
-            if(vp.paused || (vp.getPlayerState && vp.getPlayerState() !== YT.PlayerState.PLAYING)) {
-               if(vp.playVideo) vp.playVideo(); else vp.play();
-            } else {
-               if(vp.pauseVideo) vp.pauseVideo(); else vp.pause();
-            }
+            if(!ytPlayer) return;
+            ytPlayer.getPlayerState() === YT.PlayerState.PLAYING ? ytPlayer.pauseVideo() : ytPlayer.playVideo();
             showYTControls();
         });
 
         function ytSeek(x) {
             let r = bar.getBoundingClientRect();
             let p = Math.max(0, Math.min(1, (x - r.left) / r.width));
-            const vp = getCurrentVideoPlayer();
-            if(vp) {
-                 const d = vp.getDuration ? vp.getDuration() : (vp.duration || 0);
-                 if(d) {
-                    if(vp.seekTo) vp.seekTo(d*p, true); else vp.currentTime = d*p;
-                 }
-            }
+            if(ytPlayer && ytPlayer.getDuration) ytPlayer.seekTo(ytPlayer.getDuration()*p, true);
         }
 
         bar.addEventListener('pointerdown', e => { ytDragging = true; showYTControls(); ytSeek(e.clientX); });
         bar.addEventListener('pointermove', e => { if(ytDragging) ytSeek(e.clientX); });
         window.addEventListener('pointerup', () => { ytDragging = false; });
         
-         // Enable PiP on Minimize/Home if video is playing
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden && state.videoMode && nativePlayer && !nativePlayer.paused) {
-        // Don't switch to audio. Try to trigger PiP if supported
-        try {
-            if (document.pictureInPictureElement === null && nativePlayer.requestPictureInPicture) {
-                nativePlayer.requestPictureInPicture().catch(e => console.log("PiP blocked by browser policy:", e));
-            }
-        } catch (e) {}
-    }
-});
+        // Auto Switch to Audio on Minimize/Home
+        document.addEventListener('visibilitychange', () => {
+             if (document.hidden && state.videoMode) {
+                 toggleVideoMode();
+             }
+        });
+    });
 
     async function requestWakeLock() { try { if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); } } catch (err) { console.log(err); } }
     function releaseWakeLock() { if (wakeLock) { wakeLock.release(); wakeLock = null; } }
@@ -939,7 +894,6 @@ document.addEventListener('visibilitychange', () => {
 
     async function restoreLastSession() {
         const session = await IdbHelper.get('vibeSession'); if (!session || !session.queue || session.queue.length === 0) return;
-        // Optimization: Do not clear everything if track is same (Handled in loadAndPlay logic implicitly by check)
         state.queue = session.queue; state.qIndex = session.qIndex; state.currentTrackId = session.trackId;
         const track = state.queue[state.qIndex];
         if (track) {
@@ -963,6 +917,7 @@ document.addEventListener('visibilitychange', () => {
                 if(cachedMeta.lyricsData && state.showLyrics) { state.lyricsData = cachedMeta.lyricsData; document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } 
                 if(cachedMeta.canvasUrl && state.showCanvas) document.getElementById('canvas-video').src = cachedMeta.canvasUrl; 
             }
+            // Check cache for YouTube ID
             if(cachedMeta && cachedMeta.ytId) { state.currentTrackYTId = cachedMeta.ytId; }
             else { fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label); }
         }
@@ -1008,13 +963,7 @@ document.addEventListener('visibilitychange', () => {
         if (lyrics.classList.contains('active')) { lyrics.classList.remove('active'); releaseWakeLock(); return; }
         if (fullPlayer.classList.contains('active')) { 
              // Switch to audio if closing full player while in video mode
-             // User Req: "when I close main player open video in pip"
-             if (state.videoMode) {
-                 if(nativePlayer && !nativePlayer.paused) {
-                     try { nativePlayer.requestPictureInPicture(); } catch(e){}
-                 }
-                 // If falling back to iframe, PiP isn't easy to force, we just let it minimize
-             }
+             if (state.videoMode) toggleVideoMode();
              fullPlayer.classList.remove('active', 'canvas-immersive'); 
              return; 
         }
@@ -1025,10 +974,8 @@ document.addEventListener('visibilitychange', () => {
     function goBack() { 
         if (document.getElementById('full-lyrics-view').classList.contains('active')) closeFullLyrics();
         else if (document.getElementById('full-player').classList.contains('active')) { 
-            // PiP Logic
-            if (state.videoMode && nativePlayer && !nativePlayer.paused) {
-                 try { nativePlayer.requestPictureInPicture(); } catch(e){}
-            }
+            // Switch to audio if closing full player
+            if (state.videoMode) toggleVideoMode();
             history.back(); 
         }
         else if (document.getElementById('album-view').classList.contains('active')) { history.back(); }
@@ -1064,22 +1011,29 @@ document.addEventListener('visibilitychange', () => {
         mp.addEventListener('click', (e) => { if (!isDragIntent && !e.target.closest('button') && !e.target.closest('.mp-heart')) openFullPlayer(); });
     }
 
+    // Helper: Loads a specific section and shows a Retry button on failure
     async function loadSection(el, url, showLogo) {
         el.innerHTML = '<div class="loader"></div>';
         try {
             const data = await fetchJina(url);
+            // If Jina fails, it often returns empty array, so we treat empty as an error to allow retry
             if (!data || data.length === 0) throw new Error("Load failed");
             renderGrid(el, data, showLogo);
             return data;
         } catch (e) {
             el.innerHTML = '';
+            // Create Retry UI
             const div = document.createElement('div');
             div.style.cssText = "display:flex;flex-direction:column;align-items:center;padding:20px;gap:10px;width:100%;";
             div.innerHTML = '<span style="font-size:12px;color:#666;">Failed to load</span>';
+            
             const btn = document.createElement('button');
             btn.innerText = "Retry";
             btn.style.cssText = "padding:6px 16px;background:#1e222b;border:1px solid #333;color:white;border-radius:20px;font-size:11px;font-weight:600;cursor:pointer;pointer-events:auto;";
+            
+            // Re-trigger this specific function on click
             btn.onclick = () => loadSection(el, url, showLogo);
+            
             div.appendChild(btn);
             el.appendChild(div);
             return null;
@@ -1088,6 +1042,8 @@ document.addEventListener('visibilitychange', () => {
 
     async function loadHome() {
         const rel = document.getElementById('new-releases'), chart = document.getElementById('top-charts'), play = document.getElementById('top-playlists');
+        
+        // 1. Check Cache
         const cachedData = await getHomeCache(state.lang);
         if(cachedData) { 
             renderGrid(rel, cachedData.releases, false); 
@@ -1096,12 +1052,14 @@ document.addEventListener('visibilitychange', () => {
             return; 
         }
 
+        // 2. Load Sections in Parallel with Independent Retry Logic
         const [d1, d2, d3] = await Promise.all([
             loadSection(rel, `https://www.jiosaavn.com/new-releases/${state.lang}`, false),
             loadSection(chart, `https://www.jiosaavn.com/charts`, true),
             loadSection(play, `https://www.jiosaavn.com/featured-playlists/${state.lang}`, true)
         ]);
 
+        // 3. Update Cache only if everything loaded successfully
         if (d1 && d2 && d3) {
             setHomeCache(state.lang, { releases: d1, charts: d2, playlists: d3 });
         }
@@ -1113,6 +1071,7 @@ document.addEventListener('visibilitychange', () => {
         let match;
         while ((match = regex.exec(text)) !== null) { 
             let title = decodeStr(match[1].replace(/Image \d+: /, '').split(']')[0].trim()); 
+            // FIX: Use extractImg with '250' to force resize, handling cases where source is 500x500
             let rawImg = match[2].split('?')[0];
             let img = extractImg(rawImg, '250');
             
@@ -1251,6 +1210,10 @@ document.addEventListener('visibilitychange', () => {
 
     function setBuffering(isBuffering) {
         document.querySelectorAll('.list-item').forEach(el => el.classList.remove('buffering'));
+        if (isBuffering && state.bufferingId) {
+            // Already handled in click or playSong via class addition.
+            // This function is mainly for clearing or network events.
+        }
     }
 
     async function fetchAlbumAndQueue(url, currentSongId) {
@@ -1277,20 +1240,14 @@ document.addEventListener('visibilitychange', () => {
     }
 
     async function loadAndPlay() {
-        const track = state.queue[state.qIndex]; if(!track) return;
-
-        // Session persistence: Do not wipe video/lyrics if same song
-        if (state.currentTrackId === track.id) {
-             // Already current, just refresh audio if needed or ensure playing
-             refreshCurrentListView();
-             if(!state.videoMode && audio.paused) audio.play();
-             return;
-        }
-
-        // Cleanup Video
-        if (ytPlayer) { try { ytPlayer.destroy(); } catch(e){} ytPlayer = null; }
-        if (nativePlayer) { nativePlayer.pause(); nativePlayer.src = ""; nativePlayer.style.display = 'none'; }
+        // ... (keep all the top code: cleanup, resetting video mode, playSessionId++, etc.) ...
         
+        // --- EXISTING CODE START (Keep this) ---
+        // CLEANUP VIDEO PLAYER IF EXISTS
+        if (ytPlayer) {
+            try { ytPlayer.destroy(); } catch(e){}
+            ytPlayer = null;
+        }
         state.videoMode = false;
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
@@ -1299,12 +1256,21 @@ document.addEventListener('visibilitychange', () => {
         document.getElementById('full-player').classList.remove('canvas-immersive');
 
         state.metaFetchId++; const currentFetchId = state.metaFetchId;
+        const track = state.queue[state.qIndex]; if(!track) return;
+        
         state.bufferingId = track.id;
         refreshCurrentListView(); 
 
         state.playSessionId++; state.currentTrackId = track.id;
-        state.currentTrackYTId = null; // Reset YT ID for new track
+        // --- EXISTING CODE END ---
+
+
+        // === INSERT/MODIFY THIS SECTION === 
         
+        // 1. CRITICAL FIX: Reset the YouTube ID immediately so we don't use the previous song's ID
+        state.currentTrackYTId = null; 
+
+        // ... (Keep your existing Audio Element src loading logic here) ...
         let src = null;
         let blobKey = `blob_audio_${track.id}_${state.quality}`;
         let blob = await IdbHelper.get(blobKey);
@@ -1336,16 +1302,23 @@ document.addEventListener('visibilitychange', () => {
         document.getElementById('immersive-lyric').innerText = "";
 
         const cachedMeta = metaCache[track.id];
+        
+        // 2. Logic to handle Metadata and YT ID
         if (cachedMeta) {
             if (cachedMeta.canvasUrl && state.showCanvas) vid.src = cachedMeta.canvasUrl;
             if (cachedMeta.lyricsData) { state.lyricsData = cachedMeta.lyricsData; if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); } }
+            
+            // If cached, set it. If NOT, it remains NULL (safe).
+            if (cachedMeta.ytId) {
+                state.currentTrackYTId = cachedMeta.ytId;
+            } else {
+                // Not in cache, fetch background
+                fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label); 
+            }
         } else { 
             fetchMeta(track.title, track.artist, track.id, currentFetchId); 
+            // Fetch YT ID in background
             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
-        }
-        
-        if(!cachedMeta || !cachedMeta.ytId) {
-             fetchYouTubeId(track.title, track.artist, track.id, track.rawData?.label);
         }
     }
 
@@ -1438,34 +1411,43 @@ document.addEventListener('visibilitychange', () => {
         updateFullLyricsUI(state.activeLyricIndex); 
         requestWakeLock(); 
 
+        // --- BACKGROUND LOGIC START ---
         const track = state.queue[state.qIndex];
         if(track) {
+            // 1. Set High-Res Image Background
             const rawImg = track.img || 'https://via.placeholder.com/500';
             const hqImg = rawImg.replace('150x150', '500x500').replace('50x50', '500x500').replace('250x250', '500x500');
             document.getElementById('lyric-bg-img').src = hqImg;
 
+            // 2. Set Canvas Video Background (if available & enabled)
             const lyVid = document.getElementById('lyric-bg-video');
             const mainVid = document.getElementById('canvas-video');
             
+            // Reset video state
             lyVid.style.opacity = '0';
             lyVid.pause();
             lyVid.src = "";
 
+            // Check if Main Player has a working canvas URL and we are NOT in YouTube video mode
             if(state.showCanvas && !state.videoMode && mainVid.src && mainVid.src.startsWith('http')) {
                 lyVid.src = mainVid.src;
                 lyVid.load();
                 lyVid.play().then(() => {
-                    lyVid.style.opacity = '1'; 
+                    lyVid.style.opacity = '1'; // Fade in video once playing
                 }).catch(e => console.log("Lyrics video play failed", e));
             }
         }
+        // --- BACKGROUND LOGIC END ---
     }
 
     function closeFullLyrics() { 
         if (history.state && history.state.view === 'lyrics') history.back(); 
         else document.getElementById('full-lyrics-view').classList.remove('active'); 
+        
+        // Stop background video to save battery
         const lyVid = document.getElementById('lyric-bg-video');
         if(lyVid) { lyVid.pause(); setTimeout(()=>lyVid.src="", 300); }
+        
         releaseWakeLock(); 
     }
 
@@ -1475,8 +1457,9 @@ document.addEventListener('visibilitychange', () => {
         const mt = document.getElementById('mini-title'), ma = document.getElementById('mini-artist'), ft = document.getElementById('fp-title'), fa = document.getElementById('fp-artist');
         mt.innerText = track.title; ma.innerText = displayArtist; ft.innerText = track.title; fa.innerText = displayArtist; window.observeMarquees();
         
+        // --- FORCE HIGH QUALITY IMAGE FOR PLAYERS (500x500) ---
         let rawImg = track.img || 'https://via.placeholder.com/150';
-        let hqImg = rawImg.replace('150x150', '500x500').replace('50x50', '500x500'); 
+        let hqImg = rawImg.replace('150x150', '500x500').replace('50x50', '500x500'); // Force upgrade
         
         document.getElementById('mini-img').src = hqImg; 
         document.getElementById('fp-art').src = hqImg;
@@ -1491,13 +1474,9 @@ document.addEventListener('visibilitychange', () => {
             navigator.mediaSession.setActionHandler('previoustrack', playPrev); 
             navigator.mediaSession.setActionHandler('nexttrack', playNext);
             navigator.mediaSession.setActionHandler('seekto', (details) => {
-                const vp = getCurrentVideoPlayer();
-                const target = state.videoMode ? vp : audio;
-                if(target) {
-                    if (details.fastSeek && 'fastSeek' in target) { target.fastSeek(details.seekTime); return; }
-                    target.currentTime = details.seekTime;
-                    updateMediaSessionPosition();
-                }
+                if (details.fastSeek && 'fastSeek' in audio) { audio.fastSeek(details.seekTime); return; }
+                audio.currentTime = details.seekTime;
+                updateMediaSessionPosition();
             });
         }
     }
@@ -1508,12 +1487,18 @@ document.addEventListener('visibilitychange', () => {
         if(document.getElementById('album-view').classList.contains('active') && state.currentAlbumData) {
             renderAlbumTracks(state.currentAlbumData.songs, state.currentAlbumData.img);
         }
+        
+        if(document.getElementById('library-view').classList.contains('active') || !document.getElementById('library-view').classList.contains('hidden')) {
+             if(state.bufferingId) {
+                 // Library view refreshes handled by filter switch or re-render mostly.
+             }
+        }
     }
     
     function initAudioContext() { if (audioCtx) return; const AudioContext = window.AudioContext || window.webkitAudioContext; audioCtx = new AudioContext(); audioSource = audioCtx.createMediaElementSource(audio); preGainNode = audioCtx.createGain(); let prevNode = audioSource; audioSource.connect(preGainNode); prevNode = preGainNode; djFrequencies.forEach((freq, index) => { const filter = audioCtx.createBiquadFilter(); filter.frequency.value = freq; filter.type = index <= 1 ? 'lowshelf' : (index >= 8 ? 'highshelf' : 'peaking'); filter.gain.value = 0; prevNode.connect(filter); prevNode = filter; }); prevNode.connect(audioCtx.destination); }
     function cycleEqMode() { if(!audioCtx) initAudioContext(); eqMode = (eqMode + 1) % 4; const modes = ["Normal", "Bass Boost", "Enhanced", "8D Audio"]; const btn = document.getElementById('dj-btn'); btn.className = 'dj-btn'; if(eqMode === 1) btn.classList.add('mode-bass'); if(eqMode === 2) btn.classList.add('mode-enhanced'); if(eqMode === 3) btn.classList.add('mode-8d'); showToast(`Mode: ${modes[eqMode]}`); const gains = eqPresets[eqMode]; eqBands.forEach((band, i) => { const val = gains[i] || 0; if(band.gain.setTargetAtTime) band.gain.setTargetAtTime(val, audioCtx.currentTime, 0.1); else band.gain.value = val; }); }
 
-    function setupGestures() { const fp = document.getElementById('full-player'); let lastTap = 0; fp.addEventListener('click', (e) => { if(e.target.closest('button') || e.target.closest('input') || e.target.closest('.fp-menu-overlay') || e.target.closest('#mini-lyrics-player') || e.target.closest('.yt-controls') || e.target.closest('.shield') || e.target.closest('.video-cover')) return; const now = Date.now(); if(now - lastTap < 300) { const vid = document.getElementById('canvas-video'); const isVideoReady = state.showCanvas && vid.src && vid.src !== "" && vid.style.opacity !== '0' && !state.videoMode; if (isVideoReady) { fp.classList.toggle('canvas-immersive'); } else if(!state.videoMode) { showToast("Immersive mode unavailable (No Video)"); } } lastTap = now; }); }
+    function setupGestures() { const fp = document.getElementById('full-player'); let lastTap = 0; fp.addEventListener('click', (e) => { if(e.target.closest('button') || e.target.closest('input') || e.target.closest('.fp-menu-overlay') || e.target.closest('#mini-lyrics-player') || e.target.closest('.yt-controls') || e.target.closest('.shield')) return; const now = Date.now(); if(now - lastTap < 300) { const vid = document.getElementById('canvas-video'); const isVideoReady = state.showCanvas && vid.src && vid.src !== "" && vid.style.opacity !== '0' && !state.videoMode; if (isVideoReady) { fp.classList.toggle('canvas-immersive'); } else if(!state.videoMode) { showToast("Immersive mode unavailable (No Video)"); } } lastTap = now; }); }
     function setupLongPress(el, callback) { let timer; const start = () => timer = setTimeout(callback, 800); const end = () => clearTimeout(timer); el.addEventListener('touchstart', start); el.addEventListener('touchend', end); el.addEventListener('touchmove', end); el.addEventListener('mousedown', start); el.addEventListener('mouseup', end); }
 
     function updateProgress() { 
@@ -1524,30 +1509,30 @@ document.addEventListener('visibilitychange', () => {
     
     function playNext() { if(state.isShuffle) state.qIndex = Math.floor(Math.random() * state.queue.length); else if(state.qIndex < state.queue.length - 1) state.qIndex++; else state.qIndex = 0; loadAndPlay(); }
     function playPrev() { 
-        let cTime = 0;
-        if (state.videoMode) {
-            const vp = getCurrentVideoPlayer();
-            if(vp) cTime = vp.getCurrentTime ? vp.getCurrentTime() : vp.currentTime;
-        } else { cTime = audio.currentTime; }
-
+        let cTime = state.videoMode && ytPlayer ? ytPlayer.getCurrentTime() : audio.currentTime;
         if(cTime > 3) {
-            if(state.videoMode) {
-                 const vp = getCurrentVideoPlayer();
-                 if(vp.seekTo) vp.seekTo(0, true); else vp.currentTime = 0;
-            } else audio.currentTime = 0;
+            if(state.videoMode && ytPlayer) ytPlayer.seekTo(0, true);
+            else audio.currentTime = 0;
         } else { 
             if(state.qIndex > 0) state.qIndex--; else state.qIndex = state.queue.length - 1; loadAndPlay(); 
         } 
     }
-    function togglePlay() { 
+function togglePlay() { 
+        // 1. Strict Video Mode Check
         if (state.videoMode) {
-            const vp = getCurrentVideoPlayer();
-            if(!vp) return;
-            const isPlaying = vp.paused === false || (vp.getPlayerState && vp.getPlayerState() === YT.PlayerState.PLAYING);
-            if(isPlaying) { if(vp.pauseVideo) vp.pauseVideo(); else vp.pause(); } 
-            else { if(vp.playVideo) vp.playVideo(); else vp.play(); }
-            return;
+            if (ytPlayer && ytPlayer.getPlayerState) {
+                const s = ytPlayer.getPlayerState();
+                // Toggle video play/pause
+                if (s === YT.PlayerState.PLAYING || s === YT.PlayerState.BUFFERING) {
+                    ytPlayer.pauseVideo();
+                } else {
+                    ytPlayer.playVideo();
+                }
+            }
+            return; // CRITICAL: Stop here! Don't let Audio run below.
         }
+
+        // 2. Audio Mode Logic
         if(audio.paused) audio.play(); else audio.pause(); 
     }
     
@@ -1557,19 +1542,22 @@ document.addEventListener('visibilitychange', () => {
     function fmtTime(s) { if(isNaN(s)) return '0:00'; const m = Math.floor(s/60); const sec = Math.floor(s%60); return `${m}:${sec<10?'0'+sec:sec}`; }
     function handleClick(item, showLogo) { if(item.type === 'song') playSong(null, item.link); else openCollection(item.type, item.link, { title: item.title, img: item.img, subtitle: item.type }, false, showLogo); }
     
+    // --- CACHING & FAST LOAD ---
     async function checkCache(key) { const res = await IdbHelper.get(key); if(res && (Date.now() - res.ts < 86400000)) return res.data; return null; }
     function saveCache(key, data) { IdbHelper.set(key, { ts: Date.now(), data: data }); }
 
-    async function openCollection(type, url, preData, isOffline = false, forceLogo = false) {
+async function openCollection(type, url, preData, isOffline = false, forceLogo = false) {
         document.getElementById('full-player').classList.remove('active');
         const thisRequestId = ++globalLoadRequestId;
         history.pushState({view: 'album'}, null, '');
         const view = document.getElementById('album-view'); view.classList.add('active');
         
+        // --- RESET UI STATES ---
+        // Load the provided image (usually 500 from card, or 150 from list)
         document.getElementById('album-art').src = preData.img
-            .replace('150x150', '500x500')
-            .replace('50x50', '500x500')
-            .replace('250x250', '500x500'); 
+    .replace('150x150', '500x500')
+    .replace('50x50', '500x500')
+    .replace('250x250', '500x500'); 
         const wm = document.getElementById('album-watermark'); 
         
         const isSaved = savedPlaylists.some(p => p.title === preData.title);
@@ -1622,6 +1610,7 @@ document.addEventListener('visibilitychange', () => {
                 if (!cached || (Date.now() - cached.ts > 3600000)) { 
                     let apiEndpoint = '';
                     if (type === 'playlist') {
+                        // Page 1, Limit 5
                         apiEndpoint = `${BASE_API}/playlists?link=${encodeURIComponent(fetchUrl)}&page=1&limit=10`;
                     } else {
                         apiEndpoint = `${BASE_API}/albums?link=${encodeURIComponent(fetchUrl)}`;
@@ -1640,8 +1629,9 @@ document.addEventListener('visibilitychange', () => {
                     else if (data.description) document.getElementById('album-subtitle').innerText = decodeStr(data.description);
                     if(!songs.length && data.media_url) songs = [data];
 
+                    // Process initial batch using size 150
                     const formattedSongs = songs.map(s => {
-                        let sImg = extractImg(s.image, '50'); 
+                        let sImg = extractImg(s.image, '50'); // <-- REQUEST 150 HERE
                         if(!sImg || sImg.includes('placeholder')) sImg = preData.img;
                         let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
                         return { id: s.id, title: decodeStr(s.name || s.title || s.song), artist: decodeStr(getArtistName(s)), img: sImg, mediaUrl: s.media_url, downloadUrl: dUrl, url: s.url, rawData: s };
@@ -1651,10 +1641,12 @@ document.addEventListener('visibilitychange', () => {
                     saveCache(cacheKey, state.currentAlbumData);
 
                     if (thisRequestId === globalLoadRequestId) {
+                        // Calculate initial duration
                         let totalSec = formattedSongs.reduce((acc, s) => acc + (parseInt(s.rawData.duration || 0)), 0);
                         let hrs = Math.floor(totalSec / 3600); let mins = Math.floor((totalSec % 3600) / 60);
                         
                         let metaText = `${formattedSongs.length} Songs`;
+                        // Show duration immediately for what we have
                         metaText += ` • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
 
                         document.getElementById('album-meta').innerText = metaText;
@@ -1703,7 +1695,7 @@ document.addEventListener('visibilitychange', () => {
                 rawSongs.forEach((s, i) => {
                     if (state.currentAlbumData.songs.some(ex => ex.id === s.id)) return;
 
-                    let sImg = extractImg(s.image, '50');
+                    let sImg = extractImg(s.image, '50'); // <-- REQUEST 150 HERE
                     if(!sImg || sImg.includes('placeholder')) sImg = fallbackImg;
                     let dUrl = s.downloadUrl; if (!dUrl && s.media_url) { dUrl = [{ link: s.media_url, quality: "320kbps" }]; }
                     
@@ -1745,11 +1737,13 @@ document.addEventListener('visibilitychange', () => {
                     state.currentAlbumData.songs.push(...newSongs);
                     saveCache(cacheKey, state.currentAlbumData);
 
+                    // --- REAL-TIME DURATION CALCULATION ---
                     let totalSec = state.currentAlbumData.songs.reduce((acc, s) => acc + (parseInt(s.rawData.duration || 0)), 0);
                     let hrs = Math.floor(totalSec / 3600); 
                     let mins = Math.floor((totalSec % 3600) / 60);
                     
                     document.getElementById('album-meta').innerText = `${state.currentAlbumData.songs.length} Songs • ${hrs > 0 ? `${hrs} hr ` : ''}${mins} min`;
+                    // --------------------------------------
 
                     window.observeMarquees();
                     page++; 
@@ -1848,67 +1842,91 @@ document.addEventListener('visibilitychange', () => {
     document.getElementById('modal-yes-btn').addEventListener('click', () => { if(pendingDeleteAction) pendingDeleteAction(); closeModal(); });
 
     // --- FULL PLAYER MENU LOGIC ---
-    async function toggleFpMenu() { 
+async function toggleFpMenu() { 
         const overlay = document.getElementById('fp-menu-overlay');
         const isActive = overlay.classList.contains('active');
-        if (!isActive) {
-            const track = state.queue[state.qIndex];
-            const injection = document.getElementById('song-details-injection');
-            injection.innerHTML = '';
-            
-            // Video Switch Button
-            const vidSwitchContainer = document.getElementById('video-switch-btn');
-            const icon = state.videoMode ? 'fa-music' : 'fa-film';
-            const text = state.videoMode ? 'Switch to Audio' : 'Switch to Video';
-            vidSwitchContainer.innerHTML = `<div class="fp-menu-item" onclick="toggleFpMenu(); toggleVideoMode()"><i class="fas ${icon}"></i><span>${text}</span></div>`;
-
-            const isDownloaded = downloads.some(d => d.id === track.id);
-            const menuDownBtn = document.getElementById('menu-download-btn');
-            if(isDownloaded) {
-                menuDownBtn.innerHTML = '<i class="fas fa-trash"></i><span>Delete Song</span>';
-                menuDownBtn.onclick = () => { toggleFpMenu(); deleteItem({ id: track.id, from: 'downloaded' }); };
-            } else {
-                menuDownBtn.innerHTML = '<i class="fas fa-download"></i><span>Download Song</span>';
-                menuDownBtn.onclick = downloadCurrentSongAction;
-            }
-
-            if (track) {
-                const raw = track.rawData || {};
-                let metaHtml = '<div class="song-meta-grid">';
-                if(raw.year || raw.releaseDate) metaHtml += `<div class="meta-item"><span class="meta-label">Released</span><span class="meta-val">${raw.year || raw.releaseDate}</span></div>`;
-                if(raw.label) metaHtml += `<div class="meta-item"><span class="meta-label">Label</span><span class="meta-val">${raw.label}</span></div>`;
-                if(raw.copyright_text || raw.copyright) metaHtml += `<div class="meta-item"><span class="meta-label">Copyright</span><span class="meta-val">${raw.copyright_text || raw.copyright}</span></div>`;
-                if(raw.duration) metaHtml += `<div class="meta-item"><span class="meta-label">Duration</span><span class="meta-val">${fmtTime(raw.duration)}</span></div>`;
-                metaHtml += '</div>';
-
-                let artistsHtml = ''; let artistList = [];
-                if (raw.artists && raw.artists.primary) artistList = raw.artists.primary;
-                else if (raw.primary_artists && Array.isArray(raw.primary_artists)) artistList = raw.primary_artists; 
+        
+        // 1. Toggle the menu logic inside a try-catch block to prevent crashing
+        try {
+            if (!isActive) {
+                const track = state.queue[state.qIndex];
+                const injection = document.getElementById('song-details-injection');
+                injection.innerHTML = '';
                 
-                if(navigator.onLine && (!artistList.length || !raw.year)) {
-                    if(artistList.length === 0 && track.artist) {
-                        const names = track.artist.split(', ');
-                        names.forEach(name => {
-                             artistsHtml += `<div class="detail-row"><img src="https://via.placeholder.com/50?text=${name.charAt(0)}" class="detail-img"><div class="detail-info"><div class="detail-name">${name}</div><div class="detail-sub">Artist</div></div></div>`;
-                        });
+                // Video Switch Button
+                const vidSwitchContainer = document.getElementById('video-switch-btn');
+                const icon = state.videoMode ? 'fa-music' : 'fa-film';
+                const text = state.videoMode ? 'Switch to Audio' : 'Switch to Video';
+                vidSwitchContainer.innerHTML = `<div class="fp-menu-item" onclick="toggleFpMenu(); toggleVideoMode()"><i class="fas ${icon}"></i><span>${text}</span></div>`;
+
+                const isDownloaded = downloads.some(d => d.id === track.id);
+                const menuDownBtn = document.getElementById('menu-download-btn');
+                if(isDownloaded) {
+                    menuDownBtn.innerHTML = '<i class="fas fa-trash"></i><span>Delete Song</span>';
+                    menuDownBtn.onclick = () => { toggleFpMenu(); deleteItem({ id: track.id, from: 'downloaded' }); };
+                } else {
+                    menuDownBtn.innerHTML = '<i class="fas fa-download"></i><span>Download Song</span>';
+                    menuDownBtn.onclick = downloadCurrentSongAction;
+                }
+
+                if (track) {
+                    const raw = track.rawData || {};
+                    let metaHtml = '<div class="song-meta-grid">';
+                    if(raw.year || raw.releaseDate) metaHtml += `<div class="meta-item"><span class="meta-label">Released</span><span class="meta-val">${raw.year || raw.releaseDate}</span></div>`;
+                    if(raw.label) metaHtml += `<div class="meta-item"><span class="meta-label">Label</span><span class="meta-val">${raw.label}</span></div>`;
+                    if(raw.copyright_text || raw.copyright) metaHtml += `<div class="meta-item"><span class="meta-label">Copyright</span><span class="meta-val">${raw.copyright_text || raw.copyright}</span></div>`;
+                    if(raw.duration) metaHtml += `<div class="meta-item"><span class="meta-label">Duration</span><span class="meta-val">${fmtTime(raw.duration)}</span></div>`;
+                    metaHtml += '</div>';
+
+                    let artistsHtml = ''; 
+                    let artistList = [];
+                    if (raw.artists && raw.artists.primary) artistList = raw.artists.primary;
+                    else if (raw.primary_artists && Array.isArray(raw.primary_artists)) artistList = raw.primary_artists; 
+                    
+                    if(navigator.onLine && (!artistList.length || !raw.year)) {
+                        if(artistList.length === 0 && track.artist) {
+                            // SAFEGUARD: Ensure track.artist is a string
+                            const names = String(track.artist || "").split(', ');
+                            names.forEach(name => {
+                                 artistsHtml += `<div class="detail-row"><img src="https://via.placeholder.com/50?text=${name.charAt(0)}" class="detail-img"><div class="detail-info"><div class="detail-name">${name}</div><div class="detail-sub">Artist</div></div></div>`;
+                            });
+                        }
                     }
-                }
 
-                if (artistList.length > 0) {
-                    artistList.forEach(a => { artistsHtml += `<div class="detail-row" onclick="toggleFpMenu(); openArtist('${a.id}');"><img src="${extractImg(a.image)}" class="detail-img"><div class="detail-info"><div class="detail-name">${a.name}</div><div class="detail-sub">${a.role || 'Artist'}</div></div><div class="detail-link">VIEW</div></div>`; });
-                } else if (!artistsHtml && raw.primary_artists_id && typeof raw.primary_artists_id === 'string') {
-                         const ids = raw.primary_artists_id.split(',').map(s=>s.trim());
-                         const names = (raw.primary_artists || track.artist).split(',').map(s=>s.trim());
-                         ids.forEach((id, idx) => { const name = names[idx] || "Artist"; artistsHtml += `<div class="detail-row" onclick="toggleFpMenu(); openArtist('${id}');"><img src="https://via.placeholder.com/50?text=${name.charAt(0)}" class="detail-img" id="art-img-${id}"><div class="detail-info"><div class="detail-name">${name}</div><div class="detail-sub">Artist</div></div><div class="detail-link">VIEW</div></div>`; fetchArtistImage(id); });
-                }
+                    if (artistList.length > 0) {
+                        artistList.forEach(a => { artistsHtml += `<div class="detail-row" onclick="toggleFpMenu(); openArtist('${a.id}');"><img src="${extractImg(a.image)}" class="detail-img"><div class="detail-info"><div class="detail-name">${a.name}</div><div class="detail-sub">${a.role || 'Artist'}</div></div><div class="detail-link">VIEW</div></div>`; });
+                    } else if (!artistsHtml && raw.primary_artists_id && typeof raw.primary_artists_id === 'string') {
+                             // SAFEGUARD: Force .toString() to prevent .split crash
+                             const ids = raw.primary_artists_id.split(',').map(s=>s.trim());
+                             const sourceNames = raw.primary_artists || track.artist || "Artist";
+                             const names = String(sourceNames).split(',').map(s=>s.trim());
+                             
+                             ids.forEach((id, idx) => { 
+                                 const name = names[idx] || "Artist"; 
+                                 // SAFEGUARD: Escape single quotes in ID to prevent HTML syntax error
+                                 const safeId = id.replace(/'/g, "\\'");
+                                 artistsHtml += `<div class="detail-row" onclick="toggleFpMenu(); openArtist('${safeId}');"><img src="https://via.placeholder.com/50?text=${name.charAt(0)}" class="detail-img" id="art-img-${id}"><div class="detail-info"><div class="detail-name">${name}</div><div class="detail-sub">Artist</div></div><div class="detail-link">VIEW</div></div>`; 
+                                 fetchArtistImage(id); 
+                             });
+                    }
 
-                let albumHtml = '';
-                let albName = raw.album && typeof raw.album === 'object' ? raw.album.name : raw.album;
-                let albUrl = raw.album && typeof raw.album === 'object' ? (raw.album.url || raw.album.link) : (raw.album_url || raw.perma_url);
-                if (albName && albUrl) { albumHtml = `<div class="detail-row" onclick="toggleFpMenu(); openCollection('album', '${albUrl}', {title: '${albName}', img: '${track.img}', subtitle: 'Album'});"><img src="${track.img}" class="detail-img" style="border-radius:4px;"><div class="detail-info"><div class="detail-name">${albName}</div><div class="detail-sub">Album</div></div><div class="detail-link">OPEN</div></div>`; }
-                injection.innerHTML = `<div class="song-details-card">${artistsHtml}${albumHtml}</div>${metaHtml}`;
+                    let albumHtml = '';
+                    let albName = raw.album && typeof raw.album === 'object' ? raw.album.name : raw.album;
+                    let albUrl = raw.album && typeof raw.album === 'object' ? (raw.album.url || raw.album.link) : (raw.album_url || raw.perma_url);
+                    if (albName && albUrl) { 
+                        // SAFEGUARD: Escape single quotes in Title
+                        const safeTitle = albName.replace(/'/g, "\\'");
+                        albumHtml = `<div class="detail-row" onclick="toggleFpMenu(); openCollection('album', '${albUrl}', {title: '${safeTitle}', img: '${track.img}', subtitle: 'Album'});"><img src="${track.img}" class="detail-img" style="border-radius:4px;"><div class="detail-info"><div class="detail-name">${albName}</div><div class="detail-sub">Album</div></div><div class="detail-link">OPEN</div></div>`; 
+                    }
+                    injection.innerHTML = `<div class="song-details-card">${artistsHtml}${albumHtml}</div>${metaHtml}`;
+                }
             }
+        } catch (error) {
+            console.error("Menu population failed", error);
+            // Even if data fails, we allow the menu to open so the user isn't stuck
         }
+
+        // 2. Perform the toggle AFTER logic (or despite errors)
         overlay.classList.toggle('active'); 
     }
 
@@ -1923,9 +1941,18 @@ document.addEventListener('visibilitychange', () => {
         const track = state.queue[state.qIndex]; if(!track) return;
         if(downloads.some(d => d.id === track.id)) { showToast("Already Downloaded"); return; }
         showToast("Downloading Song...");
+        
+        // --- START FIX: Create HQ Copy for Saving ---
+        const trackToSave = JSON.parse(JSON.stringify(track)); // Clone it so we don't disturb UI
+        if(trackToSave.img) {
+            // Force 500x500
+            trackToSave.img = trackToSave.img.replace(/150x150|50x50|250x250/g, '500x500');
+        }
+        // --- END FIX ---
+
         try {
-            await processDownload(track);
-            downloads.push(track);
+            await processDownload(trackToSave); // Download using HQ data
+            downloads.push(trackToSave);        // Save HQ data to DB
             await IdbHelper.set('vibeDownloads', downloads);
             showToast("Song Downloaded");
         } catch(e) { showToast("Download Failed"); console.error(e); }
@@ -1976,11 +2003,6 @@ document.addEventListener('visibilitychange', () => {
         } else if (track.mediaUrl) src = track.mediaUrl;
 
         if (!src) throw new Error("No URL");
-        
-        // Force high quality image for download storage
-        if(track.img) {
-             track.img = track.img.replace('150x150', '500x500').replace('50x50', '500x500').replace('250x250', '500x500');
-        }
 
         const audioBlob = await fetchBlob(src);
         await IdbHelper.set(`blob_audio_${track.id}_${state.quality}`, audioBlob);
@@ -1993,18 +2015,20 @@ document.addEventListener('visibilitychange', () => {
         if(!state.currentAlbumData) return;
         if(state.downloadState.active) return;
         
+        // DEEP COPY SNAPSHOT of the album data to fix the bug where navigating away changes what gets saved
         const albumSnapshot = JSON.parse(JSON.stringify(state.currentAlbumData));
         const songs = albumSnapshot.songs;
         
         if (!songs || songs.length === 0) return;
 
         state.downloadState = { active: true, id: albumSnapshot.id, total: songs.length, current: 0, abort: new AbortController() };
-        updateDownloadBtnUI(state.currentAlbumData); 
+        updateDownloadBtnUI(state.currentAlbumData); // UI Update for current view if matches
 
         try {
             for (let i = 0; i < songs.length; i++) {
                 if (state.downloadState.abort.signal.aborted) throw new Error("Cancelled");
                 state.downloadState.current = i + 1;
+                // Only update UI if user is still looking at the same album
                 if(state.currentAlbumData && state.currentAlbumData.id === albumSnapshot.id) {
                     updateDownloadBtnUI(state.currentAlbumData);
                 }
@@ -2085,18 +2109,26 @@ document.addEventListener('visibilitychange', () => {
             });
             section.appendChild(gridDiv);
         } else {
+            // --- LIST VIEW LOGIC ---
             const listDiv = document.createElement('div');
             listDiv.className = 'list-view';
             items.forEach(item => {
-                const div = document.createElement('div'); div.className = 'list-item lib-item-entry';
+                const div = document.createElement('div'); 
+                div.className = 'list-item lib-item-entry'; 
+                
+                // We keep justify-content, but the inner div needs to fill the space
+                div.style.justifyContent = 'space-between';
+                
                 div.onclick = () => { state.queue = items; state.qIndex = items.indexOf(item); loadAndPlay(); };
                 
                 const isBuffering = state.bufferingId === item.id;
                 if(isBuffering) div.classList.add('buffering');
                 const bufferingHtml = `<div class="buffering-overlay"><div class="buf-spinner"></div></div>`;
-                
-                // Fixed Marquee Structure for Library List Items
-                div.innerHTML = `<img src="${item.img}" style="pointer-events:none;">${bufferingHtml}<div class="list-info"><div class="marquee-container"><h4 class="marquee-content">${decodeStr(item.title)}</h4></div><div class="marquee-container"><p class="marquee-content">${decodeStr(item.artist || 'Artist')}</p></div></div>`;
+
+                // --- CRITICAL CHANGE BELOW ---
+                // Added: flex:1; min-width:0; overflow:hidden;
+                // This forces the wrapper to clamp to the screen width, triggering the marquee.
+                div.innerHTML = `<div style="position:relative; display:flex; flex:1; min-width:0; overflow:hidden; align-items:center;"><img src="${item.img}">${bufferingHtml}<div class="list-info"><div class="marquee-container"><h4 class="marquee-content">${decodeStr(item.title)}</h4></div><div class="marquee-container"><p class="marquee-content">${decodeStr(item.artist || 'Artist')}</p></div></div></div>`;
                 
                 setupLongPress(div, () => openModal(() => deleteItem(item)));
                 listDiv.appendChild(div);
@@ -2173,156 +2205,106 @@ document.addEventListener('visibilitychange', () => {
         IdbHelper.set('vibeSavedPlaylists', savedPlaylists).then(() => { showToast("Saved"); updateDownloadBtnUI(state.currentAlbumData); }).catch(() => { showToast("Save Failed"); savedPlaylists.pop(); }); 
     }
 
-    // ================= NEW YOUTUBE & VIDEO LOGIC =================
+    // ================= NEW YOUTUBE LOGIC =================
 
     async function fetchYouTubeId(songName, artistName, trackId, label) {
-        if (metaCache[trackId] && metaCache[trackId].ytId) return metaCache[trackId].ytId;
+        // Use cached YouTube ID if available
+        if (metaCache[trackId] && metaCache[trackId].ytId) {
+            return metaCache[trackId].ytId;
+        }
+
+        // Clean logic
         const clean = (s) => (s || "").toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
-        const query = `${clean(songName)} ${clean(artistName)} ${clean(label)}`.trim();
+        const qSong = clean(songName);
+        const qArtist = clean(artistName);
+        const qLabel = clean(label); 
+        
+        // Construct Query with Label
+        const query = `${qSong} ${qArtist} ${qLabel}`.trim();
+        
         let attempts = 0;
-        while(attempts < 5) {
+        const MAX_RETRIES = 5;
+
+        while(attempts < MAX_RETRIES) {
             try {
-                const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/https://www.youtube.com/results?search_query=" + encodeURIComponent(query))}`;
+                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+                const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
+                
                 const res = await fetch(proxy);
                 if(!res.ok) throw new Error("Proxy error");
                 const text = await res.text();
+
+                // Regex to find the first video link
                 const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
                 const match = regex.exec(text);
+
+                // DIRECTLY USE TOP 1ST RESULT
                 if (match && match[3]) {
                     let bestId = match[3]; 
+
+                    // Save to cache
                     let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
                     cacheEntry.ytId = bestId;
                     metaCache[trackId] = cacheEntry;
                     IdbHelper.set('vibeMetaCache', metaCache);
-                    if (state.currentTrackId === trackId) state.currentTrackYTId = bestId;
+                    
+                    // Only update currentTrackYTId if this fetch corresponds to the current track
+                    if (state.currentTrackId === trackId) {
+                        state.currentTrackYTId = bestId;
+                    }
                     return bestId;
                 }
-            } catch (e) {}
-            attempts++; await new Promise(r => setTimeout(r, 1000));
+            } catch (e) {
+                console.log(`YT Attempt ${attempts+1} failed`, e);
+            }
+            attempts++;
+            if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
         }
+
         return null; 
     }
     
     function toggleVideoMode() {
-        if(state.videoSwitching) return;
+        if(state.videoSwitching) return; 
         state.videoSwitching = true;
+
+        const currentTrackWhenClicked = state.currentTrackId; // Snapshot ID at click time
+
         if (!state.currentTrackYTId) {
             const t = state.queue[state.qIndex];
+            
+            // Safety: Ensure we actually have a track to search for
+            if(!t) { state.videoSwitching = false; return; }
+
             showToast("Searching Video...");
+            
             fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
-                 if(id) doVideoSwitch(id); else { showToast("Video not found"); state.videoSwitching = false; }
+                 // RACE CONDITION CHECK:
+                 // If the user changed the song while we were searching, STOP.
+                 if (state.currentTrackId !== currentTrackWhenClicked) {
+                     console.log("Song changed during video fetch. Aborting switch.");
+                     state.videoSwitching = false;
+                     return;
+                 }
+
+                 if(id) {
+                     doVideoSwitch(id);
+                 } else {
+                     showToast("Video not found");
+                     state.videoSwitching = false;
+                 }
             });
-        } else doVideoSwitch(state.currentTrackYTId);
-    }
-
-    async function fetchStreamUrl(id) {
-        const url = `https://ytstream-download-youtube-videos.p.rapidapi.com/dl?id=${id}&cgeo=IN`;
-        let attempts = 0;
-        
-        while(attempts < YT_STREAM_KEYS.length) {
-            try {
-                const res = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'x-rapidapi-key': getYtStreamKey(),
-                        'x-rapidapi-host': 'ytstream-download-youtube-videos.p.rapidapi.com'
-                    }
-                });
-                
-                if (!res.ok) {
-                    if (res.status === 429) { rotateYtStreamKey(); attempts++; continue; }
-                    throw new Error("API Limit");
-                }
-                
-                const json = await res.json();
-                
-                // Combine formats
-                let formats = [...(json.adaptiveFormats || []), ...(json.formats || [])];
-                
-                // 1. Find Best Video (Video Only or Combined)
-                let videos = formats.filter(f => f.mimeType.includes("video/mp4") || f.mimeType.includes("video/webm"));
-                if(videos.length === 0) return null;
-
-                // Sort by bitrate desc for quality
-                videos.sort((a,b) => (b.bitrate || 0) - (a.bitrate || 0));
-                
-                let targetH = 360;
-                if (state.videoQuality === 'hd1080') targetH = 1080;
-                else if (state.videoQuality === 'hd720') targetH = 720;
-                else if (state.videoQuality === 'large') targetH = 480;
-
-                // Find closest resolution match
-                let bestVideo = videos[0];
-                let minDiff = Infinity;
-                for(let v of videos) {
-                    if(v.height) {
-                        let diff = Math.abs(v.height - targetH);
-                        if(diff < minDiff) { minDiff = diff; bestVideo = v; }
-                    }
-                }
-
-                // 2. Find Best Audio (if video doesn't have it)
-                // adaptiveFormats usually don't have audio. formats (itag 18) do.
-                let audioUrl = null;
-                const hasAudio = bestVideo.audioQuality || (bestVideo.mimeType && bestVideo.mimeType.includes("audio"));
-
-                if(!hasAudio) {
-                    let audios = formats.filter(f => f.mimeType.includes("audio/"));
-                    // Sort audio by bitrate
-                    audios.sort((a,b) => (b.bitrate || 0) - (a.bitrate || 0));
-                    if(audios.length > 0) audioUrl = audios[0].url;
-                }
-
-                return { video: bestVideo.url, audio: audioUrl };
-
-            } catch (e) {
-                console.log("Stream API Error", e);
-                rotateYtStreamKey(); attempts++;
-            }
+        } else {
+            // We have an ID, but let's double check it matches the current song 
+            // (Only needed if cache was somehow desynced, but good for safety)
+            doVideoSwitch(state.currentTrackYTId);
         }
-        return null;
     }
-    // Helper to sync global audio with video player
-    function syncTracks(vid, aud) {
-        if(!vid || !aud) return;
-        
-        // Ensure audio is master source for volume/mute, but video drives the timing
-        vid.muted = true; // Video element is visual only
-        aud.muted = false; // Audio element makes sound
 
-        const syncTolerance = 0.15; // 150ms tolerance
+    function doVideoSwitch(id) {
+        if(state.videoSwitching) return; 
+        state.videoSwitching = true;
 
-        const onPlay = () => aud.play().catch(e=>{});
-        const onPause = () => aud.pause();
-        const onWaiting = () => aud.pause();
-        const onPlaying = () => {
-            aud.play().catch(e=>{});
-            // Snap sync on resume
-            if (Math.abs(aud.currentTime - vid.currentTime) > syncTolerance) {
-                aud.currentTime = vid.currentTime;
-            }
-        };
-        const onSeeked = () => { aud.currentTime = vid.currentTime; };
-        
-        // Time update correction (drift correction)
-        const onTimeUpdate = () => {
-            if (!vid.paused && !aud.paused) {
-                const diff = vid.currentTime - aud.currentTime;
-                if (Math.abs(diff) > syncTolerance) {
-                    aud.currentTime = vid.currentTime;
-                }
-            }
-        };
-
-        // Remove old listeners to prevent duplicates (simple cleanup)
-        vid.onplay = onPlay;
-        vid.onpause = onPause;
-        vid.onwaiting = onWaiting;
-        vid.onplaying = onPlaying;
-        vid.onseeked = onSeeked;
-        vid.ontimeupdate = onTimeUpdate;
-    }
-    async function doVideoSwitch(id) {
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2330,177 +2312,228 @@ document.addEventListener('visibilitychange', () => {
         const fullPlayer = document.getElementById('full-player');
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
+        
+        // Reset Audio UI
         const mainSlider = document.getElementById('seek-slider');
         const mainTotal = document.getElementById('total-time');
 
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
-            // SWITCH TO VIDEO
+            // === ENABLE VIDEO MODE ===
             state.videoMode = true;
+            
+            // UI Setup (NO CSS CHANGES, just class toggles)
             fullPlayer.classList.remove('canvas-immersive');
-            fpImgArea.style.opacity = '1'; fpImgArea.style.pointerEvents = 'auto';
-            art.classList.remove('active'); vidContainer.classList.add('active');
+            fpImgArea.style.opacity = '1';
+            fpImgArea.style.pointerEvents = 'auto'; 
+            
+            art.classList.remove('active');
+            vidContainer.classList.add('active');
+            
+            // Ensure gradient is visible
             gradient.style.opacity = '1';
             
-            // Pause canvas, but keep audio object ready
-            canvas.pause(); canvas.style.opacity = '0';
+            // Stop Audio
+            audio.pause();
+            canvas.pause(); 
+            canvas.style.opacity = '0';
             
-            // Try Stream API First
-            let streamData = await fetchStreamUrl(id);
-            
-            if (streamData && streamData.video) {
-                // Native Video
-                if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
-                
-                nativePlayer.src = streamData.video;
-                nativePlayer.style.display = 'block';
-                nativePlayer.currentTime = audio.currentTime; // Sync start time
-
-                // SYNC LOGIC:
-                if (streamData.audio) {
-                    // Separate Audio Stream (High Quality Video)
-                    audio.src = streamData.audio;
-                    syncTracks(nativePlayer, audio);
-                    
-                    // Buffering visuals
-                    nativePlayer.onloadstart = () => showToast("Buffering HQ Video...");
-                    
-                    // Start Playing
-                    const playPromise = nativePlayer.play();
-                    if(playPromise !== undefined) {
-                        playPromise.then(() => {
-                             audio.currentTime = nativePlayer.currentTime;
-                             audio.play();
-                        }).catch(e => console.log(e));
-                    }
-                } else {
-                    // Combined Stream (360p) - Pause global audio, let video play sound
-                    audio.pause(); 
-                    nativePlayer.muted = false;
-                    nativePlayer.play().catch(e=>console.log(e));
-                }
-                showToast("Playing High Quality Stream");
-
-            } else {
-                // Fallback IFrame (Youtube Embed)
-                nativePlayer.style.display = 'none';
-                audio.pause(); // IFrame handles its own audio
-                
-                if(!document.getElementById('player')) wrap.innerHTML = '<div id="player"></div>';
-                ytPlayer = new YT.Player("player", {
-                    host: 'https://www.youtube-nocookie.com', videoId: id,
-                    playerVars: { autoplay: 1, controls: 0, playsinline: 1, rel: 0, modestbranding: 1, iv_load_policy: 3, start: Math.floor(audio.currentTime), disablekb: 1, fs: 0 },
-                    events: { 
-                        onReady: (e) => { e.target.setPlaybackQuality(state.videoQuality); startYTTracker(e); }, 
-                        onStateChange: onYTStateChange 
-                    }
-                });
-                showToast("Switched to Video (Fallback)");
+            if(!document.getElementById('player')) {
+                wrap.innerHTML = '<div id="player"></div>';
             }
+
+            // --- HEAVY AD-BLOCK SETUP ---
+            ytPlayer = new YT.Player("player", {
+            	host: 'https://www.youtube-nocookie.com', // Stricter Privacy Domain
+                videoId: id,
+                playerVars: { 
+                    autoplay: 1, 
+                    controls: 0, 
+                    playsinline: 1, 
+                    rel: 0, 
+                    showinfo: 0, 
+                    modestbranding: 1, 
+                    iv_load_policy: 3, 
+                    disablekb: 1,
+                    fs: 0,
+                    // Strict Origin Policy helps reduce targeted ads
+                    origin: window.location.origin 
+                },
+                events: { 
+                    onReady: (e) => {
+                        // --- 2026 SECURITY INJECTION ---
+                        try {
+                            const iframe = e.target.getIframe();
+                            // This attribute blocks popups while allowing the video to play.
+                            // It effectively kills the "click to open ad" behavior.
+                            iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-presentation allow-pointer-lock allow-forms");
+                        } catch(err) { console.warn("Sandbox injection failed", err); }
+                        
+                        e.target.setPlaybackQuality(state.videoQuality);
+                        
+                        // Pass the 'id' (The Song ID) to the tracker to verify content
+                        startYTTracker(e, id);
+                    }, 
+                    onStateChange: onYTStateChange 
+                }
+            });
+            
+            showToast("Switched to Video");
 
         } else {
-            // SWITCH TO AUDIO
+            // === DISABLE VIDEO MODE ===
             state.videoMode = false;
-            vidContainer.classList.remove('active'); art.classList.add('active');
             
-            // Remove sync listeners
-            nativePlayer.onplay = null; nativePlayer.onpause = null; nativePlayer.ontimeupdate = null;
-            
-            let cTime = 0;
-            if(nativePlayer && nativePlayer.style.display !== 'none') {
-                cTime = nativePlayer.currentTime;
-                nativePlayer.pause();
-                nativePlayer.style.display = 'none';
-                nativePlayer.src = "";
-            } else if(ytPlayer && ytPlayer.getCurrentTime) {
-                cTime = ytPlayer.getCurrentTime();
-                try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null;
-            }
-
-            // Restore original audio source (Music)
-            // We need to reload the song logic because we might have replaced audio.src with the video's audio track
-            const track = state.queue[state.qIndex];
-            if(track) {
-                // Quick restore check
-                let src = track.mediaUrl || (track.downloadUrl ? track.downloadUrl[0].link : null);
-                // If the current src looks like a youtube url, reset it
-                if(audio.src && audio.src.includes('googlevideo.com')) {
-                   // This forces the audio to reload from the Music API source
-                   loadAndPlay(); 
-                   return; // loadAndPlay handles seeking and playing
-                }
-            }
+            vidContainer.classList.remove('active');
+            art.classList.add('active');
 
             if(audio.duration) {
                 if(mainTotal) mainTotal.innerText = fmtTime(audio.duration);
                 if(mainSlider) mainSlider.max = audio.duration;
             }
-            if (audio.duration && cTime >= audio.duration) cTime = 0;
+
+            if(ytPlayer && ytPlayer.getCurrentTime) {
+                let yTime = ytPlayer.getCurrentTime();
+                if (audio.duration && (yTime >= audio.duration || yTime < 0)) {
+                    // Invalid time, ignore
+                } else {
+                    audio.currentTime = yTime;
+                }
+            }
             
-            audio.currentTime = cTime;
             audio.play();
             
             if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
-            if(state.showLyrics && state.lyricsData) document.getElementById('mini-lyrics-player').style.display = 'block';
-
+            if(state.showLyrics && state.lyricsData) { document.getElementById('mini-lyrics-player').style.display = 'block'; }
+            
+            if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
             showToast("Switched to Audio");
         }
-        state.videoSwitching = false;
-    }
-    function syncVideoControls(c, d) {
-        if(!d) return;
-        let p = c / d * 100;
-        const fill = document.getElementById('yt-fill');
-        const dot = document.getElementById('yt-dot');
-        const time = document.getElementById('yt-time');
-        if(fill) fill.style.width = p + "%";
-        if(dot) dot.style.left = p + "%";
-        if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
-
-        const mainSlider = document.getElementById('seek-slider');
-        const mainCurr = document.getElementById('curr-time');
-        const mainTotal = document.getElementById('total-time');
-        if(mainSlider && !mainSlider.matches(':active')) {
-            mainSlider.max = d; mainSlider.value = c; mainSlider.style.backgroundSize = `${p}% 100%`;
-        }
-        if(mainCurr) mainCurr.innerText = fmtTime(c);
-        if(mainTotal) mainTotal.innerText = fmtTime(d);
         
-        if(d - c <= 3 && !ytLooped && state.isLoop) {
-             ytLooped = true;
-             const vp = getCurrentVideoPlayer();
-             if(vp) {
-                 if(vp.seekTo) { vp.seekTo(0, true); vp.playVideo(); } 
-                 else { vp.currentTime = 0; vp.play(); }
-             }
-             setTimeout(() => ytLooped = false, 1500);
-        }
+        setTimeout(() => { state.videoSwitching = false; }, 500);
     }
 
-    function startYTTracker(event) {
+    function startYTTracker(event, expectedId) {
         event.target.playVideo();
-        setInterval(() => {
-            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
-            syncVideoControls(ytPlayer.getCurrentTime(), ytPlayer.getDuration());
-        }, 200);
-    }
+        
+        // Internal state trackers
+        let lastTime = -1;
+        let stuckCount = 0;
+        let isAdSequence = false;
 
-    function onYTStateChange(event) {
-        // Native video events pass {data: 1} for play etc matching YT API codes roughly
-        if(event.data === 1 || event.data === YT.PlayerState.PLAYING) { 
-            audio.pause(); state.isPlaying = true; updateIcons(); 
-        }
-        else if (event.data === 2 || event.data === YT.PlayerState.PAUSED) { 
-            state.isPlaying = false; updateIcons(); 
-        }
-        else if (event.data === 0 || event.data === YT.PlayerState.ENDED) {
-            if(!ytLooped) {
-                if(state.isLoop) {
-                    const vp = getCurrentVideoPlayer();
-                    if(vp.seekTo) vp.seekTo(0); else vp.currentTime=0;
-                    if(vp.playVideo) vp.playVideo(); else vp.play();
+        // "Heavy" interval: 100ms for faster reaction time
+        setInterval(() => {
+            // Basic checks to ensure player exists
+            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
+            
+            try {
+                // --- 2026 AD-ASSASSIN LOGIC ---
+                
+                // 1. Identification Phase
+                const videoData = ytPlayer.getVideoData();
+                const currentVideoId = videoData ? videoData.video_id : null;
+                
+                // If the ID playing is NOT the song ID, it is an Ad.
+                const isAdDetected = (currentVideoId && expectedId && currentVideoId !== expectedId);
+
+                if (isAdDetected) {
+                    if (!isAdSequence) {
+                        // PHASE 1: NEUTRALIZE
+                        // Mute immediately so user hears nothing
+                        ytPlayer.mute(); 
+                        // Force playback speed to MAXIMUM to burn through the ad
+                        ytPlayer.setPlaybackRate(16); 
+                        isAdSequence = true;
+                    }
+
+                    // PHASE 2: ELIMINATE
+                    // Repeatedly try to skip to the end
+                    const adDuration = ytPlayer.getDuration();
+                    if (adDuration > 0) {
+                        ytPlayer.seekTo(adDuration - 0.1, true);
+                    }
+                    
+                    // Force play if the ad tries to pause itself to force interaction
+                    if (ytPlayer.getPlayerState() === YT.PlayerState.PAUSED) {
+                        ytPlayer.playVideo();
+                    }
+                    
+                    // PHASE 3: PROTECT UI
+                    // Return immediately. Do NOT update the slider or time text.
+                    // This freezes the UI on the song info, hiding the ad existence.
+                    return; 
+                } 
+                else {
+                    // Normal Content Restoration
+                    if (isAdSequence) {
+                        // Ad is dead. Restore song settings.
+                        ytPlayer.unMute();
+                        ytPlayer.setVolume(100);
+                        ytPlayer.setPlaybackRate(1);
+                        isAdSequence = false;
+                    }
                 }
+                // ------------------------------
+
+
+                // --- STANDARD UI UPDATE (Only runs when Ad is NOT detected) ---
+                
+                let c = ytPlayer.getCurrentTime();
+                let d = ytPlayer.getDuration();
+                
+                // Keep the manual loop logic
+                if(d - c <= 2 && !ytLooped) {
+                    if(state.isLoop) {
+                        ytLooped = true;
+                        ytPlayer.seekTo(0, true);
+                        ytPlayer.playVideo();
+                        setTimeout(() => ytLooped = false, 1500);
+                    }
+                }
+
+                if(!d) return;
+
+                // Sync Custom YT Controls
+                let p = c / d * 100;
+                const fill = document.getElementById('yt-fill');
+                const dot = document.getElementById('yt-dot');
+                const time = document.getElementById('yt-time');
+                if(fill) fill.style.width = p + "%";
+                if(dot) dot.style.left = p + "%";
+                if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
+
+                // Sync Main Player UI
+                const mainSlider = document.getElementById('seek-slider');
+                const mainCurr = document.getElementById('curr-time');
+                const mainTotal = document.getElementById('total-time');
+                
+                if(mainSlider && !mainSlider.matches(':active')) {
+                    mainSlider.max = d;
+                    mainSlider.value = c; 
+                    mainSlider.style.backgroundSize = `${p}% 100%`;
+                }
+                if(mainCurr) mainCurr.innerText = fmtTime(c);
+                if(mainTotal) mainTotal.innerText = fmtTime(d); 
+
+            } catch(e) {
+                // Ignore API errors during ad transitions
+            }
+        }, 100); // 100ms interval for high-speed detection
+    }
+    function onYTStateChange(event) {
+        if(event.data === YT.PlayerState.PLAYING) { 
+            audio.pause(); // CRITICAL: Force audio to stop if video plays
+            state.isPlaying = true; 
+            updateIcons(); 
+        }
+        else if (event.data === YT.PlayerState.PAUSED) { 
+            state.isPlaying = false; 
+            updateIcons(); 
+        }
+        else if (event.data === YT.PlayerState.ENDED) {
+            if(!ytLooped) {
+                if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }
                 else playNext();
             }
         }

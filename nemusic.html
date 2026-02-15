@@ -364,16 +364,64 @@
         .shield { position: absolute; inset: 0; z-index: 25; }
         .center-unlock { position: absolute; top: 50%; left: 50%; width: 90px; height: 90px; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: auto; }
         .block-area { position: absolute; inset: 0; pointer-events: auto; }
-        .yt-controls { position: absolute; left: 0; right: 0; bottom: 0; padding: 10px 14px; background: linear-gradient(to top,#000c,transparent); z-index: 30; transition: opacity .25s; pointer-events: none; }
-        .yt-controls.show { opacity: 1; pointer-events: auto; }
-        .yt-controls.hide { opacity: 0; pointer-events: none; }
-        .bar-row { display: flex; align-items: center; gap: 10px; }
-        .bar { flex: 1; position: relative; height: 4px; background: #555; border-radius: 3px; pointer-events: auto; }
-        .fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: #ff0000; }
-        .dot { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 14px; height: 14px; background: #ff0000; border-radius: 50%; left: 0%; pointer-events: none; }
-        .fs-btn { width: 34px; height: 34px; background: #000a; border: none; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; pointer-events: auto; }
-        .fs-btn svg { width: 18px; height: 18px; fill: #fff; }
-        .yt-time { font-size: 12px; color: #fff; margin-top: 6px; }
+   /* --- NEW PREMIUM YOUTUBE UI --- */
+.yt-controls { 
+    position: absolute; left: 0; right: 0; bottom: 0; 
+    height: 60px; /* Single Line Height */
+    background: linear-gradient(to top, rgba(0,0,0,0.95), transparent); 
+    z-index: 30; 
+    display: flex; align-items: center; gap: 12px; padding: 0 15px;
+    opacity: 0; transition: opacity .25s; pointer-events: none; 
+}
+.yt-controls.show { opacity: 1; pointer-events: auto; }
+.yt-controls.hide { opacity: 0; pointer-events: none; }
+
+/* Buttons (Play, Mute, Fullscreen) */
+.yt-btn { 
+    background: none; border: none; color: white; 
+    width: 30px; height: 30px; 
+    display: flex; align-items: center; justify-content: center; 
+    cursor: pointer; font-size: 16px; 
+    transition: transform 0.2s, color 0.2s; pointer-events: auto;
+}
+.yt-btn:hover { color: #ff2d55; transform: scale(1.1); }
+
+/* Duration Text */
+.yt-time { 
+    font-size: 11px; font-weight: 700; color: #ddd; 
+    white-space: nowrap; font-family: sans-serif; min-width: 70px; text-align: center;
+}
+
+/* Progress Bar (Takes remaining space) */
+.yt-progress-container { 
+    flex: 1; height: 4px; background: rgba(255,255,255,0.2); 
+    border-radius: 2px; cursor: pointer; position: relative; 
+    transition: height 0.2s; pointer-events: auto; 
+}
+.yt-progress-container:hover { height: 6px; }
+
+.yt-fill { 
+    position: absolute; left: 0; top: 0; height: 100%; width: 0%; 
+    background: #ff2d55; /* Premium Red */
+    border-radius: 2px; 
+}
+
+/* Hover Dot Effect */
+.yt-fill::after {
+    content: ''; position: absolute; right: -6px; top: 50%; 
+    transform: translateY(-50%) scale(0); 
+    width: 12px; height: 12px; background: white; border-radius: 50%; 
+    box-shadow: 0 0 5px rgba(0,0,0,0.5); transition: transform 0.2s;
+}
+.yt-progress-container:hover .yt-fill::after { transform: translateY(-50%) scale(1); }
+
+/* 8481 Branding */
+.yt-brand { 
+    font-size: 14px; font-weight: 900; color: #ff2d55; 
+    letter-spacing: 1px; text-shadow: 0 0 10px rgba(255, 45, 85, 0.4); 
+    user-select: none; margin-left: 5px; margin-right: 5px;
+}
+
 
     </style>
     
@@ -549,18 +597,33 @@
                     <div class="block-area" id="blockTap"></div>
                     <div class="center-unlock" id="centerTap"></div>
                 </div>
-                <div class="yt-controls hide" id="yt-controls">
-                    <div class="bar-row">
-                        <div class="bar" id="yt-bar">
-                            <div class="fill" id="yt-fill"></div>
-                            <div class="dot" id="yt-dot"></div>
-                        </div>
-                        <button class="fs-btn" onclick="toggleYtFull()">
-                            <svg viewBox="0 0 24 24"><path d="M7 3H3v4h2V5h2V3zm12 0h-4v2h2v2h2V3zM5 15H3v4h4v-2H5v-2zm16 0h-2v2h-2v2h4v-4z"/></svg>
-                        </button>
-                    </div>
-                    <div class="yt-time" id="yt-time">0:00 / 0:00</div>
-                </div>
+          <div class="yt-controls hide" id="yt-controls">
+    <!-- 1. Play/Pause Button -->
+    <button class="yt-btn" id="yt-play-btn" onclick="toggleYtPlay()">
+        <i class="fas fa-play"></i>
+    </button>
+
+    <!-- 2. Sound Button -->
+    <button class="yt-btn" id="yt-mute-btn" onclick="toggleYtMute()">
+        <i class="fas fa-volume-up"></i>
+    </button>
+
+    <!-- 3. Current Duration -->
+    <div class="yt-time" id="yt-time">0:00 / 0:00</div>
+
+    <!-- 4. Player UI (Progress Bar) -->
+    <div class="yt-progress-container" id="yt-bar">
+        <div class="yt-fill" id="yt-fill"></div>
+    </div>
+
+    <!-- 5. 8481 Text -->
+    <div class="yt-brand">8481</div>
+
+    <!-- 6. Full Screen Button -->
+    <button class="yt-btn" onclick="toggleYtFull()">
+        <i class="fas fa-expand"></i>
+    </button>
+</div>
             </div>
 
         </div>
@@ -710,10 +773,6 @@
 
     // YOUTUBE PLAYER VARS
     let ytPlayer, ytDragging = false, ytLooped = false, ytHideTimer = null;
-    // --- NEW VARIABLES FOR AD BOUNCE FIX ---
-let ytTargetTime = 0;       // The timestamp we want (e.g., 21s)
-let ytRetryCount = 0;       // Counts how many times we've hard-reset
-const MAX_YT_RETRIES = 7;   // Stop after 2 tries to prevent infinite looping
 
     function decodeStr(html) { if (!html) return ""; const txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value; }
     
@@ -2272,36 +2331,40 @@ async function toggleFpMenu() {
         if(state.videoSwitching) return; 
         state.videoSwitching = true;
 
-        const currentTrackWhenClicked = state.currentTrackId;
-
-        // 1. Capture Time logic
-        if (!state.videoMode) {
-            ytTargetTime = audio.currentTime; // Save the 21s
-            ytRetryCount = 0; // Reset retries
-        }
+        const currentTrackWhenClicked = state.currentTrackId; // Snapshot ID at click time
 
         if (!state.currentTrackYTId) {
             const t = state.queue[state.qIndex];
+            
+            // Safety: Ensure we actually have a track to search for
             if(!t) { state.videoSwitching = false; return; }
+
             showToast("Searching Video...");
             
             fetchYouTubeId(t.title, t.artist, t.id, t.rawData?.label).then(id => {
+                 // RACE CONDITION CHECK:
+                 // If the user changed the song while we were searching, STOP.
                  if (state.currentTrackId !== currentTrackWhenClicked) {
-                     state.videoSwitching = false; return;
+                     console.log("Song changed during video fetch. Aborting switch.");
+                     state.videoSwitching = false;
+                     return;
                  }
+
                  if(id) {
-                     doVideoSwitch(id, ytTargetTime);
+                     doVideoSwitch(id);
                  } else {
                      showToast("Video not found");
                      state.videoSwitching = false;
                  }
             });
         } else {
-            doVideoSwitch(state.currentTrackYTId, ytTargetTime);
+            // We have an ID, but let's double check it matches the current song 
+            // (Only needed if cache was somehow desynced, but good for safety)
+            doVideoSwitch(state.currentTrackYTId);
         }
     }
 
-    function doVideoSwitch(id, startTime = 0) {
+    function doVideoSwitch(id) {
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2310,158 +2373,161 @@ async function toggleFpMenu() {
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
         
+        // Audio Player Elements for Resetting Duration
+        const mainSlider = document.getElementById('seek-slider');
+        const mainTotal = document.getElementById('total-time');
+
+        // FORCE UI CLEANUP: Hide Mini Lyrics & Canvas
         document.getElementById('mini-lyrics-player').style.display = 'none';
 
         if (!state.videoMode) {
-            // SWITCHING TO VIDEO
+            // ===========================
+            // SWITCHING TO VIDEO MODE
+            // ===========================
             state.videoMode = true;
             
+            // FIX 1: Force Container Visibility (Overriding Immersive Mode)
             fullPlayer.classList.remove('canvas-immersive');
             fpImgArea.style.opacity = '1';
-            fpImgArea.style.pointerEvents = 'auto'; 
+            fpImgArea.style.pointerEvents = 'auto'; // Ensure clicks work
             
+            // Swap Art for Video
             art.classList.remove('active');
             vidContainer.classList.add('active');
+            
+            // Ensure Gradient stays visible (preserve UI)
             gradient.style.opacity = '1';
             
+            // Stop Audio & Canvas
             audio.pause();
             canvas.pause(); 
             canvas.style.opacity = '0';
             
-            // --- HARD RESET LOGIC ---
-            if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
-            
-            // Wipe the DOM to ensure fresh iframe
-            wrap.innerHTML = '<div id="player"></div>'; 
+            // RE-APPEND PLAYER CONTAINER IF MISSING (Due to previous destruction)
+            if(!document.getElementById('player')) {
+                wrap.innerHTML = '<div id="player"></div>';
+            }
 
+            // Load YouTube Video
             ytPlayer = new YT.Player("player", {
-                host: 'https://www.youtube.com', 
+            	host: 'https://www.youtube-nocookie.com', 
                 videoId: id,
                 playerVars: { 
-                    autoplay: 1, controls: 0, playsinline: 1, rel: 0, 
-                    modestbranding: 1, iv_load_policy: 3,
-                    start: Math.floor(startTime), // Request 21s start
-                    disablekb: 1, fs: 0,
+                    autoplay: 1, 
+                    controls: 0, 
+                    playsinline: 1, 
+                    rel: 0, 
+                    modestbranding: 1, 
+                    iv_load_policy: 3,
+                    start: Math.floor(audio.currentTime),
+                    disablekb: 1,
+                    fs: 0,
+                    // Suggested quality not strictly supported in playerVars, but we set it immediately below
                 },
                 events: { 
                     onReady: (e) => {
                         e.target.setPlaybackQuality(state.videoQuality);
-                        // PASS THE TARGET TIME TO TRACKER
-                        startYTTracker(e, startTime);
+                        startYTTracker(e);
                     }, 
                     onStateChange: onYTStateChange 
                 }
             });
             
-            if(ytRetryCount === 0) showToast("Switched to Video");
+            showToast("Switched to Video");
 
         } else {
+            // ===========================
             // SWITCHING BACK TO AUDIO
+            // ===========================
             state.videoMode = false;
+            
+            // Swap Video for Art
             vidContainer.classList.remove('active');
             art.classList.add('active');
 
-            // Restore Duration UI
+            // FIX 2: Manually Reset Duration UI to Audio values immediately
             if(audio.duration) {
-                document.getElementById('total-time').innerText = fmtTime(audio.duration);
-                document.getElementById('seek-slider').max = audio.duration;
+                if(mainTotal) mainTotal.innerText = fmtTime(audio.duration);
+                if(mainSlider) mainSlider.max = audio.duration;
             }
 
-            // Sync Time
+            // Sync Time (Audio takes priority, reset if Video was longer)
             if(ytPlayer && ytPlayer.getCurrentTime) {
                 let yTime = ytPlayer.getCurrentTime();
-                if (audio.duration && yTime >= audio.duration) yTime = 0; 
+                if (audio.duration && yTime >= audio.duration) {
+                    yTime = 0; 
+                }
                 audio.currentTime = yTime;
             }
             
+            // Resume Audio
             audio.play();
-            if(state.showCanvas) { canvas.style.opacity = '1'; canvas.play().catch(e=>{}); }
-            if(state.showLyrics && state.lyricsData) { document.getElementById('mini-lyrics-player').style.display = 'block'; }
             
+            // Restore Canvas if enabled (Logic handled by handleCanvasPlay, but we ensure opacity)
+            if(state.showCanvas) { 
+                canvas.style.opacity = '1'; 
+                canvas.play().catch(e=>{}); 
+            }
+            if(state.showLyrics && state.lyricsData) {
+                document.getElementById('mini-lyrics-player').style.display = 'block';
+            }
+            
+            // Destory YT player on switch back to save memory immediately
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
+
             showToast("Switched to Audio");
         }
         state.videoSwitching = false;
     }
 
-    function startYTTracker(event, intendedTime = 0) {
-        const player = event.target;
-        player.playVideo();
+    function startYTTracker(event) {
+    event.target.playVideo();
+    setInterval(() => {
+        if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
         
-        // FLAG: Have we successfully reached the 21s mark yet?
-        let hasReachedTarget = false;
+        let c = ytPlayer.getCurrentTime();
+        let d = ytPlayer.getDuration();
+        if(!d) return;
+
+        // Update Time Text (0:00 / 3:45)
+        const timeEl = document.getElementById('yt-time');
+        if(timeEl) timeEl.innerText = fmtTime(c) + " / " + fmtTime(d);
+
+        // Update Progress Bar Width
+        const fill = document.getElementById('yt-fill');
+        let p = (c / d) * 100;
+        if(fill) fill.style.width = p + "%";
+
+        // Sync Play Button Icon
+        const playIcon = document.querySelector('#yt-play-btn i');
+        if(playIcon) {
+            const isPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
+            playIcon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
+        }
+
+        // --- Keep your existing logic for main player sync below ---
+        const mainSlider = document.getElementById('seek-slider');
+        const mainCurr = document.getElementById('curr-time');
+        const mainTotal = document.getElementById('total-time');
         
-        // If we are starting at 0, we don't need this logic
-        if(intendedTime < 2) hasReachedTarget = true; 
+        if(mainSlider && !mainSlider.matches(':active')) {
+            mainSlider.max = d;
+            mainSlider.value = c;
+            mainSlider.style.backgroundSize = `${p}% 100%`;
+        }
+        if(mainCurr) mainCurr.innerText = fmtTime(c);
+        if(mainTotal) mainTotal.innerText = fmtTime(d);
+        
+        // Loop logic
+        if(d - c <= 3 && !ytLooped && state.isLoop) {
+            ytLooped = true;
+            ytPlayer.seekTo(0, true);
+            ytPlayer.playVideo();
+            setTimeout(() => ytLooped = false, 1500);
+        }
+    }, 250);
+}
 
-        // Force seek on start just to be sure
-        if(intendedTime > 0) player.seekTo(intendedTime, true);
-
-        const trackerInterval = setInterval(() => {
-            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration) {
-                clearInterval(trackerInterval); return;
-            }
-            if(ytDragging) return;
-
-            let c = ytPlayer.getCurrentTime();
-            let d = ytPlayer.getDuration();
-            
-            // ============================================
-            //        BOUNCE DETECTION LOGIC
-            // ============================================
-            
-            // 1. CHECK SUCCESS: If we are close to 21s (e.g., > 20s), mark as reached.
-            if (!hasReachedTarget && c >= (intendedTime - 1)) {
-                hasReachedTarget = true;
-                // console.log("Target reached successfully");
-            }
-
-            // 2. CHECK FAILURE: 
-            // Condition: We have previously reached the target (21s)
-            // BUT NOW the time has dropped back near 0 (Ad bounce)
-            if (hasReachedTarget && intendedTime > 5 && c < 2 && ytRetryCount < MAX_YT_RETRIES) {
-                
-                console.log("Ad Bounce Detected (21s -> 0s). Resetting...");
-                clearInterval(trackerInterval);
-                
-                // TRIGGER HARD RESET
-                ytRetryCount++;
-                state.videoMode = false; // Toggle flag so doVideoSwitch treats it as "Enable"
-                doVideoSwitch(state.currentTrackYTId, intendedTime);
-                return;
-            }
-            // ============================================
-
-            if(!d) return;
-
-            // UI UPDATES (No changes here)
-            let p = c / d * 100;
-            const fill = document.getElementById('yt-fill');
-            const dot = document.getElementById('yt-dot');
-            const time = document.getElementById('yt-time');
-            if(fill) fill.style.width = p + "%";
-            if(dot) dot.style.left = p + "%";
-            if(time) time.textContent = fmtTime(c) + " / " + fmtTime(d);
-
-            const mainSlider = document.getElementById('seek-slider');
-            const mainCurr = document.getElementById('curr-time');
-            const mainTotal = document.getElementById('total-time');
-            
-            if(mainSlider && !mainSlider.matches(':active')) {
-                mainSlider.max = d; mainSlider.value = c; 
-                mainSlider.style.backgroundSize = `${p}% 100%`;
-            }
-            if(mainCurr) mainCurr.innerText = fmtTime(c);
-            if(mainTotal) mainTotal.innerText = fmtTime(d); 
-            
-            if(d - c <= 3 && !ytLooped) {
-                if(state.isLoop) {
-                    ytLooped = true; ytPlayer.seekTo(0, true); ytPlayer.playVideo();
-                    setTimeout(() => ytLooped = false, 1500);
-                }
-            }
-        }, 200);
-    }
     function onYTStateChange(event) {
         if(event.data === YT.PlayerState.PLAYING) { 
             audio.pause(); // CRITICAL: Force audio to stop if video plays
@@ -2479,6 +2545,29 @@ async function toggleFpMenu() {
             }
         }
     }
+    function toggleYtPlay() {
+    if(!ytPlayer || !ytPlayer.getPlayerState) return;
+    const state = ytPlayer.getPlayerState();
+    if (state === YT.PlayerState.PLAYING) {
+        ytPlayer.pauseVideo();
+        // Icon updates handled by tracker loop
+    } else {
+        ytPlayer.playVideo();
+    }
+    showYTControls(); 
+}
+
+function toggleYtMute() {
+    if(!ytPlayer) return;
+    if (ytPlayer.isMuted()) {
+        ytPlayer.unMute();
+        document.querySelector('#yt-mute-btn i').className = 'fas fa-volume-up';
+    } else {
+        ytPlayer.mute();
+        document.querySelector('#yt-mute-btn i').className = 'fas fa-volume-mute';
+    }
+    showYTControls();
+}
     function toggleYtFull() {
         let el = document.getElementById("yt-view-container");
         document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen();

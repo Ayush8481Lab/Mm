@@ -713,7 +713,7 @@
     // --- NEW VARIABLES FOR AD BOUNCE FIX ---
 let ytTargetTime = 0;       // The timestamp we want (e.g., 21s)
 let ytRetryCount = 0;       // Counts how many times we've hard-reset
-const MAX_YT_RETRIES = 2;   // Stop after 2 tries to prevent infinite looping
+const MAX_YT_RETRIES = 7;   // Stop after 2 tries to prevent infinite looping
 
     function decodeStr(html) { if (!html) return ""; const txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value; }
     

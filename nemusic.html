@@ -1,5 +1,4 @@
 
-<!-- START OF FILE yt.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -361,7 +360,7 @@
         #yt-view-container.active { display: block; }
         .video-cover { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 100%; height: 177.77%; pointer-events: none; }
         #wrap, #player, iframe { width: 100%; height: 100%; pointer-events: none; }
-        .shield { position: absolute; inset: 0; z-index: 28; }
+        .shield { position: absolute; inset: 0; z-index: 25; }
         .center-unlock { position: absolute; top: 50%; left: 50%; width: 90px; height: 90px; transform: translate(-50%,-50%); border-radius: 50%; pointer-events: auto; }
         .block-area { position: absolute; inset: 0; pointer-events: auto; }
    /* --- NEW PREMIUM YOUTUBE UI --- */
@@ -421,6 +420,7 @@
     letter-spacing: 1px; text-shadow: 0 0 10px rgba(255, 45, 85, 0.4); 
     user-select: none; margin-left: 5px; margin-right: 5px;
 }
+#direct-video-player { width: 100%; height: 100%; object-fit: contain; background: black; position: absolute; top:0; left:0; z-index: 22; display: none; }
 
 
     </style>
@@ -590,17 +590,10 @@
             
             <!-- Youtube Video Container (From new implementation) -->
             <div id="yt-view-container">
-    <div class="video-cover">
-        <div id="wrap"><div id="player"></div></div>
-        <!-- NEW: Fallback Video Player (Hidden by default) -->
-        <video id="fallback-video" playsinline style="width:100%; height:100%; object-fit:contain; background:black; display:none; position:absolute; top:0; left:0; z-index:26;"></video>
-    </div>
-    <!-- Shield div remains same -->
-    <div class="shield">
-        <div class="block-area" id="blockTap"></div>
-        <div class="center-unlock" id="centerTap"></div>
-    </div>
-    <!-- ... yt-controls ... -->
+                <video id="direct-video-player" playsinline></video>
+                <div class="video-cover">
+                    <div id="wrap"><div id="player"></div></div>
+                </div>
                 <div class="shield">
                     <div class="block-area" id="blockTap"></div>
                     <div class="center-unlock" id="centerTap"></div>
@@ -750,9 +743,13 @@
     const APP_LOGO_URL = "https://i.ibb.co/zhg1w3dw/file-00000000aca472308a4675a6979753cb.png";
     const BASE_API = "https://ayushm-psi.vercel.app/api";
 
+    // Direct Stream API Constants
+    const YT_STREAM_KEYS = ["6cf7f03014msh787c51a713c0264p15c20djsna1f9a9f6a378"];
+    const YT_STREAM_HOST = "ytstream-download-youtube-videos.p.rapidapi.com";
+
     const state = { 
         lang: 'hindi', quality: '320kbps', videoQuality: 'medium', isPlaying: false, queue: [], qIndex: 0, currentTrackId: null, isShuffle: false, isLoop: false, playSessionId: 0, currentAlbumData: null, lyricsData: null, activeLyricIndex: -1, showCanvas: true, showLyrics: true, metaFetchId: 0, downloadState: { active: false, abort: null, id: null }, bufferingId: null,
-        videoMode: false, currentTrackYTId: null, videoSwitching: false 
+        videoMode: false, currentTrackYTId: null, videoSwitching: false, isDirectVideo: false 
     };
     const languages = ["Hindi", "English", "Punjabi", "Tamil", "Telugu", "Marathi", "Gujarati", "Bengali", "Kannada", "Bhojpuri", "Malayalam", "Haryanvi", "Rajasthani", "Odia", "Assamese"];
     const PROXY_LIST = ["https://corsproxy.io/?", "https://api.allorigins.win/raw?url=", "https://thingproxy.freeboard.io/fetch/"];
@@ -781,23 +778,12 @@
 
     // YOUTUBE PLAYER VARS
     let ytPlayer, ytDragging = false, ytLooped = false, ytHideTimer = null;
-    // --- NEW VARIABLES FOR AD DETECTION & FALLBACK ---
-const YT_API_KEYS = [
-    "6cf7f03014msh787c51a713c0264p15c20djsna1f9a9f6a378", 
-    // Add more keys here if needed
-];
-let ytApiKeyIndex = 0;
-let fallbackActive = false;
-let maxTimeSeen = 0; // Tracks the highest timestamp we reached
-let targetStartSec = 0; // The second we wanted to start at (e.g., 21s)
 
     function decodeStr(html) { if (!html) return ""; const txt = document.createElement("textarea"); txt.innerHTML = html; return txt.value; }
     
     function extractImg(img, size = '500') {
         let url = '';
         if(Array.isArray(img)) {
-            // Grab the last element (usually highest quality) to ensure we have a good base URL
-            // Then we will force-resize it using string manipulation below
             const best = img[img.length-1];
             url = best.url || best.link;
         } else {
@@ -806,7 +792,6 @@ let targetStartSec = 0; // The second we wanted to start at (e.g., 21s)
 
         if(!url) return `https://via.placeholder.com/${size}`;
         
-        // Robust replacement: finds 150, 50, or 500 and forces the requested size
         return url
             .replace('150x150', `${size}x${size}`)
             .replace('50x50', `${size}x${size}`)
@@ -904,8 +889,13 @@ let targetStartSec = 0; // The second we wanted to start at (e.g., 21s)
             e.target.style.backgroundSize = `${val}% 100%`; 
         });
         slider.addEventListener('change', (e) => { 
-            if(state.videoMode && ytPlayer && ytPlayer.seekTo) {
-                ytPlayer.seekTo(e.target.value, true);
+            if(state.videoMode) {
+                if(state.isDirectVideo) {
+                    const dv = document.getElementById('direct-video-player');
+                    dv.currentTime = e.target.value;
+                } else if (ytPlayer && ytPlayer.seekTo) {
+                    ytPlayer.seekTo(e.target.value, true);
+                }
             } else {
                 audio.currentTime = e.target.value; 
             }
@@ -939,35 +929,21 @@ let targetStartSec = 0; // The second we wanted to start at (e.g., 21s)
         blockTap.addEventListener('pointerdown', e => { e.preventDefault(); showYTControls(); });
         centerTap.addEventListener('pointerdown', e => {
             e.preventDefault();
-            if(!ytPlayer) return;
-            ytPlayer.getPlayerState() === YT.PlayerState.PLAYING ? ytPlayer.pauseVideo() : ytPlayer.playVideo();
+            toggleYtPlay();
             showYTControls();
         });
 
-        // REPLACE your existing ytSeek function with this:
-function ytSeek(x) {
-    const bar = document.getElementById('yt-bar');
-    let r = bar.getBoundingClientRect();
-    let p = Math.max(0, Math.min(1, (x - r.left) / r.width));
-
-    // 1. Fallback Player (API Video)
-    if (fallbackActive) {
-        const vid = document.getElementById('fallback-video');
-        if (vid && vid.duration) {
-            vid.currentTime = vid.duration * p;
-            
-            // Update UI immediately for smoothness
-            document.getElementById('yt-fill').style.width = (p * 100) + "%";
-            document.getElementById('yt-time').innerText = fmtTime(vid.currentTime) + " / " + fmtTime(vid.duration);
+        function ytSeek(x) {
+            let r = bar.getBoundingClientRect();
+            let p = Math.max(0, Math.min(1, (x - r.left) / r.width));
+            if(state.isDirectVideo) {
+                const dv = document.getElementById('direct-video-player');
+                if(dv && dv.duration) dv.currentTime = dv.duration * p;
+            } else if(ytPlayer && ytPlayer.getDuration) {
+                ytPlayer.seekTo(ytPlayer.getDuration()*p, true);
+            }
         }
-        return;
-    }
 
-    // 2. Normal YouTube Player
-    if (ytPlayer && ytPlayer.getDuration) {
-        ytPlayer.seekTo(ytPlayer.getDuration() * p, true);
-    }
-}
         bar.addEventListener('pointerdown', e => { ytDragging = true; showYTControls(); ytSeek(e.clientX); });
         bar.addEventListener('pointermove', e => { if(ytDragging) ytSeek(e.clientX); });
         window.addEventListener('pointerup', () => { ytDragging = false; });
@@ -986,7 +962,7 @@ function ytSeek(x) {
     let lastSaveTime = 0;
     function saveSessionState() {
         const now = Date.now(); if (now - lastSaveTime < 2000) return; lastSaveTime = now;
-        let cTime = state.videoMode && ytPlayer ? ytPlayer.getCurrentTime() : audio.currentTime;
+        let cTime = state.videoMode ? (state.isDirectVideo ? document.getElementById('direct-video-player').currentTime : (ytPlayer ? ytPlayer.getCurrentTime() : 0)) : audio.currentTime;
         IdbHelper.set('vibeSession', { queue: state.queue, qIndex: state.qIndex, currentTime: cTime, trackId: state.currentTrackId });
     }
 
@@ -1338,14 +1314,18 @@ function ytSeek(x) {
     }
 
     async function loadAndPlay() {
-        // ... (keep all the top code: cleanup, resetting video mode, playSessionId++, etc.) ...
-        
-        // --- EXISTING CODE START (Keep this) ---
         // CLEANUP VIDEO PLAYER IF EXISTS
         if (ytPlayer) {
             try { ytPlayer.destroy(); } catch(e){}
             ytPlayer = null;
         }
+        // Cleanup Direct Video
+        const dv = document.getElementById('direct-video-player');
+        dv.pause();
+        dv.style.display = 'none';
+        dv.src = '';
+        state.isDirectVideo = false;
+        
         state.videoMode = false;
         document.getElementById('yt-view-container').classList.remove('active');
         document.getElementById('fp-art').classList.add('active');
@@ -1360,15 +1340,11 @@ function ytSeek(x) {
         refreshCurrentListView(); 
 
         state.playSessionId++; state.currentTrackId = track.id;
-        // --- EXISTING CODE END ---
-
-
-        // === INSERT/MODIFY THIS SECTION === 
         
-        // 1. CRITICAL FIX: Reset the YouTube ID immediately so we don't use the previous song's ID
+        // 1. CRITICAL FIX: Reset the YouTube ID immediately
         state.currentTrackYTId = null; 
 
-        // ... (Keep your existing Audio Element src loading logic here) ...
+        // ... Audio Element src loading logic ...
         let src = null;
         let blobKey = `blob_audio_${track.id}_${state.quality}`;
         let blob = await IdbHelper.get(blobKey);
@@ -1609,25 +1585,31 @@ function ytSeek(x) {
     function playPrev() { 
         let cTime = state.videoMode && ytPlayer ? ytPlayer.getCurrentTime() : audio.currentTime;
         if(cTime > 3) {
-            if(state.videoMode && ytPlayer) ytPlayer.seekTo(0, true);
+            if(state.videoMode) {
+                 if(state.isDirectVideo) document.getElementById('direct-video-player').currentTime = 0;
+                 else if(ytPlayer) ytPlayer.seekTo(0, true);
+            }
             else audio.currentTime = 0;
         } else { 
             if(state.qIndex > 0) state.qIndex--; else state.qIndex = state.queue.length - 1; loadAndPlay(); 
         } 
     }
-function togglePlay() { 
+    function togglePlay() { 
         // 1. Strict Video Mode Check
         if (state.videoMode) {
-            if (ytPlayer && ytPlayer.getPlayerState) {
+            if(state.isDirectVideo) {
+                const dv = document.getElementById('direct-video-player');
+                if (dv.paused) dv.play(); else dv.pause();
+                showYTControls();
+            } else if (ytPlayer && ytPlayer.getPlayerState) {
                 const s = ytPlayer.getPlayerState();
-                // Toggle video play/pause
                 if (s === YT.PlayerState.PLAYING || s === YT.PlayerState.BUFFERING) {
                     ytPlayer.pauseVideo();
                 } else {
                     ytPlayer.playVideo();
                 }
             }
-            return; // CRITICAL: Stop here! Don't let Audio run below.
+            return;
         }
 
         // 2. Audio Mode Logic
@@ -2365,6 +2347,7 @@ async function toggleFpMenu() {
     function toggleVideoMode() {
         if(state.videoSwitching) return; 
         state.videoSwitching = true;
+        state.isDirectVideo = false; // Reset direct flag
 
         const currentTrackWhenClicked = state.currentTrackId; // Snapshot ID at click time
 
@@ -2398,119 +2381,8 @@ async function toggleFpMenu() {
             doVideoSwitch(state.currentTrackYTId);
         }
     }
-    // 1. Function to get 360p Link from RapidAPI
-async function getRapidVideoUrl(videoId) {
-    for (let i = 0; i < YT_API_KEYS.length; i++) {
-        try {
-            const key = YT_API_KEYS[ytApiKeyIndex];
-            console.log("Checking API for Ad-Free Video...");
-            
-            const res = await fetch(`https://ytstream-download-youtube-videos.p.rapidapi.com/dl?id=${videoId}&cgeo=IN`, {
-                method: 'GET',
-                headers: {
-                    'x-rapidapi-host': 'ytstream-download-youtube-videos.p.rapidapi.com',
-                    'x-rapidapi-key': key
-                }
-            });
-
-            if (!res.ok) throw new Error("Key limit or Error");
-            const data = await res.json();
-            
-            // Find 360p with Audio (itag 18 is standard 360p mp4)
-            let format = (data.formats || []).find(f => f.itag === 18);
-            
-            // Fallback: look for any 360p labeled format with audio
-            if(!format && data.formats) {
-                format = data.formats.find(f => f.qualityLabel === '360p' && f.audioQuality);
-            }
-            // Fallback: take first available if no 360p found (rare)
-            if(!format && data.formats && data.formats.length > 0) format = data.formats[0];
-
-            if (format && format.url) return format.url;
-            
-        } catch (e) {
-            console.log("API Key Failed, rotating...", e);
-            ytApiKeyIndex = (ytApiKeyIndex + 1) % YT_API_KEYS.length;
-        }
-    }
-    return null;
-}
-
-// 2. Function to Activate Fallback Player
-async function switchToFallback(videoId, startAt) {
-    if (fallbackActive) return; 
-    fallbackActive = true;
-    showToast("Ad detected. Switching to Premium Player...");
-
-    // 1. Clean up YouTube Iframe
-    if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; }
-    document.getElementById('player').innerHTML = '';
-
-    // 2. Get Link
-    const url = await getRapidVideoUrl(videoId);
-
-    if (url) {
-        const vid = document.getElementById('fallback-video');
-        vid.src = url;
-        vid.style.display = 'block';
-        vid.currentTime = startAt || 0; 
-        
-        // Update branding
-        const brand = document.querySelector('.yt-brand');
-        if(brand) brand.innerText = "PREMIUM 360p";
-
-        vid.play().then(() => {
-            state.isPlaying = true;
-            updateIcons();
-        }).catch(e => console.log("Auto-play blocked", e));
-
-        // --- FIXED SYNC LOGIC ---
-        vid.ontimeupdate = () => {
-            const c = vid.currentTime;
-            const d = vid.duration;
-            if (!d) return;
-
-            // A. Update Green Line (Width)
-            const fill = document.getElementById('yt-fill');
-            if (fill) fill.style.width = ((c / d) * 100) + "%";
-
-            // B. Update Time Text
-            const timeEl = document.getElementById('yt-time');
-            if (timeEl) timeEl.innerText = fmtTime(c) + " / " + fmtTime(d);
-
-            // C. Sync Main Audio Player (Hidden UI)
-            document.getElementById('curr-time').innerText = fmtTime(c);
-            document.getElementById('total-time').innerText = fmtTime(d);
-            const slider = document.getElementById('seek-slider');
-            if (slider && !slider.matches(':active')) {
-                slider.max = d; 
-                slider.value = c;
-            }
-        };
-
-        vid.onended = () => {
-            if (state.isLoop) { vid.currentTime = 0; vid.play(); } 
-            else { playNext(); }
-        };
-
-    } else {
-        showToast("Premium unavailable. Switching to Audio.");
-        toggleVideoMode(); 
-    }
-}
 
     function doVideoSwitch(id) {
-    	fallbackActive = false;
-        maxTimeSeen = 0;
-        targetStartSec = audio.currentTime; // This captures the "21s"
-        const fbVid = document.getElementById('fallback-video');
-        fbVid.pause();
-        fbVid.src = "";
-        fbVid.style.display = 'none';
-        document.querySelector('.yt-brand').innerText = "8481";
-        // -----------------------
-
-
         const art = document.getElementById('fp-art');
         const vidContainer = document.getElementById('yt-view-container');
         const canvas = document.getElementById('canvas-video');
@@ -2518,6 +2390,7 @@ async function switchToFallback(videoId, startAt) {
         const fullPlayer = document.getElementById('full-player');
         const fpImgArea = document.getElementById('fp-img-area');
         const wrap = document.getElementById('wrap');
+        const dv = document.getElementById('direct-video-player');
         
         // Audio Player Elements for Resetting Duration
         const mainSlider = document.getElementById('seek-slider');
@@ -2544,6 +2417,9 @@ async function switchToFallback(videoId, startAt) {
             // Ensure Gradient stays visible (preserve UI)
             gradient.style.opacity = '1';
             
+            // Capture current time to resume
+            let resumeTime = audio.currentTime;
+            
             // Stop Audio & Canvas
             audio.pause();
             canvas.pause(); 
@@ -2553,6 +2429,7 @@ async function switchToFallback(videoId, startAt) {
             if(!document.getElementById('player')) {
                 wrap.innerHTML = '<div id="player"></div>';
             }
+            dv.style.display = 'none';
 
             // Load YouTube Video
             ytPlayer = new YT.Player("player", {
@@ -2565,15 +2442,14 @@ async function switchToFallback(videoId, startAt) {
                     rel: 0, 
                     modestbranding: 1, 
                     iv_load_policy: 3,
-                    start: Math.floor(audio.currentTime),
+                    start: Math.floor(resumeTime),
                     disablekb: 1,
                     fs: 0,
-                    // Suggested quality not strictly supported in playerVars, but we set it immediately below
                 },
                 events: { 
                     onReady: (e) => {
                         e.target.setPlaybackQuality(state.videoQuality);
-                        startYTTracker(e);
+                        startYTTracker(e, resumeTime, id);
                     }, 
                     onStateChange: onYTStateChange 
                 }
@@ -2590,6 +2466,14 @@ async function switchToFallback(videoId, startAt) {
             // Swap Video for Art
             vidContainer.classList.remove('active');
             art.classList.add('active');
+            
+            // Stop Direct Video if active
+            if(state.isDirectVideo) {
+                dv.pause();
+                dv.style.display = 'none';
+                dv.src = '';
+                state.isDirectVideo = false;
+            }
 
             // FIX 2: Manually Reset Duration UI to Audio values immediately
             if(audio.duration) {
@@ -2598,18 +2482,22 @@ async function switchToFallback(videoId, startAt) {
             }
 
             // Sync Time (Audio takes priority, reset if Video was longer)
-            if(ytPlayer && ytPlayer.getCurrentTime) {
-                let yTime = ytPlayer.getCurrentTime();
-                if (audio.duration && yTime >= audio.duration) {
-                    yTime = 0; 
-                }
-                audio.currentTime = yTime;
+            let yTime = 0;
+            if(state.isDirectVideo) {
+                 yTime = dv.currentTime;
+            } else if(ytPlayer && ytPlayer.getCurrentTime) {
+                yTime = ytPlayer.getCurrentTime();
             }
+            
+            if (audio.duration && yTime >= audio.duration) {
+                yTime = 0; 
+            }
+            audio.currentTime = yTime;
             
             // Resume Audio
             audio.play();
             
-            // Restore Canvas if enabled (Logic handled by handleCanvasPlay, but we ensure opacity)
+            // Restore Canvas if enabled
             if(state.showCanvas) { 
                 canvas.style.opacity = '1'; 
                 canvas.play().catch(e=>{}); 
@@ -2618,7 +2506,7 @@ async function switchToFallback(videoId, startAt) {
                 document.getElementById('mini-lyrics-player').style.display = 'block';
             }
             
-            // Destory YT player on switch back to save memory immediately
+            // Destory YT player on switch back
             if(ytPlayer) { try{ ytPlayer.destroy(); }catch(e){} ytPlayer=null; }
 
             showToast("Switched to Audio");
@@ -2626,83 +2514,202 @@ async function switchToFallback(videoId, startAt) {
         state.videoSwitching = false;
     }
 
-    function startYTTracker(event) {
-    event.target.playVideo();
-    
-    // Attempt initial seek to 21s
-    if(targetStartSec > 0) {
-        event.target.seekTo(targetStartSec, true);
+    function startYTTracker(event, intendedStartTime, currentVideoId) {
+        event.target.playVideo();
+        
+        let glitchCheckCount = 0;
+        let glitchMaxChecks = 15; // check for about 4 seconds
+        
+        const tracker = setInterval(() => {
+            if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) {
+                 if(!state.videoMode) clearInterval(tracker);
+                 return;
+            }
+            
+            let c = ytPlayer.getCurrentTime();
+            let d = ytPlayer.getDuration();
+            if(!d) return;
+            
+            // --- AD/GLITCH DETECTION ---
+            // Pattern: Starts at intended time (e.g. 21s), plays briefly, then resets to 0s to play ad
+            // Only run this check if we intended to start later than 5 seconds
+            if (intendedStartTime > 5 && glitchCheckCount < glitchMaxChecks) {
+                // If we successfully reached near target time
+                // But then suddenly dropped near 0 within the first few seconds of playback
+                if (c < 2 && Math.abs(c - intendedStartTime) > 5) {
+                    console.log("Ad/Glitch Detected! Switching to fallback stream.");
+                    clearInterval(tracker);
+                    switchToDirectStream(currentVideoId, intendedStartTime);
+                    return;
+                }
+                glitchCheckCount++;
+            }
+            // ---------------------------
+
+            // Update Time Text (0:00 / 3:45)
+            const timeEl = document.getElementById('yt-time');
+            if(timeEl) timeEl.innerText = fmtTime(c) + " / " + fmtTime(d);
+
+            // Update Progress Bar Width
+            const fill = document.getElementById('yt-fill');
+            let p = (c / d) * 100;
+            if(fill) fill.style.width = p + "%";
+
+            // Sync Play Button Icon
+            const playIcon = document.querySelector('#yt-play-btn i');
+            if(playIcon) {
+                const isPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
+                playIcon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
+            }
+
+            // --- Main Player Sync ---
+            const mainSlider = document.getElementById('seek-slider');
+            const mainCurr = document.getElementById('curr-time');
+            const mainTotal = document.getElementById('total-time');
+            
+            if(mainSlider && !mainSlider.matches(':active')) {
+                mainSlider.max = d;
+                mainSlider.value = c;
+                mainSlider.style.backgroundSize = `${p}% 100%`;
+            }
+            if(mainCurr) mainCurr.innerText = fmtTime(c);
+            if(mainTotal) mainTotal.innerText = fmtTime(d);
+            
+            // Loop logic
+            if(d - c <= 3 && !ytLooped && state.isLoop) {
+                ytLooped = true;
+                ytPlayer.seekTo(0, true);
+                ytPlayer.playVideo();
+                setTimeout(() => ytLooped = false, 1500);
+            }
+        }, 250);
     }
     
-    // Reset max seen to avoid triggering on the first 0->21 jump
-    maxTimeSeen = 0; 
-
-    const trackerInterval = setInterval(() => {
-        // Stop tracking if we switched to fallback
-        if(fallbackActive) { clearInterval(trackerInterval); return; }
-
-        if(!state.videoMode || !ytPlayer || !ytPlayer.getDuration || ytDragging) return;
+    // --- DIRECT STREAM FALLBACK LOGIC ---
+    
+    async function switchToDirectStream(id, startTime) {
+        if(ytPlayer) { try { ytPlayer.destroy(); } catch(e){} ytPlayer = null; }
         
-        let c = ytPlayer.getCurrentTime();
-        let d = ytPlayer.getDuration();
-        if(!d) return;
-
-        // --- AD DETECTION LOGIC ---
-        // 1. Track the furthest point we reached
-        if (c > maxTimeSeen) maxTimeSeen = c;
-
-        // 2. Logic: 
-        // We expected to be at targetStartSec (21s). 
-        // If 'maxTimeSeen' reached near 21s (Case 1 & 2 both reach 21s)
-        // BUT 'c' (Current Time) suddenly drops to 0 (Case 2 only)
-        // AND we are not looping manually...
-        // THEN it is an AD.
+        // Show loading toast
+        showToast("Ad detected. Switching player...");
         
-        // Thresholds: 
-        // - We must have reached at least (Target - 2s) to prove we loaded the video.
-        // - Current time must drop below 2s to indicate a reset/ad.
-        if (targetStartSec > 5 && maxTimeSeen >= (targetStartSec - 1) && c < 2 && !state.isLoop && !ytLooped) {
-            console.log(`Ad Bounce Detected! Reached ${maxTimeSeen}, dropped to ${c}`);
-            clearInterval(trackerInterval);
-            switchToFallback(state.currentTrackYTId, targetStartSec);
-            return;
+        try {
+            const streamUrl = await fetchDirectUrl(id);
+            if(!streamUrl) throw new Error("No stream found");
+            
+            const dv = document.getElementById('direct-video-player');
+            dv.src = streamUrl;
+            dv.style.display = 'block';
+            dv.currentTime = startTime;
+            
+            await dv.play();
+            state.isDirectVideo = true;
+            
+            // Start tracker for Direct Video
+            startDirectVideoTracker();
+            
+        } catch(e) {
+            console.error(e);
+            showToast("Video unavailable");
+            // Switch back to audio if video fails
+            toggleVideoMode();
         }
-        // --------------------------
-
-        // Standard UI Updates
-        const timeEl = document.getElementById('yt-time');
-        if(timeEl) timeEl.innerText = fmtTime(c) + " / " + fmtTime(d);
-
-        const fill = document.getElementById('yt-fill');
-        let p = (c / d) * 100;
-        if(fill) fill.style.width = p + "%";
-
-        // Sync Main Player UI
-        document.getElementById('curr-time').innerText = fmtTime(c);
-        document.getElementById('total-time').innerText = fmtTime(d);
-        const mainSlider = document.getElementById('seek-slider');
-        if(mainSlider && !mainSlider.matches(':active')) {
-             mainSlider.max = d; mainSlider.value = c;
-             mainSlider.style.backgroundSize = `${p}% 100%`;
+    }
+    
+    async function fetchDirectUrl(id) {
+        for(const key of YT_STREAM_KEYS) {
+            try {
+                const url = `https://${YT_STREAM_HOST}/dl?id=${id}&cgeo=IN`;
+                const res = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'x-rapidapi-key': key,
+                        'x-rapidapi-host': YT_STREAM_HOST
+                    }
+                });
+                
+                if(!res.ok) continue; // try next key
+                
+                const json = await res.json();
+                if(json.status !== "OK") continue;
+                
+                // Filter for 360p MP4
+                // Usually represented by itag 18 or specific quality labels
+                let formats = json.formats || [];
+                if(json.adaptiveFormats) formats = formats.concat(json.adaptiveFormats);
+                
+                // Priority: 360p with Audio (itag 18) > Any 360p > 480p > Lowest
+                let bestFormat = formats.find(f => f.itag === 18); // Standard 360p mp4 with audio
+                
+                if(!bestFormat) {
+                    bestFormat = formats.find(f => (f.qualityLabel === '360p' || f.quality === 'medium') && f.mimeType.includes('mp4'));
+                }
+                
+                if(!bestFormat) {
+                     // Fallback to any MP4 with audio
+                     bestFormat = formats.find(f => f.mimeType.includes('mp4') && f.audioQuality);
+                }
+                
+                if(bestFormat) return bestFormat.url;
+                
+            } catch(e) {
+                console.log("Key failed", e);
+            }
         }
+        return null;
+    }
+    
+    function startDirectVideoTracker() {
+        const dv = document.getElementById('direct-video-player');
         
-        // Play Icon Sync
-        const playIcon = document.querySelector('#yt-play-btn i');
-        if(playIcon) {
-             const isPlaying = ytPlayer.getPlayerState() === YT.PlayerState.PLAYING;
-             playIcon.className = isPlaying ? 'fas fa-pause' : 'fas fa-play';
-        }
+        const tracker = setInterval(() => {
+            if(!state.videoMode || !state.isDirectVideo) {
+                clearInterval(tracker);
+                return;
+            }
+            
+            let c = dv.currentTime;
+            let d = dv.duration;
+            if(!d) return;
 
-        // Loop Logic
-        if(d - c <= 3 && !ytLooped && state.isLoop) {
-            ytLooped = true;
-            ytPlayer.seekTo(0, true);
-            ytPlayer.playVideo();
-            setTimeout(() => ytLooped = false, 1500);
-        }
+            // UI Updates
+            const timeEl = document.getElementById('yt-time');
+            if(timeEl) timeEl.innerText = fmtTime(c) + " / " + fmtTime(d);
 
-    }, 250);
-}
+            const fill = document.getElementById('yt-fill');
+            let p = (c / d) * 100;
+            if(fill) fill.style.width = p + "%";
+
+            const playIcon = document.querySelector('#yt-play-btn i');
+            if(playIcon) {
+                playIcon.className = !dv.paused ? 'fas fa-pause' : 'fas fa-play';
+            }
+            
+            // Main Player Sync
+            const mainSlider = document.getElementById('seek-slider');
+            const mainCurr = document.getElementById('curr-time');
+            const mainTotal = document.getElementById('total-time');
+            
+            if(mainSlider && !mainSlider.matches(':active')) {
+                mainSlider.max = d;
+                mainSlider.value = c;
+                mainSlider.style.backgroundSize = `${p}% 100%`;
+            }
+            if(mainCurr) mainCurr.innerText = fmtTime(c);
+            if(mainTotal) mainTotal.innerText = fmtTime(d);
+            
+            // Loop Logic
+            if(d - c <= 1 && state.isLoop) {
+                dv.currentTime = 0;
+                dv.play();
+            }
+            // Auto Next
+            if(dv.ended && !state.isLoop) {
+                 playNext();
+            }
+
+        }, 250);
+    }
 
     function onYTStateChange(event) {
         if(event.data === YT.PlayerState.PLAYING) { 
@@ -2721,48 +2728,40 @@ async function switchToFallback(videoId, startAt) {
             }
         }
     }
+    
     function toggleYtPlay() {
-    // 1. Fallback (API Video) Logic
-    if (fallbackActive) {
-        const vid = document.getElementById('fallback-video');
-        if (vid.paused) {
-            vid.play();
-            state.isPlaying = true;
-        } else {
-            vid.pause();
-            state.isPlaying = false;
+        if(state.isDirectVideo) {
+            const dv = document.getElementById('direct-video-player');
+            if(dv.paused) dv.play(); else dv.pause();
+        } else if(ytPlayer && ytPlayer.getPlayerState) {
+            const state = ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) {
+                ytPlayer.pauseVideo();
+            } else {
+                ytPlayer.playVideo();
+            }
         }
-        
-        // Force Icon Update
-        const icon = document.querySelector('#yt-play-btn i');
-        if(icon) icon.className = state.isPlaying ? 'fas fa-pause' : 'fas fa-play';
-        
-        showYTControls(); // Show controls when tapped
-        return;
+        showYTControls(); 
     }
 
-    // 2. Standard YouTube Logic
-    if (!ytPlayer || !ytPlayer.getPlayerState) return;
-    const s = ytPlayer.getPlayerState();
-    if (s === YT.PlayerState.PLAYING) {
-        ytPlayer.pauseVideo();
-    } else {
-        ytPlayer.playVideo();
+    function toggleYtMute() {
+        const icon = document.querySelector('#yt-mute-btn i');
+        if(state.isDirectVideo) {
+            const dv = document.getElementById('direct-video-player');
+            dv.muted = !dv.muted;
+            icon.className = dv.muted ? 'fas fa-volume-mute' : 'fas fa-volume-up';
+        } else if(ytPlayer) {
+            if (ytPlayer.isMuted()) {
+                ytPlayer.unMute();
+                icon.className = 'fas fa-volume-up';
+            } else {
+                ytPlayer.mute();
+                icon.className = 'fas fa-volume-mute';
+            }
+        }
+        showYTControls();
     }
-    showYTControls();
-}
-
-function toggleYtMute() {
-    if(!ytPlayer) return;
-    if (ytPlayer.isMuted()) {
-        ytPlayer.unMute();
-        document.querySelector('#yt-mute-btn i').className = 'fas fa-volume-up';
-    } else {
-        ytPlayer.mute();
-        document.querySelector('#yt-mute-btn i').className = 'fas fa-volume-mute';
-    }
-    showYTControls();
-}
+    
     async function toggleYtFull() {
     const el = document.getElementById("yt-view-container");
 
@@ -2823,5 +2822,3 @@ document.addEventListener('fullscreenchange', () => {
 </script>
 </body>
 </html>
-
-

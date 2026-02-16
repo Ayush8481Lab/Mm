@@ -915,12 +915,16 @@
          }
     }
 
-    let audioCtx, audioSource, eqBands = [], preGainNode, eqMode = 0;
-    const eqPresets = [[0,0,0,0,0,0,0,0,0,0], [10, 12, 6, -2, -2, 0, 0, 0, 3, 3], [4, 3, 1, -1, -2, 0, 3, 5, 6, 6], [3, 3, 1, 0, 0, 0, 0, 1, 2, 2]];
-    const djFrequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
-    const audio = new Audio(); audio.crossOrigin = "anonymous";
-    let likedSongs = [], savedPlaylists = [], downloads = [], offlinePlaylists = [], searchCache = {}, metaCache = {}, wakeLock = null;
-    let globalLoadRequestId = 0;
+    // --- REPLACE YOUR EXISTING VARIABLE BLOCK WITH THIS ---
+let audioCtx, audioSource, eqBands = [], preGainNode, eqMode = 0;
+// NEW VARIABLES FOR ENHANCEMENT:
+let compressorNode, pannerNode, filterNode, gainNode8D, pannerInterval;
+
+const eqPresets = [[0,0,0,0,0,0,0,0,0,0], [10, 12, 6, -2, -2, 0, 0, 0, 3, 3], [4, 3, 1, -1, -2, 0, 3, 5, 6, 6], [3, 3, 1, 0, 0, 0, 0, 1, 2, 2]];
+const djFrequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+const audio = new Audio(); audio.crossOrigin = "anonymous";
+let likedSongs = [], savedPlaylists = [], downloads = [], offlinePlaylists = [], searchCache = {}, metaCache = {}, wakeLock = null;
+let globalLoadRequestId = 0;
 
     // YOUTUBE PLAYER VARS
     let ytPlayer, ytDragging = false, ytLooped = false, ytHideTimer = null;
@@ -1746,9 +1750,126 @@
         }
     }
     
-    function initAudioContext() { if (audioCtx) return; const AudioContext = window.AudioContext || window.webkitAudioContext; audioCtx = new AudioContext(); audioSource = audioCtx.createMediaElementSource(audio); preGainNode = audioCtx.createGain(); let prevNode = audioSource; audioSource.connect(preGainNode); prevNode = preGainNode; djFrequencies.forEach((freq, index) => { const filter = audioCtx.createBiquadFilter(); filter.frequency.value = freq; filter.type = index <= 1 ? 'lowshelf' : (index >= 8 ? 'highshelf' : 'peaking'); filter.gain.value = 0; prevNode.connect(filter); prevNode = filter; }); prevNode.connect(audioCtx.destination); }
-    function cycleEqMode() { if(!audioCtx) initAudioContext(); eqMode = (eqMode + 1) % 4; const modes = ["Normal", "Bass Boost", "Enhanced", "8D Audio"]; const btn = document.getElementById('dj-btn'); btn.className = 'dj-btn'; if(eqMode === 1) btn.classList.add('mode-bass'); if(eqMode === 2) btn.classList.add('mode-enhanced'); if(eqMode === 3) btn.classList.add('mode-8d'); showToast(`Mode: ${modes[eqMode]}`); const gains = eqPresets[eqMode]; eqBands.forEach((band, i) => { const val = gains[i] || 0; if(band.gain.setTargetAtTime) band.gain.setTargetAtTime(val, audioCtx.currentTime, 0.1); else band.gain.value = val; }); }
+    function initAudioContext() {
+    if (audioCtx) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContext();
+    audioSource = audioCtx.createMediaElementSource(audio);
 
+    // 1. Create Enhancement Nodes
+    preGainNode = audioCtx.createGain();
+    preGainNode.gain.value = 1.0; 
+
+    // 8D Audio Nodes
+    pannerNode = new StereoPannerNode(audioCtx, { pan: 0 }); 
+    filterNode = audioCtx.createBiquadFilter(); // Muffler for 8D
+    filterNode.type = 'lowpass';
+    filterNode.frequency.value = 20000;
+    
+    gainNode8D = audioCtx.createGain(); // Distance volume for 8D
+    gainNode8D.gain.value = 1.0;
+
+    // Bass Booster / Limiter (Prevents distortion on high volume)
+    compressorNode = audioCtx.createDynamicsCompressor(); 
+    compressorNode.threshold.value = -6; 
+    compressorNode.knee.value = 0; 
+    compressorNode.ratio.value = 20; 
+    compressorNode.attack.value = 0.001; 
+    compressorNode.release.value = 0.1;
+
+    // 2. Connect the Chain: 
+    // Source -> PreGain -> EQ -> Gain8D -> Filter -> Panner -> Compressor -> Output
+    audioSource.connect(preGainNode);
+    let prevNode = preGainNode;
+
+    eqBands = [];
+    djFrequencies.forEach((freq, index) => {
+        const filter = audioCtx.createBiquadFilter();
+        filter.frequency.value = freq;
+        // Use shelving for bass/treble, peaking for mids
+        if (index <= 1) filter.type = 'lowshelf'; 
+        else if (index === djFrequencies.length - 1) filter.type = 'highshelf';
+        else { filter.type = 'peaking'; filter.Q.value = 1.4; }
+        
+        filter.gain.value = eqPresets[eqMode][index] || 0;
+        
+        prevNode.connect(filter);
+        prevNode = filter;
+        eqBands.push(filter);
+    });
+
+    // Complete connections
+    prevNode.connect(gainNode8D);
+    gainNode8D.connect(filterNode);
+    filterNode.connect(pannerNode);
+    pannerNode.connect(compressorNode);
+    compressorNode.connect(audioCtx.destination);
+}
+    function cycleEqMode() {
+    if(!audioCtx) initAudioContext();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+
+    // 1. Change Mode
+    eqMode = (eqMode + 1) % 4;
+    
+    const modes = ["Normal", "Bass Boost", "Enhanced", "8D Audio"];
+    
+    // 2. Update Buttons UI
+    const btn = document.getElementById('dj-btn');
+    btn.className = 'dj-btn'; 
+    if(eqMode === 1) btn.classList.add('mode-bass');
+    if(eqMode === 2) btn.classList.add('mode-enhanced');
+    if(eqMode === 3) btn.classList.add('mode-8d');
+    
+    showToast(`Mode: ${modes[eqMode]}`);
+
+    // 3. Apply EQ Gains
+    const now = audioCtx.currentTime;
+    const gains = eqPresets[eqMode];
+    eqBands.forEach((band, i) => {
+        const val = gains[i] || 0;
+        if(band.gain.setTargetAtTime) band.gain.setTargetAtTime(val, now, 0.1);
+        else band.gain.value = val;
+    });
+
+    // 4. Handle 8D Animation Logic
+    const preGains = [1.0, 0.6, 0.8, 0.9]; // Lower volume for Bass Boost to prevent clipping
+    const targetPreGain = preGains[eqMode];
+    
+    if(preGainNode.gain.setTargetAtTime) preGainNode.gain.setTargetAtTime(targetPreGain, now, 0.1);
+    else preGainNode.gain.value = targetPreGain;
+
+    // Reset previous animation
+    if(pannerInterval) cancelAnimationFrame(pannerInterval);
+
+    if(eqMode === 3) {
+        // --- 8D ANIMATION START ---
+        const start8D = () => {
+            // Speed of rotation (3500ms)
+            const t = Date.now() / 3500; 
+            
+            // Rotate Left/Right
+            const x = Math.sin(t);
+            pannerNode.pan.value = x * 0.9; 
+            
+            // Muffle sound when "behind" head
+            const freq = (Math.cos(t) < 0) ? 8000 : 18000;
+            filterNode.frequency.value = filterNode.frequency.value * 0.95 + freq * 0.05; 
+            
+            // Distance volume change
+            const distGain = 0.9 + (0.1 * Math.abs(Math.cos(t)));
+            gainNode8D.gain.value = distGain;
+            
+            pannerInterval = requestAnimationFrame(start8D);
+        };
+        start8D();
+    } else {
+        // --- RESET TO NORMAL ---
+        pannerNode.pan.value = 0;
+        filterNode.frequency.value = 20000;
+        gainNode8D.gain.value = 1.0;
+    }
+}
     function setupGestures() { const fp = document.getElementById('full-player'); let lastTap = 0; fp.addEventListener('click', (e) => { if(e.target.closest('button') || e.target.closest('input') || e.target.closest('.fp-menu-overlay') || e.target.closest('#mini-lyrics-player') || e.target.closest('.yt-controls') || e.target.closest('.shield')) return; const now = Date.now(); if(now - lastTap < 300) { const vid = document.getElementById('canvas-video'); const isVideoReady = state.showCanvas && vid.src && vid.src !== "" && vid.style.opacity !== '0' && !state.videoMode; if (isVideoReady) { fp.classList.toggle('canvas-immersive'); } else if(!state.videoMode) { showToast("Immersive mode unavailable (No Video)"); } } lastTap = now; }); }
     function setupLongPress(el, callback) { let timer; const start = () => timer = setTimeout(callback, 800); const end = () => clearTimeout(timer); el.addEventListener('touchstart', start); el.addEventListener('touchend', end); el.addEventListener('touchmove', end); el.addEventListener('mousedown', start); el.addEventListener('mouseup', end); }
 
@@ -2484,10 +2605,11 @@ async function toggleFpMenu() {
 
         while(attempts < MAX_RETRIES) {
             try {
-                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-                const proxy = `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent("https://r.jina.ai/" + ytUrl)}`;
-                
-                const res = await fetch(proxy);
+                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}music video`;
+// DIRECT JINA URL
+const directUrl = `https://r.jina.ai/${ytUrl}`; 
+
+const res = await fetch(directUrl);
                 if(!res.ok) throw new Error("Proxy error");
                 const text = await res.text();
 

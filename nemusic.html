@@ -2837,7 +2837,8 @@ async function toggleFpMenu() {
         }
         // Auto Next
         if(dv.ended && !state.isLoop) {
-             playNext();
+             exitFullscreenSafe(); 
+playNext();
         }
 
     }, 250);
@@ -2856,7 +2857,10 @@ async function toggleFpMenu() {
         else if (event.data === YT.PlayerState.ENDED) {
             if(!ytLooped) {
                 if(state.isLoop) { ytPlayer.seekTo(0); ytPlayer.playVideo(); }
-                else playNext();
+                else {
+            exitFullscreenSafe(); // <--- Add this line
+            playNext();
+        }
             }
         }
     }
@@ -2950,6 +2954,22 @@ document.addEventListener('fullscreenchange', () => {
         }
     }
 });
+function exitFullscreenSafe() {
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        try {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(e => console.log(e));
+            } else if (document.webkitExitFullscreen) { // Safari/iOS
+                document.webkitExitFullscreen();
+            }
+        } catch (e) { console.log("Exit FS Error", e); }
+        
+        // Unlock orientation (Android)
+        if (screen.orientation && screen.orientation.unlock) {
+            try { screen.orientation.unlock(); } catch(e){}
+        }
+    }
+}
 
 </script>
 </body>

@@ -883,18 +883,16 @@
         
         // Seek Slider Logic (Main Player)
         const slider = document.getElementById('seek-slider');
-        slider.addEventListener('input', (e) => { 
-            document.getElementById('curr-time').innerText = fmtTime(e.target.value); 
-            const val = (e.target.value / e.target.max) * 100; 
-            e.target.style.backgroundSize = `${val}% 100%`; 
-        });
-        slider.addEventListener('change', (e) => { 
+  slider.addEventListener('change', (e) => { 
             if(state.videoMode) {
+                // FORCE 1 SECOND MINIMUM to prevent Ad-Detector false alarm
+                let safeTime = Math.max(1, e.target.value); 
+                
                 if(state.isDirectVideo) {
                     const dv = document.getElementById('direct-video-player');
-                    dv.currentTime = e.target.value;
+                    dv.currentTime = safeTime;
                 } else if (ytPlayer && ytPlayer.seekTo) {
-                    ytPlayer.seekTo(e.target.value, true);
+                    ytPlayer.seekTo(safeTime, true);
                 }
             } else {
                 audio.currentTime = e.target.value; 
@@ -933,14 +931,21 @@
             showYTControls();
         });
 
-        function ytSeek(x) {
+    function ytSeek(x) {
             let r = bar.getBoundingClientRect();
             let p = Math.max(0, Math.min(1, (x - r.left) / r.width));
+            
             if(state.isDirectVideo) {
                 const dv = document.getElementById('direct-video-player');
-                if(dv && dv.duration) dv.currentTime = dv.duration * p;
+                if(dv && dv.duration) {
+                    // Force minimum 1 second
+                    let t = dv.duration * p;
+                    dv.currentTime = Math.max(1, t); 
+                }
             } else if(ytPlayer && ytPlayer.getDuration) {
-                ytPlayer.seekTo(ytPlayer.getDuration()*p, true);
+                let t = ytPlayer.getDuration() * p;
+                // Force minimum 1 second
+                ytPlayer.seekTo(Math.max(1, t), true); 
             }
         }
 
@@ -2548,7 +2553,7 @@ async function toggleFpMenu() {
                 // 2. CHECK: If we ALREADY reached target, did we drop back to 0?
                 // This captures the "10 -> 00 -> 10 -> 00 (Ad)" scenario
                 else if (hasReachedTarget) {
-                    if (c < 2) {
+                    if (c < 0.5) {
                         console.log("Ad/Glitch Detected (Reset after seek)! Switching to fallback stream.");
                         clearInterval(tracker);
                         switchToDirectStream(currentVideoId, intendedStartTime);

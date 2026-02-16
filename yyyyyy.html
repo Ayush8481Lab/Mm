@@ -257,35 +257,8 @@
         .imm-time-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.8); margin-top: 8px; text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
 
         .fp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-shrink: 0; color: white; }
-  /* FIX: Flexible container that shrinks when Lyrics appear */
-        .fp-img-container { 
-            width: 100%; 
-            flex: 1; /* Takes available space instead of fixed height */
-            min-height: 0; /* Allows shrinking */
-            margin: 10px 0; 
-            position: relative; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            perspective: 1000px; 
-            overflow: visible; 
-            transition: opacity 0.5s ease; 
-        }
-        /* FIX: Image scales within the flexible container */
-        .fp-img { 
-            position: relative; /* Changed from absolute to keep flow */
-            width: auto; 
-            height: auto; 
-            max-width: 100%; 
-            max-height: 100%; 
-            aspect-ratio: 1/1; 
-            object-fit: contain; 
-            border-radius: 12px; 
-            box-shadow: 0 15px 40px rgba(0,0,0,0.5); 
-            will-change: transform, opacity; 
-            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease; 
-            pointer-events: none; 
-        }
+        .fp-img-container { width: 100%; height: 45vh; max-height: 400px; margin: 10px 0; position: relative; display: flex; justify-content: center; align-items: center; perspective: 1000px; overflow: visible; transition: opacity 0.5s ease; }
+        .fp-img { position: absolute; width: auto; height: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.5); will-change: transform, opacity; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease; pointer-events: none; }
         .fp-img.active { transform: translateX(0) scale(1) rotate(0deg); opacity: 1; z-index: 2; }
         
         .fp-info { margin-bottom: 20px; overflow: hidden; width: 100%; flex-shrink: 0; position: relative; }
@@ -550,9 +523,9 @@
 /* --- LEFT PANEL (Visuals) --- */
     .fp-left-panel {
         /* FIX: Hard lock to 50% of screen width */
-        width: 40vw !important; 
-        max-width: 40vw !important;
-        flex: 0 0 40vw !important;
+        width: 50vw !important; 
+        max-width: 50vw !important;
+        flex: 0 0 50vw !important;
         
         height: 100%;
         display: flex; flex-direction: column;
@@ -563,9 +536,9 @@
     /* --- RIGHT PANEL (Controls) --- */
     .fp-right-panel {
         /* FIX: Hard lock to 50% of screen width */
-        width: 60vw !important;
-        max-width: 60vw !important;
-        flex: 0 0 40vw !important;
+        width: 50vw !important;
+        max-width: 50vw !important;
+        flex: 0 0 50vw !important;
         
         /* FIX: Stop expansion */
         min-width: 0 !important; 
@@ -1225,17 +1198,6 @@
              if (document.hidden && state.videoMode) {
                  toggleVideoMode();
              }
-        });
-        // FIX: Force Marquee Reset on Rotation/Resize
-        window.addEventListener('resize', () => {
-            // Clear existing animations to force recalculation
-            document.querySelectorAll('.marquee-content').forEach(el => {
-                el.classList.remove('animate-pingpong', 'animate-scroll');
-                el.style.transform = 'translateX(0)';
-                el.style.removeProperty('--container-width');
-            });
-            // Re-trigger observer after a short delay for layout to settle
-            setTimeout(window.observeMarquees, 300);
         });
     });
 

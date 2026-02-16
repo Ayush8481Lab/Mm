@@ -442,7 +442,7 @@
 }
 
 /* =========================================
-       LANDSCAPE UI IMPLEMENTATION (9:16 CANVAS FIX)
+       LANDSCAPE UI IMPLEMENTATION (FINAL FIX)
        ========================================= */
 
     /* --- PORTRAIT MODE (DEFAULT - NEMUSIC STYLE) --- */
@@ -469,8 +469,14 @@
             top: 0; left: 0; width: 100%; height: 100%;
             border-radius: 12px; object-fit: cover; z-index: 5;
         }
+        
+        /* 3. STOP ART/CONTAINER FROM VANISHING */
+        #fp-img-area { 
+            opacity: 1 !important; /* Forces container to stay visible */
+            width: 100%; height: auto; flex: 1; max-height: 80%; margin: 0; perspective: none; position: relative; 
+        }
 
-        /* 3. LAYOUT RESTORATION */
+        /* 4. LAYOUT RESTORATION */
         .fp-columns { display: flex; flex-direction: row; width: 100%; height: 100%; padding: 20px 50px; gap: 40px; }
         
         /* Left Panel - Holds the Art/Canvas */
@@ -495,26 +501,19 @@
         .ls-header { position: absolute; top: 0; width: 100%; display: flex; justify-content: flex-start; align-items: center; margin-bottom: 10px; }
         .ls-header-text { 
             font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 1px; 
-            margin-left: 50px; 
+            margin-left: 70px; 
         }
         
         .mode-switcher { display: flex; gap: 5px; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 20px; margin-bottom: 15px; margin-top: 30px; backdrop-filter: blur(10px); z-index: 50; pointer-events: auto; }
         .mode-btn { padding: 6px 14px; border-radius: 16px; font-size: 10px; font-weight: 700; color: #ccc; background: transparent; border: none; cursor: pointer; text-transform: uppercase; transition: all 0.2s; }
         .mode-btn.active { background: var(--primary); color: black; box-shadow: 0 2px 10px rgba(29, 185, 84, 0.4); }
 
-        /* Image/Canvas Area */
-        #fp-img-area { width: 100%; height: auto; flex: 1; max-height: 80%; margin: 0; perspective: none; position: relative; }
         .fp-img { box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
         
-        /* --- ASPECT RATIOS (THE PINK/GREEN UI STYLE) --- */
+        /* --- ASPECT RATIOS --- */
         .ratio-art #fp-img-area { aspect-ratio: 1/1; }
-        
         /* 9:16 Ratio for Canvas (Shorts Style) */
-        .ratio-canvas #fp-img-area { 
-            aspect-ratio: 9/16; 
-            max-width: 50vh; /* Limits height so it fits on screen */
-        }
-        
+        .ratio-canvas #fp-img-area { aspect-ratio: 9/16; max-width: 50vh; }
         .ratio-video #fp-img-area { aspect-ratio: 16/9; }
 
         .ls-menu-btn { position: absolute; top: 15px; right: 15px; background: none; border: none; color: white; font-size: 18px; cursor: pointer; z-index: 10; pointer-events: auto; }
@@ -523,7 +522,7 @@
         .ls-lyrics-wrapper { display: flex; align-items: center; gap: 15px; margin-top: 10px; margin-bottom: 20px; height: 85px; overflow: hidden; transition: transform 0.1s; }
         .ls-lyrics-wrapper:active { transform: scale(0.98); opacity: 0.8; }
         .ls-lyrics-text { flex: 1; text-align: left; font-size: 18px; font-weight: 700; color: var(--accent); text-shadow: 0 0 15px rgba(29, 185, 84, 0.3); white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
-        .ls-expand-btn { display: none !important; } /* Hide the button strictly */
+        .ls-expand-btn { display: none !important; } 
         
         /* Info Alignments */
         .fp-info { text-align: left; margin-bottom: 10px; padding-right: 50px !important; width: 100%; min-width: 0; position: relative; box-sizing: border-box; }
@@ -1042,8 +1041,15 @@
         const cv = document.getElementById('canvas-video');
         const handleCanvasPlay = function() { 
             if(!state.showCanvas || state.videoMode) return; 
+            
+            // FIX: If in Landscape mode, DO NOT run the hiding logic. 
+            // Let switchVisualMode handle visibility.
+            if(window.innerWidth > window.innerHeight) return;
+
             if(state.isPlaying) this.play(); 
-            this.style.opacity = '1'; document.getElementById('fp-bg-gradient').style.opacity = '0'; document.getElementById('fp-img-area').style.opacity = '0'; 
+            this.style.opacity = '1'; 
+            document.getElementById('fp-bg-gradient').style.opacity = '0'; 
+            document.getElementById('fp-img-area').style.opacity = '0'; 
         };
         cv.addEventListener('canplay', handleCanvasPlay); cv.addEventListener('play', handleCanvasPlay);
         setupGestures();
@@ -3156,18 +3162,20 @@ function switchVisualMode(mode) {
         art.classList.add('active');
         art.style.opacity = '1';
         cv.style.opacity = '0';
+        // Ensure image area is visible (overriding any JS hiding)
         imgArea.style.opacity = '1';
 
     } else if (mode === 'canvas') {
-        if(leftPanel) leftPanel.classList.add('ratio-canvas'); // 9:16 Ratio
+        if(leftPanel) leftPanel.classList.add('ratio-canvas'); // 9:16 Shorts Ratio
         if(state.videoMode) toggleVideoMode();
 
         if(cv.src && cv.src !== "") {
-            // MOVE VIDEO INSIDE FRAME FOR LANDSCAPE (9:16 Shorts Style)
+            // MOVE VIDEO INSIDE FRAME FOR LANDSCAPE
             imgArea.appendChild(cv);
             
             cv.style.opacity = '1';
             art.style.opacity = '0'; // Hide art
+            imgArea.style.opacity = '1'; // Ensure container is visible
             cv.play().catch(e => console.log(e));
         } else {
             showToast("No Canvas available");
@@ -3177,27 +3185,12 @@ function switchVisualMode(mode) {
     } else if (mode === 'video') {
         if(leftPanel) leftPanel.classList.add('ratio-video');
         
-        // Move Canvas back to background (unused in video mode)
+        // Move Canvas back to background
         if(cv.parentNode !== fp) { fp.insertBefore(cv, document.getElementById('fp-bg-gradient')); }
 
         if(!state.videoMode) toggleVideoMode();
     }
 }
-
-// Add resize listener to fix canvas position if rotating back to Portrait
-window.addEventListener('resize', () => {
-    if(window.innerHeight > window.innerWidth) {
-        // We are back in Portrait
-        const cv = document.getElementById('canvas-video');
-        const fp = document.getElementById('full-player');
-        // Ensure canvas is in background and hidden
-        if(cv && fp && cv.parentNode !== fp) {
-             fp.insertBefore(cv, document.getElementById('fp-bg-gradient'));
-             cv.style.opacity = '0'; 
-             document.getElementById('fp-art').style.opacity = '1';
-        }
-    }
-});
 function exitFullscreenSafe() {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
         try {

@@ -482,9 +482,13 @@
         gap: 40px;
     }
 
-    /* --- LEFT PANEL (Visuals) --- */
+   /* --- LEFT PANEL (Visuals) --- */
     .fp-left-panel {
-        flex: 1; max-width: 45%; height: 100%;
+        flex: 1;
+        /* FIX: Force exact half width */
+        width: 50%;
+        max-width: 50%; 
+        height: 100%;
         display: flex; flex-direction: column;
         justify-content: center; align-items: center;
         position: relative;
@@ -527,21 +531,23 @@
     .ratio-video #fp-img-area { aspect-ratio: 16/9; }
 
 
-    /* --- RIGHT PANEL (Controls) --- */
-    ./* --- RIGHT PANEL (Controls) --- */
+    //* --- RIGHT PANEL (Controls) --- */
     .fp-right-panel {
-        flex: 1; height: 100%;
+        flex: 1; 
+        /* FIX: Force exact half width and LOCK it */
+        width: 50%;
+        max-width: 50%; 
+        min-width: 0; /* CRITICAL: This stops long text from pushing the box wider */
+        
+        height: 100%;
         display: flex; flex-direction: column; justify-content: center;
-        background: rgba(255,255,255,0.03);
+        background: rgba(255,255,255,0.03); 
         border: 1px solid rgba(255,255,255,0.05);
         border-radius: 20px; padding: 20px 30px;
         position: relative;
         backdrop-filter: blur(10px);
-        /* FIX: These two lines prevent the panel from expanding with long text */
-        min-width: 0; 
-        overflow: hidden; 
+        overflow: hidden; /* Hides anything that tries to stick out */
     }
-
     /* Landscape Menu Btn */
     .ls-menu-btn {
         position: absolute; top: 15px; right: 15px;
@@ -789,7 +795,7 @@
                 
                 <!-- Landscape Header (Hidden in Portrait) -->
                 <div class="ls-header landscape-only">
-                    <button class="btn-ctrl" style="width: 50px;" onclick="goBack()"><i class="fas fa-chevron-down"></i></button>
+                    <button class="btn-ctrl" style="width: 40px;" onclick="goBack()"><i class="fas fa-chevron-down"></i></button>
                     <span class="ls-header-text">Now Playing</span>
                 </div>
 

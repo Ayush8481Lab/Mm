@@ -440,117 +440,129 @@
     border-top-color: #ff2d55; /* Premium Red */
     margin: 0;
 }
-/* --- LANDSCAPE MODE STYLES --- */
+/* --- UTILITIES --- */
+.landscape-only { display: none !important; }
 
-/* Default: Hide Landscape View, Show Portrait */
-.fp-landscape-view { display: none; }
-.fp-portrait-view { display: flex; flex-direction: column; height: 100%; width: 100%; }
-
-/* MEDIA QUERY: Trigger when device is in Landscape */
-@media (orientation: landscape) and (min-width: 500px) {
+/* --- LANDSCAPE TRANSFORMATION --- */
+@media (orientation: landscape) {
+    /* Hide Portrait Elements */
+    .portrait-only, 
+    .fp-top, /* Hide Top Bar (Header) in Landscape */
+    nav, /* Hide Bottom Nav */
+    #mini-player { display: none !important; }
     
-    /* Hide Portrait, Show Landscape */
-    .fp-portrait-view { display: none !important; }
-    .fp-landscape-view { 
-        display: flex !important; 
-        width: 100%; height: 100%; 
-        padding: 20px 40px; 
-        gap: 40px; 
-        padding-bottom: env(safe-area-inset-bottom);
-        padding-left: env(safe-area-inset-left);
-        padding-right: env(safe-area-inset-right);
+    .landscape-only { display: flex !important; }
+
+    /* Main Container Layout */
+    #full-player {
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        padding: 40px 60px; /* More padding for desktop feel */
+        gap: 50px;
     }
 
-    /* Adjust Main Container */
-    #full-player { padding: 0; background: #000; }
-    #full-player.canvas-immersive { padding: 0; } /* Reset immersive hacks */
+    /* --- LEFT SIDE (Visuals) --- */
+    .left-panel-wrapper {
+        flex: 1;
+        max-width: 45vh; /* Keep it square relative to height */
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        position: relative;
+    }
+
+    /* The Glider Switcher */
+    .mode-switcher {
+        display: flex; gap: 5px; background: rgba(255,255,255,0.1);
+        padding: 4px; border-radius: 20px; margin-bottom: 20px;
+        backdrop-filter: blur(5px); z-index: 50;
+    }
+    .mode-btn {
+        padding: 8px 16px; border-radius: 16px; font-size: 11px; font-weight: 700;
+        color: #ccc; background: transparent; border: none; cursor: pointer; text-transform: uppercase;
+        pointer-events: auto;
+    }
+    .mode-btn.active { background: var(--primary); color: black; }
+
+    /* Resize Visuals */
+    .fp-img-container {
+        width: 100%; height: auto;
+        aspect-ratio: 1/1; /* Force Square */
+        max-height: none; /* Remove portrait restriction */
+        margin: 0;
+    }
+    /* Visual ratios based on mode */
+    .fp-img-container.ratio-video { aspect-ratio: 16/9; }
+    .fp-img-container.ratio-canvas { aspect-ratio: 9/16; width: auto; height: 80%; }
+
+    /* --- RIGHT SIDE (Controls) --- */
+    .right-panel-wrapper {
+        flex: 1;
+        max-width: 600px;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        background: rgba(255,255,255,0.03);
+        border: 1px solid rgba(255,255,255,0.05);
+        border-radius: 20px;
+        padding: 30px 40px;
+        backdrop-filter: blur(10px);
+    }
+
+    /* Landscape Lyrics Box */
+    .lyrics-wrapper {
+        display: flex; align-items: center; gap: 15px;
+        margin-bottom: 20px; width: 100%;
+    }
+    .lyrics-text-box {
+        flex: 1; text-align: left; height: 80px;
+        display: flex; flex-direction: column; justify-content: center;
+        mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        -webkit-mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        overflow: hidden;
+    }
+    .lyric-line-land { 
+        font-size: 16px; color: rgba(255,255,255,0.4); 
+        margin: 4px 0; font-weight: 600; transition: all 0.3s;
+    }
+    .lyric-line-land.active { 
+        font-size: 22px; color: var(--accent); opacity: 1; font-weight: 700; 
+        text-shadow: 0 0 15px rgba(29, 185, 84, 0.4);
+    }
+    .expand-lyrics-btn {
+        width: 40px; height: 40px; border-radius: 50%;
+        background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
+        color: white; display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 14px; flex-shrink: 0;
+        pointer-events: auto;
+    }
+    .expand-lyrics-btn:active { transform: scale(0.9); background: var(--primary); color: black; }
+
+    /* Adjust existing elements for landscape */
+    .fp-info { text-align: left; margin-bottom: 15px; width: 100%; padding: 0; }
+    .fp-title { font-size: 32px; display: block; width: 100%; }
+    .fp-artist { font-size: 18px; display: block; width: 100%; }
+    .marquee-container { justify-content: flex-start !important; }
     
-    /* Move background behind */
-    #fp-bg-gradient { z-index: -2; opacity: 1 !important; } 
-
-    /* === LEFT COLUMN === */
-    .visual-column {
-        flex: 1; 
-        display: flex; flex-direction: column; 
-        justify-content: center; align-items: center; 
-        width: 50%; position: relative;
+    .fp-actions { 
+        position: relative; margin: 0; 
+        /* Move heart to inline with title or just beside artist */
+        position: absolute; right: 40px; top: 40px;
     }
+    #fp-heart { font-size: 24px; }
+
+    /* Slider adjustments */
+    .slider-container { width: 100%; margin: 10px 0 20px; }
+    .time-wrap { font-size: 13px; font-weight: 600; }
     
-    /* Toggles */
-    .visual-options {
-        display: flex; background: rgba(0,0,0,0.4);
-        border-radius: 20px; padding: 4px; margin-bottom: 15px;
-        border: 1px solid rgba(255,255,255,0.1); z-index: 10;
-    }
-    .vis-btn {
-        padding: 6px 16px; font-size: 11px; font-weight: 700;
-        color: #aaa; cursor: pointer; border-radius: 16px;
-        transition: all 0.2s; text-transform: uppercase;
-    }
-    .vis-btn.active { background: var(--primary); color: #000; }
-
-    /* Art Container */
-    .art-wrapper {
-        width: 100%; max-height: 80vh; 
-        position: relative; border-radius: 12px; overflow: hidden;
-        background: #111; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-        display: flex; justify-content: center; align-items: center;
-        transition: all 0.3s ease;
-    }
-    .art-wrapper.ratio-square { aspect-ratio: 1/1; max-width: 65vh; }
-    .art-wrapper.ratio-canvas { aspect-ratio: 9/16; width: auto; height: 75vh; }
-    .art-wrapper.ratio-video { aspect-ratio: 16/9; width: 100%; height: auto; }
-
-    /* Make sure video fills wrapper */
-    .art-wrapper video, .art-wrapper #yt-view-container {
-        width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0;
-    }
-    .art-wrapper img.art-img { width: 100%; height: 100%; object-fit: cover; }
-
-    /* === RIGHT COLUMN === */
-    .info-column {
-        flex: 1; display: flex; flex-direction: column; 
-        justify-content: space-between; height: 100%; min-width: 0;
-    }
-    
-    /* Centering logic when Lyrics are OFF */
-    .info-column.center-mode { justify-content: center; gap: 30px; }
-    .info-column.center-mode .lyrics-area { display: none; }
-
-    .track-header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px; }
-    .track-title { font-size: 32px; font-weight: 800; line-height: 1.1; color: white; margin-bottom: 5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .track-artist { font-size: 16px; color: #aeb6c4; font-weight: 600; }
-    .more-btn { background: none; border: none; color: #aaa; font-size: 20px; padding: 10px; cursor: pointer; }
-
-    /* Lyrics Area */
-    .lyrics-area {
-        flex: 1; position: relative; overflow: hidden; margin: 15px 0;
-        mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-        -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%);
-    }
-    .lyrics-scroll { width: 100%; padding: 15vh 0; transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-    .l-line { font-size: 24px; font-weight: 700; color: rgba(255,255,255,0.3); margin-bottom: 20px; transition: all 0.3s; cursor: pointer; }
-    .l-line.active { color: white; transform: scale(1.05) translateX(10px); text-shadow: 0 0 15px rgba(255,255,255,0.2); }
-    .l-line:hover { color: rgba(255,255,255,0.8); }
-
-    /* Controls */
-    .player-controls {
-        background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-        border-radius: 20px; padding: 20px; backdrop-filter: blur(20px);
-    }
-    
-    .prog-bg { width: 100%; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; position: relative; cursor: pointer; }
-    .prog-fill { height: 100%; background: var(--primary); width: 0%; border-radius: 3px; position: relative; }
-    .prog-fill::after { content:''; position: absolute; right: -6px; top: 50%; transform: translateY(-50%); width: 12px; height: 12px; background: white; border-radius: 50%; opacity: 0; transition: 0.2s; }
-    .slider-container:hover .prog-fill::after { opacity: 1; }
-
-    .btn-row { display: flex; align-items: center; justify-content: space-between; margin-top: 15px; }
-    .ctrl-icon { background: none; border: none; color: white; font-size: 20px; cursor: pointer; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
-    .ctrl-icon.active-ctrl { color: var(--primary); }
-    .play-fab { width: 55px; height: 55px; background: white; color: black; border-radius: 50%; font-size: 22px; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-
-    /* Hide Original Elements we don't need in Landscape */
-    #canvas-video, #yt-view-container { position: absolute; top: 0; left: 0; }
+    /* Controls adjustments */
+    .fp-controls { margin-top: 10px; justify-content: space-between; gap: 20px; }
+    .btn-ctrl { font-size: 22px; }
+    .btn-play-lg { width: 60px; height: 60px; font-size: 24px; }
 }
     </style>
     
@@ -703,12 +715,60 @@
         </div>
     </div>
 
-<!-- Full Player -->
-    <div id="full-player">
+    <!-- Full Player (Updated Structure) -->
+<div id="full-player">
+    <video id="canvas-video" muted loop playsinline></video>
+    <div id="fp-bg-gradient"></div>
+    
+    <!-- Top Bar (Back button, Menu) -->
+    <div class="fp-top">
+        <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="goBack()"><i class="fas fa-chevron-down"></i></button>
+        <div style="font-size: 12px; letter-spacing: 1px; color: #ccc;">NOW PLAYING</div>
+        <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-v"></i></button>
+    </div>
+
+    <!-- LEFT PANEL: Visuals & Glider -->
+    <div class="left-panel-wrapper">
         
-        <!-- BACKGROUNDS (Shared) -->
-        <div id="fp-bg-gradient"></div>
-        <div id="immersive-overlay"> <!-- Keep immersive logic for portrait -->
+        <!-- Glider (Landscape Only) -->
+        <div class="mode-switcher landscape-only">
+            <button class="mode-btn active" onclick="setVisualMode('art', this)">Art</button>
+            <button class="mode-btn" onclick="setVisualMode('canvas', this)">Canvas</button>
+            <button class="mode-btn" onclick="setVisualMode('video', this)">Video</button>
+        </div>
+
+        <!-- Image / Video Container -->
+        <div class="fp-img-container" id="fp-img-area">
+            <img id="fp-art" class="fp-img active" src="" alt="">
+            
+            <!-- YouTube/Direct Video Container -->
+            <div id="yt-view-container">
+                <video id="direct-video-player" playsinline></video>
+                <div id="yt-loader"><div class="loader"></div></div>
+                <div class="video-cover">
+                    <div id="wrap"><div id="player"></div></div>
+                </div>
+                <div class="shield">
+                    <div class="block-area" id="blockTap"></div>
+                    <div class="center-unlock" id="centerTap"></div>
+                </div>
+                <!-- YT Controls -->
+                <div class="yt-controls hide" id="yt-controls">
+                    <button class="yt-btn" id="yt-play-btn" onclick="toggleYtPlay()"><i class="fas fa-play"></i></button>
+                    <button class="yt-btn" id="yt-mute-btn" onclick="toggleYtMute()"><i class="fas fa-volume-up"></i></button>
+                    <div class="yt-time" id="yt-time">0:00 / 0:00</div>
+                    <div class="yt-progress-container" id="yt-bar"><div class="yt-fill" id="yt-fill"></div></div>
+                    <div class="yt-brand">8481</div>
+                    <button class="yt-btn" onclick="toggleYtFull()"><i class="fas fa-expand"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- RIGHT PANEL WRAPPER (Info, Lyrics, Slider, Controls) -->
+    <div class="right-panel-wrapper">
+        
+        <div id="immersive-overlay">
             <div id="immersive-lyric"></div>
             <div class="imm-progress-container">
                 <div class="imm-progress-bg"><div class="imm-progress-fill" id="imm-fill"></div></div>
@@ -716,137 +776,60 @@
             </div>
         </div>
 
-        <!-- === 1. PORTRAIT VIEW (Existing UI Wrapped) === -->
-        <div class="fp-portrait-view">
-            <div class="fp-top">
-                <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="goBack()"><i class="fas fa-chevron-down"></i></button>
-                <div style="font-size: 12px; letter-spacing: 1px; color: #ccc;">NOW PLAYING</div>
-                <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-v"></i></button>
+        <!-- Landscape Inline Lyrics -->
+        <div class="lyrics-wrapper landscape-only">
+            <div class="lyrics-text-box" id="landscape-lyrics-box">
+                <div class="lyric-line">Lyrics loading...</div>
             </div>
-            
-            <!-- IMAGE / VIDEO CONTAINER (Portrait Anchor) -->
-            <div class="fp-img-container" id="fp-img-area">
-                <img id="fp-art" class="fp-img active" src="" alt="">
-                
-                <!-- VIDEO ELEMENTS (These will be moved by JS) -->
-                <video id="canvas-video" muted loop playsinline></video>
-                <div id="yt-view-container">
-                    <video id="direct-video-player" playsinline></video>
-                    <div id="yt-loader"><div class="loader"></div></div>
-                    <div class="video-cover">
-                        <div id="wrap"><div id="player"></div></div>
-                    </div>
-                    <div class="shield">
-                        <div class="block-area" id="blockTap"></div>
-                        <div class="center-unlock" id="centerTap"></div>
-                    </div>
-                    <div class="yt-controls hide" id="yt-controls">
-                        <button class="yt-btn" id="yt-play-btn" onclick="toggleYtPlay()"><i class="fas fa-play"></i></button>
-                        <button class="yt-btn" id="yt-mute-btn" onclick="toggleYtMute()"><i class="fas fa-volume-up"></i></button>
-                        <div class="yt-time" id="yt-time">0:00 / 0:00</div>
-                        <div class="yt-progress-container" id="yt-bar"><div class="yt-fill" id="yt-fill"></div></div>
-                        <div class="yt-brand">8481</div>
-                        <button class="yt-btn" onclick="toggleYtFull()"><i class="fas fa-expand"></i></button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="mini-lyrics-player" onclick="openFullLyrics()"><p class="ml-text" id="mini-lyric-text">Lyrics loading...</p></div>
-            
-            <div class="fp-info">
-                <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
-                <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
-                <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
-            </div>
-            
-            <div class="slider-container">
-                <input type="range" id="seek-slider" min="0" value="0">
-                <div class="time-wrap"><span id="curr-time">0:00</span><span id="total-time">0:00</span></div>
-            </div>
-            
-            <div class="fp-controls">
-                <button class="btn-ctrl" id="btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
-                <button class="btn-ctrl" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
-                <button class="btn-play-lg" onclick="togglePlay()"><i class="fas fa-play" id="fp-play-icon"></i></button>
-                <button class="btn-ctrl" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
-                <button class="btn-ctrl" id="btn-loop" onclick="toggleLoop()"><i class="fas fa-retweet"></i></button>
-            </div>
+            <button class="expand-lyrics-btn" onclick="openFullLyrics()"><i class="fas fa-expand-alt"></i></button>
         </div>
 
-        <!-- === 2. NEW LANDSCAPE VIEW === -->
-        <div class="fp-landscape-view">
-            <div class="visual-column">
-                <!-- Toggles -->
-                <div class="visual-options">
-                    <div class="vis-btn active" id="ls-btn-art" onclick="setLandscapeMode('art')">Art</div>
-                    <div class="vis-btn" id="ls-btn-canvas" onclick="setLandscapeMode('canvas')">Canvas</div>
-                    <div class="vis-btn" id="ls-btn-video" onclick="setLandscapeMode('video')">Video</div>
-                </div>
-                <!-- Visual Anchor (Target for Video/Canvas) -->
-                <div class="art-wrapper ratio-square" id="ls-art-wrapper">
-                    <img id="ls-art-img" class="art-img" src="" alt="">
-                    <!-- Video elements will be appended here by JS when in Landscape -->
-                </div>
-            </div>
+        <!-- Mini Lyrics (Portrait Only) -->
+        <div id="mini-lyrics-player" class="portrait-only" onclick="openFullLyrics()"><p class="ml-text" id="mini-lyric-text">Lyrics loading...</p></div>
 
-            <div class="info-column">
-                <div class="track-header-row">
-                    <div class="track-info">
-                        <div class="track-title" id="ls-title">Song Title</div>
-                        <div class="track-artist" id="ls-artist">Artist Name</div>
-                    </div>
-                    <button class="more-btn" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-h"></i></button>
-                </div>
-
-                <!-- Scrollable Lyrics (Visible only if state.showLyrics is true) -->
-                <div class="lyrics-area" id="ls-lyrics-area">
-                    <div class="lyrics-scroll" id="ls-lyrics-content"></div>
-                </div>
-
-                <div class="player-controls">
-                    <!-- Progress -->
-                    <div class="slider-container" id="ls-prog-bar">
-                        <div class="prog-bg"><div class="prog-fill" id="ls-prog-fill" style="width: 0%"></div></div>
-                        <div class="time-row">
-                            <span id="ls-curr-time">0:00</span>
-                            <span id="ls-total-time">0:00</span>
-                        </div>
-                    </div>
-                    <!-- Buttons -->
-                    <div class="btn-row">
-                        <button class="ctrl-icon" id="ls-btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
-                        <button class="ctrl-icon" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
-                        <div class="play-fab" onclick="togglePlay()">
-                            <i class="fas fa-play" id="ls-play-icon"></i>
-                        </div>
-                        <button class="ctrl-icon" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
-                        <button class="ctrl-icon" id="ls-btn-heart" onclick="toggleLike()"><i class="far fa-heart"></i></button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Shared Menu Overlay -->
-        <div class="fp-menu-overlay" id="fp-menu-overlay">
-            <div class="fp-menu-header"><span>OPTIONS</span><span onclick="toggleFpMenu()" style="cursor:pointer; padding:5px;">CLOSE</span></div>
-            <div id="video-switch-btn"></div>
-            <div id="song-details-injection"></div>
-            <div id="menu-download-btn" class="fp-menu-item" onclick="downloadCurrentSongAction()"><i class="fas fa-download"></i><span>Download Song</span></div>
-            <div class="fp-menu-item">
-                <i class="fas fa-sliders-h"></i>
-                <div style="flex:1;">
-                    <div style="margin-bottom:5px;">Quality</div>
-                    <select onchange="changeQualityFromPlayer(this)" onclick="event.stopPropagation()" style="width:100%; padding:8px; margin:0; background:rgba(255,255,255,0.1); border:none; font-size:12px;">
-                        <option value="320kbps">Very High (320kbps)</option>
-                        <option value="160kbps">High (160kbps)</option>
-                        <option value="96kbps">Standard (96kbps)</option>
-                        <option value="48kbps">Data Saver (48kbps)</option>
-                    </select>
-                </div>
-            </div>
+        <!-- Info Area -->
+        <div class="fp-info">
+            <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
+            <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
+            <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
         </div>
 
+        <!-- Slider -->
+        <div class="slider-container">
+            <input type="range" id="seek-slider" min="0" value="0">
+            <div class="time-wrap"><span id="curr-time">0:00</span><span id="total-time">0:00</span></div>
+        </div>
+
+        <!-- Controls -->
+        <div class="fp-controls">
+            <button class="btn-ctrl" id="btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
+            <button class="btn-ctrl" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
+            <button class="btn-play-lg" onclick="togglePlay()"><i class="fas fa-play" id="fp-play-icon"></i></button>
+            <button class="btn-ctrl" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
+            <button class="btn-ctrl" id="btn-loop" onclick="toggleLoop()"><i class="fas fa-retweet"></i></button>
+        </div>
     </div>
+
+    <!-- Menu Overlay (Kept inside full-player for context) -->
+    <div class="fp-menu-overlay" id="fp-menu-overlay">
+        <div class="fp-menu-header"><span>OPTIONS</span><span onclick="toggleFpMenu()" style="cursor:pointer; padding:5px;">CLOSE</span></div>
+        <div id="video-switch-btn"></div>
+        <div id="song-details-injection"></div>
+        <div id="menu-download-btn" class="fp-menu-item" onclick="downloadCurrentSongAction()"><i class="fas fa-download"></i><span>Download Song</span></div>
+        <div class="fp-menu-item">
+            <i class="fas fa-sliders-h"></i>
+            <div style="flex:1;">
+                <div style="margin-bottom:5px;">Quality</div>
+                <select onchange="changeQualityFromPlayer(this)" onclick="event.stopPropagation()" style="width:100%; padding:8px; margin:0; background:rgba(255,255,255,0.1); border:none; font-size:12px;">
+                    <option value="320kbps">Very High (320kbps)</option>
+                    <option value="160kbps">High (160kbps)</option>
+                    <option value="96kbps">Standard (96kbps)</option>
+                    <option value="48kbps">Data Saver (48kbps)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- Lyrics Overlay -->
     <div id="full-lyrics-view">
@@ -2523,6 +2506,30 @@ async function toggleFpMenu() {
 
         return null; 
     }
+    function syncLyrics() {
+        if(!state.lyricsData || state.videoMode) return;
+        const time = audio.currentTime; let activeIdx = -1;
+        for(let i = 0; i < state.lyricsData.length; i++) { if(time >= state.lyricsData[i].time) activeIdx = i; else break; }
+        
+        if(activeIdx !== state.activeLyricIndex) {
+            state.activeLyricIndex = activeIdx;
+            
+            // Existing Logic
+            if(activeIdx >= 0) { 
+                const txt = state.lyricsData[activeIdx].text; 
+                const displayText = txt === "" ? "♪" : txt; 
+                document.getElementById('mini-lyric-text').innerText = displayText; 
+                document.getElementById('immersive-lyric').innerText = displayText; 
+            } else { 
+                document.getElementById('immersive-lyric').innerText = "♪"; 
+            }
+            
+            if(document.getElementById('full-lyrics-view').classList.contains('active')) updateFullLyricsUI(activeIdx);
+            
+            // --- ADD THIS LINE ---
+            updateLandscapeLyrics(activeIdx);
+        }
+    }
     
     function toggleVideoMode() {
     if(state.videoSwitching) return; 
@@ -3127,271 +3134,6 @@ function exitFullscreenSafe() {
         }
     }
 }
-/* ==========================================
-   LANDSCAPE MODE IMPLEMENTATION
-   ========================================== */
-
-let isLandscape = false;
-let lsLyricsActiveIdx = -1;
-
-// 1. Detect Orientation & Move Visuals
-function checkOrientation() {
-    // Check if we are in landscape and screen is wide enough
-    const newIsLandscape = window.innerWidth > window.innerHeight && window.innerWidth > 500;
-    
-    if (newIsLandscape !== isLandscape) {
-        isLandscape = newIsLandscape;
-        moveVisuals(isLandscape);
-        if (isLandscape) {
-            updateLandscapeUI();
-            updateLandscapeLyrics();
-        }
-    }
-}
-
-// Listen for resize/orientation events
-window.addEventListener('resize', checkOrientation);
-window.addEventListener('orientationchange', () => setTimeout(checkOrientation, 200));
-
-// 2. Move Video Elements (Reparenting)
-function moveVisuals(toLandscape) {
-    const canvas = document.getElementById('canvas-video');
-    const ytContainer = document.getElementById('yt-view-container');
-    
-    const portraitContainer = document.getElementById('fp-img-area');
-    const landscapeContainer = document.getElementById('ls-art-wrapper');
-
-    if (toLandscape) {
-        // Move to Landscape
-        landscapeContainer.appendChild(canvas);
-        landscapeContainer.appendChild(ytContainer);
-        
-        // Ensure styling classes match selected mode
-        setLandscapeMode(currentLsMode);
-    } else {
-        // Move back to Portrait
-        portraitContainer.appendChild(canvas);
-        portraitContainer.appendChild(ytContainer);
-        
-        // Reset styles for portrait
-        canvas.style.opacity = (state.showCanvas && !state.videoMode) ? '1' : '0';
-        // Reset classes
-        document.getElementById('ls-art-wrapper').className = 'art-wrapper ratio-square';
-    }
-}
-
-// 3. Landscape Toggles (Art / Canvas / Video)
-let currentLsMode = 'art';
-
-function setLandscapeMode(mode) {
-    currentLsMode = mode;
-    
-    // UI Buttons
-    document.querySelectorAll('.vis-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById(`ls-btn-${mode}`).classList.add('active');
-    
-    // Wrapper Aspect Ratio
-    const wrapper = document.getElementById('ls-art-wrapper');
-    wrapper.className = 'art-wrapper'; // Reset
-    
-    const canvas = document.getElementById('canvas-video');
-    const ytContainer = document.getElementById('yt-view-container');
-    const artImg = document.getElementById('ls-art-img');
-
-    // Logic
-    if (mode === 'art') {
-        wrapper.classList.add('ratio-square');
-        canvas.style.opacity = 0;
-        ytContainer.style.opacity = 0;
-        ytContainer.style.zIndex = -1;
-        artImg.style.opacity = 1;
-        // If in video mode, switch back to audio? Optional. 
-        // User requested UI only, but logic implies:
-        if(state.videoMode) toggleVideoMode(); 
-    } 
-    else if (mode === 'canvas') {
-        wrapper.classList.add('ratio-canvas');
-        artImg.style.opacity = 0;
-        ytContainer.style.opacity = 0;
-        ytContainer.style.zIndex = -1;
-        
-        canvas.style.opacity = 1;
-        // Ensure canvas is playing if audio is playing
-        if(state.isPlaying) canvas.play().catch(e=>{});
-        
-        if(state.videoMode) toggleVideoMode(); // Switch to audio to see canvas
-    } 
-    else if (mode === 'video') {
-        wrapper.classList.add('ratio-video');
-        artImg.style.opacity = 0;
-        canvas.style.opacity = 0;
-        
-        ytContainer.style.opacity = 1;
-        ytContainer.style.zIndex = 5;
-        ytContainer.style.display = 'block';
-        ytContainer.classList.add('active');
-
-        // If not in video mode, switch to it
-        if(!state.videoMode) toggleVideoMode();
-    }
-}
-
-// 4. Update Landscape UI Data
-function updateLandscapeUI() {
-    if(!isLandscape) return;
-
-    const track = state.queue[state.qIndex];
-    if (!track) return;
-
-    // Text
-    document.getElementById('ls-title').innerText = track.title;
-    document.getElementById('ls-artist').innerText = track.artist;
-    
-    // Image (High Res)
-    let hqImg = (track.img || '').replace('150x150', '500x500').replace('50x50', '500x500');
-    document.getElementById('ls-art-img').src = hqImg;
-
-    // Icons
-    const heart = document.getElementById('ls-btn-heart');
-    const isLiked = likedSongs.some(s => s.id === track.id);
-    heart.className = isLiked ? 'fas fa-heart active-ctrl' : 'far fa-heart ctrl-icon';
-
-    const shuffle = document.getElementById('ls-btn-shuffle');
-    shuffle.className = state.isShuffle ? 'fas fa-random active-ctrl' : 'fas fa-random ctrl-icon';
-
-    // Play/Pause Icon
-    const pp = document.getElementById('ls-play-icon');
-    pp.className = state.isPlaying ? 'fas fa-pause' : 'fas fa-play';
-
-    // Handle "Lyrics Off" Constraint
-    const infoCol = document.querySelector('.info-column');
-    const lyricsArea = document.getElementById('ls-lyrics-area');
-    
-    if (state.showLyrics && state.lyricsData) {
-        infoCol.classList.remove('center-mode');
-        lyricsArea.style.display = 'block';
-        renderLandscapeLyrics();
-    } else {
-        infoCol.classList.add('center-mode');
-        // CSS handles display:none via class, but we ensure content is cleared
-        document.getElementById('ls-lyrics-content').innerHTML = '';
-    }
-}
-
-// 5. Render Lyrics
-function renderLandscapeLyrics() {
-    const container = document.getElementById('ls-lyrics-content');
-    container.innerHTML = '';
-    
-    if (!state.lyricsData) return;
-
-    state.lyricsData.forEach((line, index) => {
-        const div = document.createElement('div');
-        div.className = 'l-line';
-        div.id = `ls-line-${index}`;
-        div.innerText = line.text;
-        div.onclick = () => { audio.currentTime = line.time; };
-        container.appendChild(div);
-    });
-    
-    // Highlight current line immediately
-    highlightLsLyrics(state.activeLyricIndex);
-}
-
-function highlightLsLyrics(idx) {
-    if(!isLandscape || !state.showLyrics) return;
-    
-    // Remove old active
-    if(lsLyricsActiveIdx !== -1) {
-        const old = document.getElementById(`ls-line-${lsLyricsActiveIdx}`);
-        if(old) old.classList.remove('active');
-    }
-
-    // Add new active
-    if(idx !== -1) {
-        const el = document.getElementById(`ls-line-${idx}`);
-        if(el) {
-            el.classList.add('active');
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }
-    lsLyricsActiveIdx = idx;
-}
-
-// 6. Landscape Progress Bar Click
-document.getElementById('ls-prog-bar').addEventListener('click', (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    const p = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-    const d = state.videoMode && ytPlayer ? ytPlayer.getDuration() : audio.duration;
-    
-    if(d) {
-        const newTime = d * p;
-        if(state.videoMode) {
-             if(state.isDirectVideo) document.getElementById('direct-video-player').currentTime = newTime;
-             else if(ytPlayer) ytPlayer.seekTo(newTime, true);
-        } else {
-            audio.currentTime = newTime;
-        }
-    }
-});
-
-// === HOOKS INTO EXISTING FUNCTIONS ===
-
-// We need to inject calls to updateLandscapeUI into your existing code.
-// Instead of rewriting your big functions, we hook them here.
-
-const originalUpdateUI = updateUI;
-updateUI = function(track) {
-    originalUpdateUI(track); // Call original
-    if(isLandscape) updateLandscapeUI(); // Update landscape
-};
-
-const originalUpdateIcons = updateIcons;
-updateIcons = function() {
-    originalUpdateIcons();
-    if(document.getElementById('ls-play-icon')) {
-        document.getElementById('ls-play-icon').className = state.isPlaying ? 'fas fa-pause' : 'fas fa-play';
-    }
-};
-
-const originalSyncLyrics = syncLyrics;
-syncLyrics = function() {
-    originalSyncLyrics();
-    if(isLandscape && state.showLyrics) {
-        highlightLsLyrics(state.activeLyricIndex);
-    }
-};
-
-const originalUpdateProgress = updateProgress;
-updateProgress = function() {
-    originalUpdateProgress();
-    if(isLandscape) {
-        const dur = audio.duration || 0;
-        const cur = audio.currentTime || 0;
-        const pct = dur > 0 ? (cur / dur) * 100 : 0;
-        
-        document.getElementById('ls-prog-fill').style.width = pct + '%';
-        document.getElementById('ls-curr-time').innerText = fmtTime(cur);
-        document.getElementById('ls-total-time').innerText = fmtTime(dur);
-    }
-};
-
-// Also hook toggleSetting to refresh UI immediately
-const originalToggleSetting = toggleSetting;
-toggleSetting = function(type) {
-    originalToggleSetting(type);
-    if(type === 'lyrics' && isLandscape) {
-        updateLandscapeUI(); // Re-renders layout based on lyrics setting
-    }
-    // Handle Video/Canvas toggle logic if needed in landscape
-    if(type === 'canvas' && isLandscape) {
-        if(state.showCanvas) setLandscapeMode('canvas');
-        else setLandscapeMode('art');
-    }
-};
-
-// Initial Check on Load
-checkOrientation();
 
 </script>
 </body>

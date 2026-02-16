@@ -442,172 +442,98 @@
 }
 
 /* =========================================
-       LANDSCAPE UI IMPLEMENTATION (FIXED FIT)
+       LANDSCAPE UI IMPLEMENTATION (9:16 CANVAS FIX)
        ========================================= */
 
-    /* --- PORTRAIT MODE (DEFAULT) - MATCHING NEMUSIC --- */
-    
-    /* 1. MAGIC FIX: Make these containers invisible in Portrait so items stack evenly */
-    .fp-columns, .fp-left-panel, .fp-right-panel {
-        display: contents; 
-    }
-
-    /* 2. Hide Landscape specific elements in Portrait */
+    /* --- PORTRAIT MODE (DEFAULT - NEMUSIC STYLE) --- */
+    /* Hide wrapper containers in Portrait to use simple flex layout */
+    .fp-columns, .fp-left-panel, .fp-right-panel { display: contents; }
     .landscape-only { display: none !important; }
-
-    /* 3. Force Text Centering in Portrait (Like Nemusic) */
+    
+    /* Center everything in Portrait */
     .fp-info { text-align: center; padding-right: 0; width: 100%; }
     .fp-info .marquee-container { justify-content: center; }
     .fp-title, .fp-artist { text-align: center; }
-    
-    /* 4. Reset Heart icon position for Portrait */
-    .fp-actions {
-        position: relative;
-        right: auto; top: auto; transform: none;
-        justify-content: center;
-        margin-top: 10px;
-    }
+    .fp-actions { position: relative; right: auto; top: auto; transform: none; justify-content: center; margin-top: 10px; }
 
     /* --- LANDSCAPE MODE --- */
     @media (orientation: landscape) {
         
-        /* Restore the containers for split screen layout */
-        .fp-columns {
-            display: flex;
-            flex-direction: row;
-            width: 100%; height: 100%;
-            padding: 20px 50px;
-            gap: 40px;
+        /* 1. STRICTLY HIDE GLOBAL BACKGROUND CANVAS */
+        #full-player > #canvas-video { display: none !important; }
+
+        /* 2. STYLE THE MOVED CANVAS (INSIDE FRAME) */
+        #fp-img-area #canvas-video {
+            display: block !important;
+            position: absolute !important;
+            top: 0; left: 0; width: 100%; height: 100%;
+            border-radius: 12px; object-fit: cover; z-index: 5;
         }
 
-        /* Left Panel (Art) */
-        .fp-left-panel {
-            display: flex;
-            width: 40vw !important;
-            max-width: 40vw !important;
-            flex: 0 0 40vw !important;
-            height: 100%;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            position: relative;
+        /* 3. LAYOUT RESTORATION */
+        .fp-columns { display: flex; flex-direction: row; width: 100%; height: 100%; padding: 20px 50px; gap: 40px; }
+        
+        /* Left Panel - Holds the Art/Canvas */
+        .fp-left-panel { 
+            display: flex; width: 40vw !important; max-width: 40vw !important; flex: 0 0 40vw !important; 
+            height: 100%; flex-direction: column; justify-content: center; align-items: center; position: relative; 
+        }
+        
+        /* Right Panel - Holds Controls */
+        .fp-right-panel { 
+            display: flex; width: 60vw !important; max-width: 60vw !important; flex: 0 0 50vw !important; 
+            min-width: 0 !important; overflow: hidden !important; height: 100%; flex-direction: column; justify-content: center; 
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 20px; 
+            padding: 20px 30px; position: relative; backdrop-filter: blur(10px); 
         }
 
-        /* Right Panel (Controls) */
-        .fp-right-panel {
-            display: flex;
-            width: 60vw !important;
-            max-width: 60vw !important;
-            flex: 0 0 50vw !important;
-            min-width: 0 !important;
-            overflow: hidden !important;
-            height: 100%;
-            flex-direction: column;
-            justify-content: center;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 20px; 
-            padding: 20px 30px;
-            position: relative;
-            backdrop-filter: blur(10px);
-        }
-
-        /* Show Landscape elements / Hide Portrait elements */
         .landscape-only { display: flex !important; }
         .fp-top, #mini-lyrics-player { display: none !important; }
+        #full-player { padding: 0; flex-direction: row; justify-content: center; align-items: center; }
 
-        /* Main Player Container adjustments */
-        #full-player {
-            padding: 0;
-            flex-direction: row;
-            justify-content: center;
-            align-items: center;
+        /* Header Text moved right */
+        .ls-header { position: absolute; top: 0; width: 100%; display: flex; justify-content: flex-start; align-items: center; margin-bottom: 10px; }
+        .ls-header-text { 
+            font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 1px; 
+            margin-left: 50px; 
         }
-
-        /* --- Landscape Specific Component Styling --- */
         
-        .ls-header {
-            position: absolute; top: 0; width: 100%;
-            display: flex; justify-content: flex-start; align-items: center;
-            margin-bottom: 10px;
-        }
-        .ls-header-text { font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 1px; margin-left: 40px; }
-        
-        .mode-switcher {
-            display: flex; gap: 5px; background: rgba(255,255,255,0.1);
-            padding: 4px; border-radius: 20px; margin-bottom: 15px; margin-top: 30px;
-            backdrop-filter: blur(10px); z-index: 50; pointer-events: auto;
-        }
-        .mode-btn {
-            padding: 6px 14px; border-radius: 16px; font-size: 10px; font-weight: 700;
-            color: #ccc; background: transparent; border: none; cursor: pointer; text-transform: uppercase;
-            transition: all 0.2s;
-        }
+        .mode-switcher { display: flex; gap: 5px; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 20px; margin-bottom: 15px; margin-top: 30px; backdrop-filter: blur(10px); z-index: 50; pointer-events: auto; }
+        .mode-btn { padding: 6px 14px; border-radius: 16px; font-size: 10px; font-weight: 700; color: #ccc; background: transparent; border: none; cursor: pointer; text-transform: uppercase; transition: all 0.2s; }
         .mode-btn.active { background: var(--primary); color: black; box-shadow: 0 2px 10px rgba(29, 185, 84, 0.4); }
 
-        /* Aspect Ratios */
-        #fp-img-area {
-            width: 100%; height: auto; flex: 1;
-            max-height: 80%;
-            margin: 0; perspective: none;
-        }
+        /* Image/Canvas Area */
+        #fp-img-area { width: 100%; height: auto; flex: 1; max-height: 80%; margin: 0; perspective: none; position: relative; }
         .fp-img { box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
         
+        /* --- ASPECT RATIOS (THE PINK/GREEN UI STYLE) --- */
         .ratio-art #fp-img-area { aspect-ratio: 1/1; }
-        .ratio-canvas #fp-img-area { aspect-ratio: 9/16; max-width: 60vh; }
+        
+        /* 9:16 Ratio for Canvas (Shorts Style) */
+        .ratio-canvas #fp-img-area { 
+            aspect-ratio: 9/16; 
+            max-width: 50vh; /* Limits height so it fits on screen */
+        }
+        
         .ratio-video #fp-img-area { aspect-ratio: 16/9; }
 
-        .ls-menu-btn {
-            position: absolute; top: 15px; right: 15px;
-            background: none; border: none; color: white; font-size: 18px; cursor: pointer;
-            z-index: 10; pointer-events: auto;
-        }
+        .ls-menu-btn { position: absolute; top: 15px; right: 15px; background: none; border: none; color: white; font-size: 18px; cursor: pointer; z-index: 10; pointer-events: auto; }
 
-        .ls-lyrics-wrapper {
-            display: flex; align-items: center; gap: 15px;
-            margin-top: 10px; margin-bottom: 20px;
-            height: 85px; overflow: hidden;
-        }
-        .ls-lyrics-text {
-            flex: 1; text-align: left; font-size: 18px; font-weight: 700; 
-            color: var(--accent); text-shadow: 0 0 15px rgba(29, 185, 84, 0.3);
-            white-space: normal; display: -webkit-box; -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3;
-        }
+        /* Lyrics Styling - Clickable & Wrapped */
+        .ls-lyrics-wrapper { display: flex; align-items: center; gap: 15px; margin-top: 10px; margin-bottom: 20px; height: 85px; overflow: hidden; transition: transform 0.1s; }
+        .ls-lyrics-wrapper:active { transform: scale(0.98); opacity: 0.8; }
+        .ls-lyrics-text { flex: 1; text-align: left; font-size: 18px; font-weight: 700; color: var(--accent); text-shadow: 0 0 15px rgba(29, 185, 84, 0.3); white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.3; }
+        .ls-expand-btn { display: none !important; } /* Hide the button strictly */
         
-        /* Info Adjustments (Left Align for Landscape) */
-        .fp-info { 
-            text-align: left; 
-            margin-bottom: 10px; 
-            padding-right: 50px !important; 
-            width: 100%;    
-            min-width: 0;
-            position: relative;
-            box-sizing: border-box; 
-        }
-        
+        /* Info Alignments */
+        .fp-info { text-align: left; margin-bottom: 10px; padding-right: 50px !important; width: 100%; min-width: 0; position: relative; box-sizing: border-box; }
         .fp-title { font-size: 26px; text-align: left; display: block; }
         .fp-artist { text-align: left; font-size: 16px; display: block; }
-        
-        .fp-info .marquee-container { 
-            justify-content: flex-start !important; 
-            width: 100% !important; 
-            max-width: 100% !important;
-        }
-        
-        .fp-actions { 
-            position: absolute; 
-            right: 0; 
-            top: 50%; 
-            transform: translateY(-50%);
-            margin: 0; 
-            z-index: 20;
-            pointer-events: auto;
-        }
+        .fp-info .marquee-container { justify-content: flex-start !important; width: 100% !important; max-width: 100% !important; }
+        .fp-actions { position: absolute; right: 0; top: 50%; transform: translateY(-50%); margin: 0; z-index: 20; pointer-events: auto; }
         
         .slider-container { width: 100%; margin: 15px 0; }
         .fp-controls { margin-top: 10px; justify-content: space-between; }
-        
         #yt-view-container, #direct-video-player, #canvas-video { border-radius: 12px; }
     }
     </style>
@@ -833,11 +759,10 @@
                 <!-- Landscape Menu Button -->
                 <button class="ls-menu-btn landscape-only" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-v"></i></button>
 
-                <!-- Landscape Lyrics (New) -->
-                <div class="ls-lyrics-wrapper landscape-only">
-                    <div class="ls-lyrics-text" id="ls-lyric-line">♪</div>
-                    <button class="ls-expand-btn" onclick="openFullLyrics()"><i class="fas fa-expand-alt"></i></button>
-                </div>
+      <!-- Landscape Lyrics (New) -->
+<div class="ls-lyrics-wrapper landscape-only" onclick="openFullLyrics()" style="cursor: pointer;">
+    <div class="ls-lyrics-text" id="ls-lyric-line">♪</div>
+</div>
 
                 <!-- Mini Lyrics (Portrait Only) -->
                 <div id="mini-lyrics-player" onclick="openFullLyrics()"><p class="ml-text" id="mini-lyric-text">Lyrics loading...</p></div>
@@ -3205,46 +3130,74 @@ document.addEventListener('fullscreenchange', () => {
     }
 });
 function switchVisualMode(mode) {
-        // Update Buttons
-        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-        const activeBtn = mode === 'art' ? 'mode-art' : (mode === 'canvas' ? 'mode-can' : 'mode-vid');
-        document.getElementById(activeBtn).classList.add('active');
+    // 1. Update Buttons
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    const activeBtn = mode === 'art' ? 'mode-art' : (mode === 'canvas' ? 'mode-can' : 'mode-vid');
+    const btn = document.getElementById(activeBtn);
+    if(btn) btn.classList.add('active');
 
-        const leftPanel = document.querySelector('.fp-left-panel');
-        leftPanel.classList.remove('ratio-art', 'ratio-canvas', 'ratio-video');
+    // 2. Remove old ratio classes
+    const leftPanel = document.querySelector('.fp-left-panel');
+    if(leftPanel) leftPanel.classList.remove('ratio-art', 'ratio-canvas', 'ratio-video');
 
-        if (mode === 'art') {
-            leftPanel.classList.add('ratio-art');
-            // If video is on, turn it off
-            if(state.videoMode) toggleVideoMode();
-            
-            // Force Canvas off visually
-            document.getElementById('canvas-video').style.opacity = '0';
-            document.getElementById('fp-img-area').style.opacity = '1';
-            
-        } else if (mode === 'canvas') {
-            leftPanel.classList.add('ratio-canvas');
-            // If video is on, turn it off
-            if(state.videoMode) toggleVideoMode();
-            
-            // Turn Canvas on logic
-            const cv = document.getElementById('canvas-video');
-            if(cv.src && cv.src !== "") {
-                cv.style.opacity = '1';
-                cv.play().catch(e => console.log(e));
-                document.getElementById('fp-img-area').style.opacity = '0'; // Hide art
-            } else {
-                showToast("No Canvas available");
-                // Fallback to art visual
-                switchVisualMode('art');
-            }
+    // 3. Logic for Canvas Element Movement
+    const cv = document.getElementById('canvas-video');
+    const imgArea = document.getElementById('fp-img-area');
+    const fp = document.getElementById('full-player');
+    const art = document.getElementById('fp-art');
 
-        } else if (mode === 'video') {
-            leftPanel.classList.add('ratio-video');
-            // Turn Video On
-            if(!state.videoMode) toggleVideoMode();
+    if (mode === 'art') {
+        if(leftPanel) leftPanel.classList.add('ratio-art');
+        if(state.videoMode) toggleVideoMode();
+
+        // Move Canvas back to background (hide it)
+        if(cv.parentNode !== fp) { fp.insertBefore(cv, document.getElementById('fp-bg-gradient')); }
+        
+        art.classList.add('active');
+        art.style.opacity = '1';
+        cv.style.opacity = '0';
+        imgArea.style.opacity = '1';
+
+    } else if (mode === 'canvas') {
+        if(leftPanel) leftPanel.classList.add('ratio-canvas'); // 9:16 Ratio
+        if(state.videoMode) toggleVideoMode();
+
+        if(cv.src && cv.src !== "") {
+            // MOVE VIDEO INSIDE FRAME FOR LANDSCAPE (9:16 Shorts Style)
+            imgArea.appendChild(cv);
+            
+            cv.style.opacity = '1';
+            art.style.opacity = '0'; // Hide art
+            cv.play().catch(e => console.log(e));
+        } else {
+            showToast("No Canvas available");
+            switchVisualMode('art');
+        }
+
+    } else if (mode === 'video') {
+        if(leftPanel) leftPanel.classList.add('ratio-video');
+        
+        // Move Canvas back to background (unused in video mode)
+        if(cv.parentNode !== fp) { fp.insertBefore(cv, document.getElementById('fp-bg-gradient')); }
+
+        if(!state.videoMode) toggleVideoMode();
+    }
+}
+
+// Add resize listener to fix canvas position if rotating back to Portrait
+window.addEventListener('resize', () => {
+    if(window.innerHeight > window.innerWidth) {
+        // We are back in Portrait
+        const cv = document.getElementById('canvas-video');
+        const fp = document.getElementById('full-player');
+        // Ensure canvas is in background and hidden
+        if(cv && fp && cv.parentNode !== fp) {
+             fp.insertBefore(cv, document.getElementById('fp-bg-gradient'));
+             cv.style.opacity = '0'; 
+             document.getElementById('fp-art').style.opacity = '1';
         }
     }
+});
 function exitFullscreenSafe() {
     if (document.fullscreenElement || document.webkitFullscreenElement) {
         try {

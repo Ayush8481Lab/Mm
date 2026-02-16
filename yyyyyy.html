@@ -704,208 +704,132 @@
     </div>
 
 <!-- Full Player -->
-<div id="full-player">
-    
-    <!-- BACKGROUNDS (Shared) -->
-    <div id="fp-bg-gradient"></div>
-    <div id="immersive-overlay"> <!-- Keep immersive logic for portrait -->
-        <div id="immersive-lyric"></div>
-        <div class="imm-progress-container">
-            <div class="imm-progress-bg"><div class="imm-progress-fill" id="imm-fill"></div></div>
-            <div class="imm-time-row"><span id="imm-curr">0:00</span><span id="imm-total">0:00</span></div>
-        </div>
-    </div>
-
-    <!-- === 1. PORTRAIT VIEW (Existing UI Wrapped) === -->
-    <div class="fp-portrait-view">
-        <div class="fp-top">
-            <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="goBack()"><i class="fas fa-chevron-down"></i></button>
-            <div style="font-size: 12px; letter-spacing: 1px; color: #ccc;">NOW PLAYING</div>
-            <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-v"></i></button>
-        </div>
+    <div id="full-player">
         
-        <!-- IMAGE / VIDEO CONTAINER (Portrait Anchor) -->
-        <div class="fp-img-container" id="fp-img-area">
-            <img id="fp-art" class="fp-img active" src="" alt="">
-            
-            <!-- VIDEO ELEMENTS (These will be moved by JS) -->
-            <video id="canvas-video" muted loop playsinline></video>
-            <div id="yt-view-container">
-                <video id="direct-video-player" playsinline></video>
-                <div id="yt-loader"><div class="loader"></div></div>
-                <div class="video-cover">
-                    <div id="wrap"><div id="player"></div></div>
-                </div>
-                <div class="shield">
-                    <div class="block-area" id="blockTap"></div>
-                    <div class="center-unlock" id="centerTap"></div>
-                </div>
-                <div class="yt-controls hide" id="yt-controls">
-                    <button class="yt-btn" id="yt-play-btn" onclick="toggleYtPlay()"><i class="fas fa-play"></i></button>
-                    <button class="yt-btn" id="yt-mute-btn" onclick="toggleYtMute()"><i class="fas fa-volume-up"></i></button>
-                    <div class="yt-time" id="yt-time">0:00 / 0:00</div>
-                    <div class="yt-progress-container" id="yt-bar"><div class="yt-fill" id="yt-fill"></div></div>
-                    <div class="yt-brand">8481</div>
-                    <button class="yt-btn" onclick="toggleYtFull()"><i class="fas fa-expand"></i></button>
-                </div>
-            </div>
-        </div>
-
-        <div id="mini-lyrics-player" onclick="openFullLyrics()"><p class="ml-text" id="mini-lyric-text">Lyrics loading...</p></div>
-        
-        <div class="fp-info">
-            <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
-            <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
-            <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
-        </div>
-        
-        <div class="slider-container">
-            <input type="range" id="seek-slider" min="0" value="0">
-            <div class="time-wrap"><span id="curr-time">0:00</span><span id="total-time">0:00</span></div>
-        </div>
-        
-        <div class="fp-controls">
-            <button class="btn-ctrl" id="btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
-            <button class="btn-ctrl" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
-            <button class="btn-play-lg" onclick="togglePlay()"><i class="fas fa-play" id="fp-play-icon"></i></button>
-            <button class="btn-ctrl" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
-            <button class="btn-ctrl" id="btn-loop" onclick="toggleLoop()"><i class="fas fa-retweet"></i></button>
-        </div>
-    </div>
-
-    <!-- === 2. NEW LANDSCAPE VIEW === -->
-    <div class="fp-landscape-view">
-        <div class="visual-column">
-            <!-- Toggles -->
-            <div class="visual-options">
-                <div class="vis-btn active" id="ls-btn-art" onclick="setLandscapeMode('art')">Art</div>
-                <div class="vis-btn" id="ls-btn-canvas" onclick="setLandscapeMode('canvas')">Canvas</div>
-                <div class="vis-btn" id="ls-btn-video" onclick="setLandscapeMode('video')">Video</div>
-            </div>
-            <!-- Visual Anchor (Target for Video/Canvas) -->
-            <div class="art-wrapper ratio-square" id="ls-art-wrapper">
-                <img id="ls-art-img" class="art-img" src="" alt="">
-                <!-- Video elements will be appended here by JS when in Landscape -->
-            </div>
-        </div>
-
-        <div class="info-column">
-            <div class="track-header-row">
-                <div class="track-info">
-                    <div class="track-title" id="ls-title">Song Title</div>
-                    <div class="track-artist" id="ls-artist">Artist Name</div>
-                </div>
-                <button class="more-btn" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-h"></i></button>
-            </div>
-
-            <!-- Scrollable Lyrics (Visible only if state.showLyrics is true) -->
-            <div class="lyrics-area" id="ls-lyrics-area">
-                <div class="lyrics-scroll" id="ls-lyrics-content"></div>
-            </div>
-
-            <div class="player-controls">
-                <!-- Progress -->
-                <div class="slider-container" id="ls-prog-bar">
-                    <div class="prog-bg"><div class="prog-fill" id="ls-prog-fill" style="width: 0%"></div></div>
-                    <div class="time-row">
-                        <span id="ls-curr-time">0:00</span>
-                        <span id="ls-total-time">0:00</span>
-                    </div>
-                </div>
-                <!-- Buttons -->
-                <div class="btn-row">
-                    <button class="ctrl-icon" id="ls-btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
-                    <button class="ctrl-icon" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
-                    <div class="play-fab" onclick="togglePlay()">
-                        <i class="fas fa-play" id="ls-play-icon"></i>
-                    </div>
-                    <button class="ctrl-icon" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
-                    <button class="ctrl-icon" id="ls-btn-heart" onclick="toggleLike()"><i class="far fa-heart"></i></button>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Shared Menu Overlay -->
-    <div class="fp-menu-overlay" id="fp-menu-overlay">
-        <!-- Content injected via JS -->
-    </div>
-
-</div>
-        
-        <!-- Modified Image Container to hold Art AND Video -->
-        <div class="fp-img-container" id="fp-img-area">
-            <img id="fp-art" class="fp-img active" src="" alt="">
-            
-            <!-- Youtube Video Container (From new implementation) -->
-            <div id="yt-view-container">
-                <video id="direct-video-player" playsinline></video>
-                <div id="yt-loader"><div class="loader"></div></div>
-                <div class="video-cover">
-                    <div id="wrap"><div id="player"></div></div>
-                </div>
-                <div class="shield">
-                    <div class="block-area" id="blockTap"></div>
-                    <div class="center-unlock" id="centerTap"></div>
-                </div>
-          <div class="yt-controls hide" id="yt-controls">
-    <!-- 1. Play/Pause Button -->
-    <button class="yt-btn" id="yt-play-btn" onclick="toggleYtPlay()">
-        <i class="fas fa-play"></i>
-    </button>
-
-    <!-- 2. Sound Button -->
-    <button class="yt-btn" id="yt-mute-btn" onclick="toggleYtMute()">
-        <i class="fas fa-volume-up"></i>
-    </button>
-
-    <!-- 3. Current Duration -->
-    <div class="yt-time" id="yt-time">0:00 / 0:00</div>
-
-    <!-- 4. Player UI (Progress Bar) -->
-    <div class="yt-progress-container" id="yt-bar">
-        <div class="yt-fill" id="yt-fill"></div>
-    </div>
-
-    <!-- 5. 8481 Text -->
-    <div class="yt-brand">8481</div>
-
-    <!-- 6. Full Screen Button -->
-    <button class="yt-btn" onclick="toggleYtFull()">
-        <i class="fas fa-expand"></i>
-    </button>
-</div>
-            </div>
-
-        </div>
-
-        <div id="immersive-overlay">
+        <!-- BACKGROUNDS (Shared) -->
+        <div id="fp-bg-gradient"></div>
+        <div id="immersive-overlay"> <!-- Keep immersive logic for portrait -->
             <div id="immersive-lyric"></div>
             <div class="imm-progress-container">
                 <div class="imm-progress-bg"><div class="imm-progress-fill" id="imm-fill"></div></div>
                 <div class="imm-time-row"><span id="imm-curr">0:00</span><span id="imm-total">0:00</span></div>
             </div>
         </div>
-        <div id="mini-lyrics-player" onclick="openFullLyrics()"><p class="ml-text" id="mini-lyric-text">Lyrics loading...</p></div>
-        <div class="fp-info">
-            <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
-            <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
-            <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
+
+        <!-- === 1. PORTRAIT VIEW (Existing UI Wrapped) === -->
+        <div class="fp-portrait-view">
+            <div class="fp-top">
+                <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="goBack()"><i class="fas fa-chevron-down"></i></button>
+                <div style="font-size: 12px; letter-spacing: 1px; color: #ccc;">NOW PLAYING</div>
+                <button class="btn-ctrl" style="width: 40px; height: 40px;" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-v"></i></button>
+            </div>
+            
+            <!-- IMAGE / VIDEO CONTAINER (Portrait Anchor) -->
+            <div class="fp-img-container" id="fp-img-area">
+                <img id="fp-art" class="fp-img active" src="" alt="">
+                
+                <!-- VIDEO ELEMENTS (These will be moved by JS) -->
+                <video id="canvas-video" muted loop playsinline></video>
+                <div id="yt-view-container">
+                    <video id="direct-video-player" playsinline></video>
+                    <div id="yt-loader"><div class="loader"></div></div>
+                    <div class="video-cover">
+                        <div id="wrap"><div id="player"></div></div>
+                    </div>
+                    <div class="shield">
+                        <div class="block-area" id="blockTap"></div>
+                        <div class="center-unlock" id="centerTap"></div>
+                    </div>
+                    <div class="yt-controls hide" id="yt-controls">
+                        <button class="yt-btn" id="yt-play-btn" onclick="toggleYtPlay()"><i class="fas fa-play"></i></button>
+                        <button class="yt-btn" id="yt-mute-btn" onclick="toggleYtMute()"><i class="fas fa-volume-up"></i></button>
+                        <div class="yt-time" id="yt-time">0:00 / 0:00</div>
+                        <div class="yt-progress-container" id="yt-bar"><div class="yt-fill" id="yt-fill"></div></div>
+                        <div class="yt-brand">8481</div>
+                        <button class="yt-btn" onclick="toggleYtFull()"><i class="fas fa-expand"></i></button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="mini-lyrics-player" onclick="openFullLyrics()"><p class="ml-text" id="mini-lyric-text">Lyrics loading...</p></div>
+            
+            <div class="fp-info">
+                <div class="marquee-container" style="justify-content: center;"><div class="fp-title marquee-content" id="fp-title">Title</div></div>
+                <div class="marquee-container" style="justify-content: center;"><div class="fp-artist marquee-content" id="fp-artist">Artist Name</div></div>
+                <div class="fp-actions"><i class="far fa-heart btn-ctrl" id="fp-heart" onclick="toggleLike()"></i></div>
+            </div>
+            
+            <div class="slider-container">
+                <input type="range" id="seek-slider" min="0" value="0">
+                <div class="time-wrap"><span id="curr-time">0:00</span><span id="total-time">0:00</span></div>
+            </div>
+            
+            <div class="fp-controls">
+                <button class="btn-ctrl" id="btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
+                <button class="btn-ctrl" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
+                <button class="btn-play-lg" onclick="togglePlay()"><i class="fas fa-play" id="fp-play-icon"></i></button>
+                <button class="btn-ctrl" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
+                <button class="btn-ctrl" id="btn-loop" onclick="toggleLoop()"><i class="fas fa-retweet"></i></button>
+            </div>
         </div>
-        <div class="slider-container">
-            <input type="range" id="seek-slider" min="0" value="0">
-            <div class="time-wrap"><span id="curr-time">0:00</span><span id="total-time">0:00</span></div>
+
+        <!-- === 2. NEW LANDSCAPE VIEW === -->
+        <div class="fp-landscape-view">
+            <div class="visual-column">
+                <!-- Toggles -->
+                <div class="visual-options">
+                    <div class="vis-btn active" id="ls-btn-art" onclick="setLandscapeMode('art')">Art</div>
+                    <div class="vis-btn" id="ls-btn-canvas" onclick="setLandscapeMode('canvas')">Canvas</div>
+                    <div class="vis-btn" id="ls-btn-video" onclick="setLandscapeMode('video')">Video</div>
+                </div>
+                <!-- Visual Anchor (Target for Video/Canvas) -->
+                <div class="art-wrapper ratio-square" id="ls-art-wrapper">
+                    <img id="ls-art-img" class="art-img" src="" alt="">
+                    <!-- Video elements will be appended here by JS when in Landscape -->
+                </div>
+            </div>
+
+            <div class="info-column">
+                <div class="track-header-row">
+                    <div class="track-info">
+                        <div class="track-title" id="ls-title">Song Title</div>
+                        <div class="track-artist" id="ls-artist">Artist Name</div>
+                    </div>
+                    <button class="more-btn" onclick="toggleFpMenu()"><i class="fas fa-ellipsis-h"></i></button>
+                </div>
+
+                <!-- Scrollable Lyrics (Visible only if state.showLyrics is true) -->
+                <div class="lyrics-area" id="ls-lyrics-area">
+                    <div class="lyrics-scroll" id="ls-lyrics-content"></div>
+                </div>
+
+                <div class="player-controls">
+                    <!-- Progress -->
+                    <div class="slider-container" id="ls-prog-bar">
+                        <div class="prog-bg"><div class="prog-fill" id="ls-prog-fill" style="width: 0%"></div></div>
+                        <div class="time-row">
+                            <span id="ls-curr-time">0:00</span>
+                            <span id="ls-total-time">0:00</span>
+                        </div>
+                    </div>
+                    <!-- Buttons -->
+                    <div class="btn-row">
+                        <button class="ctrl-icon" id="ls-btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
+                        <button class="ctrl-icon" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
+                        <div class="play-fab" onclick="togglePlay()">
+                            <i class="fas fa-play" id="ls-play-icon"></i>
+                        </div>
+                        <button class="ctrl-icon" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
+                        <button class="ctrl-icon" id="ls-btn-heart" onclick="toggleLike()"><i class="far fa-heart"></i></button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="fp-controls">
-            <button class="btn-ctrl" id="btn-shuffle" onclick="toggleShuffle()"><i class="fas fa-random"></i></button>
-            <button class="btn-ctrl" onclick="playPrev()"><i class="fas fa-step-backward"></i></button>
-            <button class="btn-play-lg" onclick="togglePlay()"><i class="fas fa-play" id="fp-play-icon"></i></button>
-            <button class="btn-ctrl" onclick="playNext()"><i class="fas fa-step-forward"></i></button>
-            <button class="btn-ctrl" id="btn-loop" onclick="toggleLoop()"><i class="fas fa-retweet"></i></button>
-        </div>
+        
+        <!-- Shared Menu Overlay -->
         <div class="fp-menu-overlay" id="fp-menu-overlay">
             <div class="fp-menu-header"><span>OPTIONS</span><span onclick="toggleFpMenu()" style="cursor:pointer; padding:5px;">CLOSE</span></div>
-            <div id="video-switch-btn"></div> <!-- Container for Switch Video Btn -->
+            <div id="video-switch-btn"></div>
             <div id="song-details-injection"></div>
             <div id="menu-download-btn" class="fp-menu-item" onclick="downloadCurrentSongAction()"><i class="fas fa-download"></i><span>Download Song</span></div>
             <div class="fp-menu-item">
@@ -921,6 +845,7 @@
                 </div>
             </div>
         </div>
+
     </div>
 
 <!-- Lyrics Overlay -->

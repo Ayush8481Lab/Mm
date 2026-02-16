@@ -2553,7 +2553,7 @@ async function toggleFpMenu() {
                 // 2. CHECK: If we ALREADY reached target, did we drop back to 0?
                 // This captures the "10 -> 00 -> 10 -> 00 (Ad)" scenario
                 else if (hasReachedTarget) {
-                    if (c < 0.5) {
+                    if (c < 1.5) {
                         console.log("Ad/Glitch Detected (Reset after seek)! Switching to fallback stream.");
                         clearInterval(tracker);
                         switchToDirectStream(currentVideoId, intendedStartTime);

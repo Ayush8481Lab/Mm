@@ -1635,10 +1635,24 @@
         if(!state.lyricsData || state.videoMode) return;
         const time = audio.currentTime; let activeIdx = -1;
         for(let i = 0; i < state.lyricsData.length; i++) { if(time >= state.lyricsData[i].time) activeIdx = i; else break; }
+        
         if(activeIdx !== state.activeLyricIndex) {
             state.activeLyricIndex = activeIdx;
-            if(activeIdx >= 0) { const txt = state.lyricsData[activeIdx].text; const displayText = txt === "" ? "♪" : txt; document.getElementById('mini-lyric-text').innerText = displayText; document.getElementById('immersive-lyric').innerText = displayText; } else { document.getElementById('immersive-lyric').innerText = "♪"; }
+            
+            // Existing Logic
+            if(activeIdx >= 0) { 
+                const txt = state.lyricsData[activeIdx].text; 
+                const displayText = txt === "" ? "♪" : txt; 
+                document.getElementById('mini-lyric-text').innerText = displayText; 
+                document.getElementById('immersive-lyric').innerText = displayText; 
+            } else { 
+                document.getElementById('immersive-lyric').innerText = "♪"; 
+            }
+            
             if(document.getElementById('full-lyrics-view').classList.contains('active')) updateFullLyricsUI(activeIdx);
+            
+            // --- ADD THIS LINE ---
+            updateLandscapeLyrics(activeIdx);
         }
     }
     function updateFullLyricsUI(activeIdx) { state.lyricsData.forEach((_, i) => { const el = document.getElementById(`line-${i}`); if(!el) return; el.className = 'lyric-line'; if(i < activeIdx) el.classList.add('l-past'); else if (i === activeIdx) { el.classList.add('l-active'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } else el.classList.add('l-future'); }); }

@@ -442,15 +442,15 @@
 }
 
 /* =========================================
-       LANDSCAPE UI IMPLEMENTATION (FINAL FIX)
+       LANDSCAPE UI IMPLEMENTATION (FINAL STABLE)
        ========================================= */
 
     /* --- PORTRAIT MODE (DEFAULT - NEMUSIC STYLE) --- */
-    /* Hide wrapper containers in Portrait to use simple flex layout */
+    /* 1. Hide wrapper containers in Portrait to use simple flex layout */
     .fp-columns, .fp-left-panel, .fp-right-panel { display: contents; }
     .landscape-only { display: none !important; }
     
-    /* Center everything in Portrait */
+    /* 2. Center everything in Portrait */
     .fp-info { text-align: center; padding-right: 0; width: 100%; }
     .fp-info .marquee-container { justify-content: center; }
     .fp-title, .fp-artist { text-align: center; }
@@ -459,10 +459,17 @@
     /* --- LANDSCAPE MODE --- */
     @media (orientation: landscape) {
         
-        /* 1. STRICTLY HIDE GLOBAL BACKGROUND CANVAS */
+        /* 1. FORCE BACKGROUND ANIMATION VISIBILITY */
+        #fp-bg-gradient { 
+            opacity: 1 !important; 
+            z-index: 0 !important; 
+            display: block !important; 
+        }
+
+        /* 2. STRICTLY HIDE GLOBAL BACKGROUND CANVAS (To prevent overlap) */
         #full-player > #canvas-video { display: none !important; }
 
-        /* 2. STYLE THE MOVED CANVAS (INSIDE FRAME) */
+        /* 3. STYLE THE MOVED CANVAS (INSIDE FRAME) */
         #fp-img-area #canvas-video {
             display: block !important;
             position: absolute !important;
@@ -470,13 +477,13 @@
             border-radius: 12px; object-fit: cover; z-index: 5;
         }
         
-        /* 3. STOP ART/CONTAINER FROM VANISHING */
+        /* 4. STOP ART/CONTAINER FROM VANISHING */
         #fp-img-area { 
             opacity: 1 !important; /* Forces container to stay visible */
-            width: 100%; height: auto; flex: 1; max-height: 80%; margin: 0; perspective: none; position: relative; 
+            width: 100%; height: auto; flex: 1; max-height: 80%; margin: 0; perspective: none; position: relative; z-index: 10;
         }
 
-        /* 4. LAYOUT RESTORATION */
+        /* 5. LAYOUT RESTORATION */
         .fp-columns { display: flex; flex-direction: row; width: 100%; height: 100%; padding: 20px 50px; gap: 40px; }
         
         /* Left Panel - Holds the Art/Canvas */
@@ -490,7 +497,7 @@
             display: flex; width: 60vw !important; max-width: 60vw !important; flex: 0 0 50vw !important; 
             min-width: 0 !important; overflow: hidden !important; height: 100%; flex-direction: column; justify-content: center; 
             background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 20px; 
-            padding: 20px 30px; position: relative; backdrop-filter: blur(10px); 
+            padding: 20px 30px; position: relative; backdrop-filter: blur(10px); z-index: 10;
         }
 
         .landscape-only { display: flex !important; }
@@ -501,7 +508,7 @@
         .ls-header { position: absolute; top: 0; width: 100%; display: flex; justify-content: flex-start; align-items: center; margin-bottom: 10px; }
         .ls-header-text { 
             font-size: 11px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 1px; 
-            margin-left: 70px; 
+            margin-left: 90px; 
         }
         
         .mode-switcher { display: flex; gap: 5px; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 20px; margin-bottom: 15px; margin-top: 30px; backdrop-filter: blur(10px); z-index: 50; pointer-events: auto; }
@@ -1042,10 +1049,11 @@
         const handleCanvasPlay = function() { 
             if(!state.showCanvas || state.videoMode) return; 
             
-            // FIX: If in Landscape mode, DO NOT run the hiding logic. 
-            // Let switchVisualMode handle visibility.
+            // FIX: If in Landscape mode, DO NOT hide the background. 
+            // The CSS #fp-bg-gradient { opacity: 1 !important } handles the visibility.
             if(window.innerWidth > window.innerHeight) return;
 
+            // Portrait Logic: Hide background to show canvas
             if(state.isPlaying) this.play(); 
             this.style.opacity = '1'; 
             document.getElementById('fp-bg-gradient').style.opacity = '0'; 
@@ -3207,6 +3215,52 @@ function exitFullscreenSafe() {
         }
     }
 }
+// --- STRICT PORTRAIT RESET ---
+// This ensures that when you rotate back to Portrait, 
+// any changes made by Landscape mode (like moving the canvas) are undone.
+window.addEventListener('resize', () => {
+    // If we are in Portrait Mode (Height > Width)
+    if(window.innerHeight > window.innerWidth) {
+        
+        const cv = document.getElementById('canvas-video');
+        const fp = document.getElementById('full-player');
+        const bg = document.getElementById('fp-bg-gradient');
+        const art = document.getElementById('fp-art');
+        const imgArea = document.getElementById('fp-img-area');
+
+        // 1. DOM RESET: Move Canvas back to background if it was moved to imgArea
+        if(cv && fp && bg && cv.parentNode !== fp) {
+             fp.insertBefore(cv, bg);
+        }
+        
+        // 2. Reset Background Opacity (In case Landscape logic messed with it)
+        if(bg) bg.style.opacity = '1';
+        
+        // 3. Reset Image Area Opacity
+        if(imgArea) imgArea.style.opacity = '1'; 
+        
+        // 4. Handle Canvas Visibility for Portrait
+        // If canvas is enabled AND available, show it as background
+        if(state.showCanvas && !state.videoMode && cv.src && cv.src !== "") {
+            cv.style.opacity = '1'; 
+            if(imgArea) imgArea.style.opacity = '0'; // Hide art container in portrait canvas mode
+            bg.style.opacity = '0'; // Hide gradient in portrait canvas mode
+            cv.play().catch(e=>{});
+        } else {
+            // Otherwise show Art
+            cv.style.opacity = '0';
+            if(art) {
+                art.classList.add('active');
+                art.style.opacity = '1';
+            }
+            if(imgArea) imgArea.style.opacity = '1';
+        }
+        
+        // 5. Remove Landscape specific classes from panel (Ratio reset)
+        const leftPanel = document.querySelector('.fp-left-panel');
+        if(leftPanel) leftPanel.classList.remove('ratio-art', 'ratio-canvas', 'ratio-video');
+    }
+});
 
 </script>
 </body>

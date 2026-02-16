@@ -482,17 +482,6 @@
         gap: 40px;
     }
 
-   /* --- LEFT PANEL (Visuals) --- */
-    .fp-left-panel {
-        flex: 1;
-        /* FIX: Force exact half width */
-        width: 50%;
-        max-width: 50%; 
-        height: 100%;
-        display: flex; flex-direction: column;
-        justify-content: center; align-items: center;
-        position: relative;
-    }
 
     /* Header "Now Playing" */
     .ls-header {
@@ -531,13 +520,29 @@
     .ratio-video #fp-img-area { aspect-ratio: 16/9; }
 
 
-    //* --- RIGHT PANEL (Controls) --- */
+/* --- LEFT PANEL (Visuals) --- */
+    .fp-left-panel {
+        /* FIX: Hard lock to 50% of screen width */
+        width: 50vw !important; 
+        max-width: 50vw !important;
+        flex: 0 0 50vw !important;
+        
+        height: 100%;
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        position: relative;
+    }
+
+    /* --- RIGHT PANEL (Controls) --- */
     .fp-right-panel {
-        flex: 1; 
-        /* FIX: Force exact half width and LOCK it */
-        width: 50%;
-        max-width: 50%; 
-        min-width: 0; /* CRITICAL: This stops long text from pushing the box wider */
+        /* FIX: Hard lock to 50% of screen width */
+        width: 50vw !important;
+        max-width: 50vw !important;
+        flex: 0 0 50vw !important;
+        
+        /* FIX: Stop expansion */
+        min-width: 0 !important; 
+        overflow: hidden !important;
         
         height: 100%;
         display: flex; flex-direction: column; justify-content: center;
@@ -546,7 +551,6 @@
         border-radius: 20px; padding: 20px 30px;
         position: relative;
         backdrop-filter: blur(10px);
-        overflow: hidden; /* Hides anything that tries to stick out */
     }
     /* Landscape Menu Btn */
     .ls-menu-btn {

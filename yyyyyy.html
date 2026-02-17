@@ -881,7 +881,7 @@
         async delete(key) { if(!this.db) await this.init(); return new Promise((resolve) => { const tx = this.db.transaction('store', 'readwrite'); tx.objectStore('store').delete(key); tx.oncomplete = () => resolve(); }); }
     };
 
-    const RAPID_KEYS = ["d1edce158amshec139440d20658ap1f2545jsnbb7da9add82f"];
+    const RAPID_KEYS = ["d1edce158amshec139440d20658ap1f2545jsnbb7da9add82f","6cf7f03014msh787c51a713c0264p15c20djsna1f9a9f6a378"];
     let rapidKeyIdx = 0;
     function getRapidKey() { return RAPID_KEYS[rapidKeyIdx]; }
     function rotateRapidKey() { rapidKeyIdx = (rapidKeyIdx + 1) % RAPID_KEYS.length; console.log("Rotated API Key"); }

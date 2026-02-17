@@ -881,7 +881,7 @@
         async delete(key) { if(!this.db) await this.init(); return new Promise((resolve) => { const tx = this.db.transaction('store', 'readwrite'); tx.objectStore('store').delete(key); tx.oncomplete = () => resolve(); }); }
     };
 
-    const RAPID_KEYS = ["d1edce158amshec139440d20658ap1f2545jsnbb7da9add82f","6cf7f03014msh787c51a713c0264p15c20djsna1f9a9f6a378"];
+    const RAPID_KEYS = ["d1edce158amshec139440d20658ap1f2545jsnbb7da9add82f","6cf7f03014msh787c51a713c0264p15c20djsna1f9a9f6a378","13d48f6bb8msh459c11b91bdcc44p110f4ejsn099443894115","03fc23317fmsh0535ef9ec8c6f5bp1db59bjsn545991df9343","e54e3fbc4dmshfc16d4417b618fdp1a2fafjsn30c72d8cf3ab","2f3f6a9ae2mshdc5288abadb0c84p118401jsnd18970b2f26a","c1efbc2580mshf9e6f81b0e6f996p143edajsn64cf72ed1463","da6bd1e90dmsh5aab26c0416ad7ep182d57jsnee8be14e0c74","7dd1f2fad7msh74af897174e65bcp10834ejsnc62fe7ef2611","2f4d50852bmsh18208c6cdabf7d5p1c8a68jsn6c3a2b8fa7b8","d3c96044bfmshfb83354c3708e98p1ed394jsnbf4ef41a0837"];
     let rapidKeyIdx = 0;
     function getRapidKey() { return RAPID_KEYS[rapidKeyIdx]; }
     function rotateRapidKey() { rapidKeyIdx = (rapidKeyIdx + 1) % RAPID_KEYS.length; console.log("Rotated API Key"); }
@@ -1011,11 +1011,38 @@ let globalLoadRequestId = 0;
             const mp = document.getElementById('mini-player'); mp.style.display = 'flex';
             setTimeout(() => { mp.style.transform = 'translateY(0)'; mp.style.opacity = '1'; mp.classList.add('show'); }, 50);
             document.getElementById('mini-img').classList.add('spin-anim');
-            // Play canvas only if NOT in video mode
-            const vid = document.getElementById('canvas-video'); 
-            if(vid.src && vid.readyState >= 2 && state.showCanvas && !state.videoMode) vid.play().catch(e=>console.log(e));
-            if(!audioCtx) initAudioContext(); if(audioCtx.state === 'suspended') audioCtx.resume();
-        });
+     const vid = document.getElementById('canvas-video');
+        const bg = document.getElementById('fp-bg-gradient');
+        const imgArea = document.getElementById('fp-img-area');
+
+        // Check if we have a valid source and Canvas is enabled
+        if(vid.src && state.showCanvas && !state.videoMode) {
+            vid.play().then(() => {
+                // SUCCESS: Video is playing. 
+                // If in Portrait, Show Video & Hide Art
+                if(window.innerHeight > window.innerWidth) {
+                    vid.style.opacity = '1';
+                    if(bg) bg.style.opacity = '0';
+                    if(imgArea) imgArea.style.opacity = '0';
+                }
+            }).catch(e => {
+                // FAIL: Video failed to play. 
+                // Force Art & Gradient to show
+                console.log("Canvas play error, restoring Art");
+                vid.style.opacity = '0';
+                if(bg) bg.style.opacity = '1';
+                if(imgArea) imgArea.style.opacity = '1';
+            });
+        } else {
+            // NO CANVAS AVAILABLE: Force Art & Gradient to show
+            vid.style.opacity = '0';
+            if(bg) bg.style.opacity = '1';
+            if(imgArea) imgArea.style.opacity = '1';
+        }
+
+        if(!audioCtx) initAudioContext(); 
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+    });
         audio.addEventListener('pause', () => { 
             state.isPlaying = false; updateIcons(); updateMediaSessionPosition(); document.getElementById('mini-img').classList.remove('spin-anim'); document.getElementById('canvas-video').pause(); 
         });
@@ -1050,20 +1077,33 @@ let globalLoadRequestId = 0;
         });
 
         const cv = document.getElementById('canvas-video');
+        
+        // --- FIX START: ROBUST CANVAS HANDLING ---
         const handleCanvasPlay = function() { 
             if(!state.showCanvas || state.videoMode) return; 
-            
-            // FIX: If in Landscape mode, DO NOT hide the background. 
-            // The CSS #fp-bg-gradient { opacity: 1 !important } handles the visibility.
-            if(window.innerWidth > window.innerHeight) return;
+            if(window.innerWidth > window.innerHeight) return; // Landscape check
 
-            // Portrait Logic: Hide background to show canvas
-            if(state.isPlaying) this.play(); 
-            this.style.opacity = '1'; 
-            document.getElementById('fp-bg-gradient').style.opacity = '0'; 
-            document.getElementById('fp-img-area').style.opacity = '0'; 
+            // Only hide Art/BG if video has enough data to play (readyState >= 2)
+            if(this.readyState >= 2) {
+                if(state.isPlaying) this.play().catch(e => console.log(e)); 
+                this.style.opacity = '1'; 
+                document.getElementById('fp-bg-gradient').style.opacity = '0'; 
+                document.getElementById('fp-img-area').style.opacity = '0'; 
+            }
         };
-        cv.addEventListener('canplay', handleCanvasPlay); cv.addEventListener('play', handleCanvasPlay);
+
+        // Reset UI if Canvas fails to load
+        cv.addEventListener('error', () => {
+            console.log("Canvas failed, restoring UI");
+            cv.style.opacity = '0';
+            document.getElementById('fp-bg-gradient').style.opacity = '1'; 
+            document.getElementById('fp-img-area').style.opacity = '1';
+        });
+        // --- FIX END ---
+
+        cv.addEventListener('canplay', handleCanvasPlay); 
+        cv.addEventListener('play', handleCanvasPlay);
+        cv.addEventListener('playing', handleCanvasPlay); // Added 'playing' for extra safety
         setupGestures();
         
         // Setup new YT Gestures
@@ -3337,53 +3377,34 @@ function exitFullscreenSafe() {
         }
     }
 }
-// --- STRICT PORTRAIT RESET ---
-// This ensures that when you rotate back to Portrait, 
-// any changes made by Landscape mode (like moving the canvas) are undone.
-window.addEventListener('resize', () => {
-    // If we are in Portrait Mode (Height > Width)
-    if(window.innerHeight > window.innerWidth) {
+const cv = document.getElementById('canvas-video');
         
-        const cv = document.getElementById('canvas-video');
-        const fp = document.getElementById('full-player');
-        const bg = document.getElementById('fp-bg-gradient');
-        const art = document.getElementById('fp-art');
-        const imgArea = document.getElementById('fp-img-area');
+        // --- FIX START: ROBUST CANVAS HANDLING ---
+        const handleCanvasPlay = function() { 
+            if(!state.showCanvas || state.videoMode) return; 
+            if(window.innerWidth > window.innerHeight) return; // Landscape check
 
-        // 1. DOM RESET: Move Canvas back to background if it was moved to imgArea
-        if(cv && fp && bg && cv.parentNode !== fp) {
-             fp.insertBefore(cv, bg);
-        }
-        
-        // 2. Reset Background Opacity (In case Landscape logic messed with it)
-        if(bg) bg.style.opacity = '1';
-        
-        // 3. Reset Image Area Opacity
-        if(imgArea) imgArea.style.opacity = '1'; 
-        
-        // 4. Handle Canvas Visibility for Portrait
-        // If canvas is enabled AND available, show it as background
-        if(state.showCanvas && !state.videoMode && cv.src && cv.src !== "") {
-            cv.style.opacity = '1'; 
-            if(imgArea) imgArea.style.opacity = '0'; // Hide art container in portrait canvas mode
-            bg.style.opacity = '0'; // Hide gradient in portrait canvas mode
-            cv.play().catch(e=>{});
-        } else {
-            // Otherwise show Art
-            cv.style.opacity = '0';
-            if(art) {
-                art.classList.add('active');
-                art.style.opacity = '1';
+            // Only hide Art/BG if video has enough data to play (readyState >= 2)
+            if(this.readyState >= 2) {
+                if(state.isPlaying) this.play().catch(e => console.log(e)); 
+                this.style.opacity = '1'; 
+                document.getElementById('fp-bg-gradient').style.opacity = '0'; 
+                document.getElementById('fp-img-area').style.opacity = '0'; 
             }
-            if(imgArea) imgArea.style.opacity = '1';
-        }
-        
-        // 5. Remove Landscape specific classes from panel (Ratio reset)
-        const leftPanel = document.querySelector('.fp-left-panel');
-        if(leftPanel) leftPanel.classList.remove('ratio-art', 'ratio-canvas', 'ratio-video');
-    }
-});
+        };
 
+        // Reset UI if Canvas fails to load
+        cv.addEventListener('error', () => {
+            console.log("Canvas failed, restoring UI");
+            cv.style.opacity = '0';
+            document.getElementById('fp-bg-gradient').style.opacity = '1'; 
+            document.getElementById('fp-img-area').style.opacity = '1';
+        });
+        // --- FIX END ---
+
+        cv.addEventListener('canplay', handleCanvasPlay); 
+        cv.addEventListener('play', handleCanvasPlay);
+        cv.addEventListener('playing', handleCanvasPlay); 
 </script>
 </body>
 </html>

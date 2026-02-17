@@ -3377,34 +3377,75 @@ function exitFullscreenSafe() {
         }
     }
 }
-const cv = document.getElementById('canvas-video');
+// --- STRICT PORTRAIT RESET (HARD RESET) ---
+window.addEventListener('resize', () => {
+    // Only execute if we have returned to Portrait Mode
+    if(window.innerHeight > window.innerWidth) {
         
-        // --- FIX START: ROBUST CANVAS HANDLING ---
-        const handleCanvasPlay = function() { 
-            if(!state.showCanvas || state.videoMode) return; 
-            if(window.innerWidth > window.innerHeight) return; // Landscape check
+        // 1. GET ELEMENTS
+        const cv = document.getElementById('canvas-video');
+        const fp = document.getElementById('full-player');
+        const bg = document.getElementById('fp-bg-gradient');
+        const art = document.getElementById('fp-art');
+        const imgArea = document.getElementById('fp-img-area');
+        const leftPanel = document.querySelector('.fp-left-panel');
+        const vidContainer = document.getElementById('yt-view-container');
 
-            // Only hide Art/BG if video has enough data to play (readyState >= 2)
-            if(this.readyState >= 2) {
-                if(state.isPlaying) this.play().catch(e => console.log(e)); 
-                this.style.opacity = '1'; 
-                document.getElementById('fp-bg-gradient').style.opacity = '0'; 
-                document.getElementById('fp-img-area').style.opacity = '0'; 
+        // 2. DOM RESET: Move Canvas back to background layer immediately
+        // In Landscape Canvas mode, we moved it inside 'imgArea'. We must move it back.
+        if(cv && fp && bg && cv.parentNode !== fp) {
+             fp.insertBefore(cv, bg);
+        }
+
+        // 3. CLEAR LANDSCAPE CLASSES
+        // Remove 9:16 or 16:9 ratios applied in landscape
+        if(leftPanel) {
+            leftPanel.classList.remove('ratio-art', 'ratio-canvas', 'ratio-video');
+        }
+
+        // 4. RESET LANDSCAPE BUTTONS
+        // Reset the "Art/Canvas/Video" switcher to 'Art'
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        const btnArt = document.getElementById('mode-art');
+        if(btnArt) btnArt.classList.add('active');
+
+        // 5. VISUAL HARD RESET (FORCE ART MODE)
+        // Irrespective of what was happening in Landscape, show Art & BG in Portrait.
+        
+        if(state.videoMode) {
+            // EXCEPTION: If YouTube Video is playing, keep Video Container visible
+            if(vidContainer) vidContainer.classList.add('active');
+            if(art) art.classList.remove('active');
+            // Ensure gradient is visible for video mode
+            if(bg) bg.style.opacity = '1';
+            if(imgArea) imgArea.style.opacity = '1';
+        } else {
+            // STANDARD AUDIO MODE RESET
+            
+            // Show Art
+            if(art) {
+                art.classList.add('active');
+                art.style.opacity = '1';
             }
-        };
+            
+            // Show Background Gradient
+            if(bg) bg.style.opacity = '1';
+            
+            // Show Image Container
+            if(imgArea) imgArea.style.opacity = '1';
+            
+            // Hide YouTube Container
+            if(vidContainer) vidContainer.classList.remove('active');
 
-        // Reset UI if Canvas fails to load
-        cv.addEventListener('error', () => {
-            console.log("Canvas failed, restoring UI");
-            cv.style.opacity = '0';
-            document.getElementById('fp-bg-gradient').style.opacity = '1'; 
-            document.getElementById('fp-img-area').style.opacity = '1';
-        });
-        // --- FIX END ---
-
-        cv.addEventListener('canplay', handleCanvasPlay); 
-        cv.addEventListener('play', handleCanvasPlay);
-        cv.addEventListener('playing', handleCanvasPlay); 
+            // HIDE CANVAS (Forget Landscape Canvas State)
+            if(cv) {
+                cv.style.opacity = '0';
+                // Optional: Pause canvas to save battery/reset state
+                // cv.pause(); 
+            }
+        }
+    }
+});
 </script>
 </body>
 </html>

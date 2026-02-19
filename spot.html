@@ -885,7 +885,7 @@
     let rapidKeyIdx = 0;
     function getRapidKey() { return RAPID_KEYS[rapidKeyIdx]; }
     function rotateRapidKey() { rapidKeyIdx = (rapidKeyIdx + 1) % RAPID_KEYS.length; console.log("Rotated API Key"); }
-    const RAPID_API_HOST = "spotify81.p.rapidapi.com";
+    const RAPID_API_HOST = "spotify8.p.rapidapi.com";
     const APP_LOGO_URL = "https://i.ibb.co/zhg1w3dw/file-00000000aca472308a4675a6979753cb.png";
     const BASE_API = "https://ayushm-psi.vercel.app/api";
 
@@ -2748,7 +2748,7 @@ async function toggleFpMenu() {
 
             while(attempts < MAX_RETRIES) {
                 try {
-                    const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}Original full video`;
+                    const ytUrl = `https://www.youtbe.com/results?search_query=${encodeURIComponent(query)}Original full video`;
                     const directUrl = `https://r.jina.ai/${ytUrl}`; 
 
                     const res = await fetch(directUrl);

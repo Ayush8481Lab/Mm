@@ -700,7 +700,7 @@
 
 <!-- Full Player -->
     <div id="full-player">
-    	<canvas id="color-canvas" style="display:none;"></canvas>
+    
         <video id="canvas-video" muted loop playsinline></video>
         <div id="fp-bg-gradient"></div>
         
@@ -1751,29 +1751,44 @@ let globalLoadRequestId = 0;
         
         releaseWakeLock(); 
     }
-    function extractDominantColor(imgEl) {
-    try {
-        const canvas = document.getElementById('color-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        canvas.width = imgEl.naturalWidth || imgEl.width || 100; 
-        canvas.height = imgEl.naturalHeight || imgEl.height || 100;
-        
-        ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-        const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-        let r=0, g=0, b=0, count=0;
-        
-        // Sample pixels quickly
-        for (let i = 0; i < data.length; i += 40) { 
-            r += data[i]; g += data[i+1]; b += data[i+2]; count++; 
+    function extractDominantColor(imageUrl) {
+    // 1. Create an invisible image in memory (doesn't touch the UI)
+    const img = new Image();
+    img.crossOrigin = "Anonymous"; 
+    
+    img.onload = function() {
+        try {
+            // 2. Create a canvas in memory (doesn't touch the UI)
+            const canvas = document.createElement('canvas'); 
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            canvas.width = img.width || 100; 
+            canvas.height = img.height || 100;
+            
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            let r=0, g=0, b=0, count=0;
+            
+            // Sample pixels quickly
+            for (let i = 0; i < data.length; i += 40) { 
+                r += data[i]; g += data[i+1]; b += data[i+2]; count++; 
+            }
+            
+            if (count > 0) {
+                // 3. Apply the color to the CSS variable
+                document.documentElement.style.setProperty('--dominant-rgb', `${Math.floor(r/count)}, ${Math.floor(g/count)}, ${Math.floor(b/count)}`);
+            }
+        } catch (e) { 
+            console.warn("Color extraction blocked by image host. Using default."); 
+            document.documentElement.style.setProperty('--dominant-rgb', '30, 30, 30');
         }
-        
-        if (count > 0) {
-            document.documentElement.style.setProperty('--dominant-rgb', `${Math.floor(r/count)}, ${Math.floor(g/count)}, ${Math.floor(b/count)}`);
-        }
-    } catch (e) { 
-        console.warn("Canvas CORS blocked. Reverting to default dark."); 
+    };
+
+    img.onerror = function() {
         document.documentElement.style.setProperty('--dominant-rgb', '30, 30, 30');
-    }
+    };
+
+    // Trigger the invisible image load
+    img.src = imageUrl;
 }
 
     function updateUI(track) {
@@ -1783,16 +1798,12 @@ let globalLoadRequestId = 0;
         mt.innerText = track.title; ma.innerText = displayArtist; ft.innerText = track.title; fa.innerText = displayArtist; window.observeMarquees();
         
         // --- FORCE HIGH QUALITY IMAGE FOR PLAYERS (500x500) ---
-        let rawImg = track.img || 'https://via.placeholder.com/150';
-        let hqImg = rawImg.replace('150x150', '500x500').replace('50x50', '500x500'); // Force upgrade
-        
-        document.getElementById('mini-img').src = hqImg; 
-        
-        // --- UPDATED MAIN ART LOGIC FOR SPOTIFY BACKGROUND ---
-        const fpArt = document.getElementById('fp-art');
-        fpArt.crossOrigin = "anonymous"; // Crucial for Canvas pixel extraction
-        fpArt.onload = () => extractDominantColor(fpArt);
-        fpArt.src = hqImg;
+        let rawImg = track.img || 'https://via.placeholder.com/150';
+        let hqImg = rawImg.replace('150x150', '500x500').replace('50x50', '500x500'); // Force upgrade
+        
+        document.getElementById('mini-img').src = hqImg; 
+        document.getElementById('fp-art').src = hqImg;
+        extractDominantColor(hqImg);
         
         const isLiked = likedSongs.some(s => s.id === track.id);
         ['mini-heart', 'fp-heart'].forEach(id => { const el = document.getElementById(id); if(isLiked) { el.classList.remove('far'); el.classList.add('fas', 'liked'); } else { el.classList.add('far'); el.classList.remove('fas', 'liked'); } });

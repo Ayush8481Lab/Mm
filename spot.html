@@ -885,7 +885,7 @@
     let rapidKeyIdx = 0;
     function getRapidKey() { return RAPID_KEYS[rapidKeyIdx]; }
     function rotateRapidKey() { rapidKeyIdx = (rapidKeyIdx + 1) % RAPID_KEYS.length; console.log("Rotated API Key"); }
-    const RAPID_API_HOST = "spotify8.p.rapidapi.com";
+    const RAPID_API_HOST = "spotify81.p.rapidapi.com";
     const APP_LOGO_URL = "https://i.ibb.co/zhg1w3dw/file-00000000aca472308a4675a6979753cb.png";
     const BASE_API = "https://ayushm-psi.vercel.app/api";
 
@@ -1602,153 +1602,68 @@ let globalLoadRequestId = 0;
 
     async function fetchMeta(title, artist, trackId, fetchId) {
         if (!state.showCanvas && !state.showLyrics) return;
-
-        const searchArtist = artist ? artist.split(',').slice(0, 2).join(' ') : "";
-        const query = `${title} ${searchArtist}`.trim();
-        let data = null;
-
-        // --- 1. TRY NEW API (AyushSpot) ---
         try {
-            const newApiUrl = `https://ayushspot.vercel.app/api?query=${encodeURIComponent(query)}`;
-            const res = await fetch(newApiUrl);
-            if (res.ok) {
-                const json = await res.json();
-                if (json.status === 'success' && json.data && json.data.length > 0) {
-                    data = json; // Pass full JSON to performMatching
-                }
-            }
-        } catch (e) {
-            console.log("New Meta API failed, switching to fallback...");
-        }
+            const searchArtist = artist ? artist.split(',').slice(0, 2).join(' ') : "";
+            const query = `${title} ${searchArtist}`.trim();
+            const searchUrl = `https://${RAPID_API_HOST}/search?q=${encodeURIComponent(query)}&type=tracks&offset=0&limit=25&numberOfTopResults=5`;
+            
+            const response = await fetch(searchUrl, { method: 'GET', headers: { 'x-rapidapi-key': getRapidKey(), 'x-rapidapi-host': RAPID_API_HOST } });
+            
+            if (!response.ok) {
+                 if (response.status === 429 || response.status === 401 || response.status === 403) {
+                     rotateRapidKey();
+                     const retryRes = await fetch(searchUrl, { method: 'GET', headers: { 'x-rapidapi-key': getRapidKey(), 'x-rapidapi-host': RAPID_API_HOST } });
+                     if(!retryRes.ok) return;
+                     var data = await retryRes.json();
+                 } else { return; }
+            } else { var data = await response.json(); }
 
-        // --- 2. FALLBACK TO RAPIDAPI (If New API failed or returned no data) ---
-        if (!data) {
-            try {
-                const searchUrl = `https://${RAPID_API_HOST}/search?q=${encodeURIComponent(query)}&type=tracks&offset=0&limit=25&numberOfTopResults=5`;
-                let response = await fetch(searchUrl, { method: 'GET', headers: { 'x-rapidapi-key': getRapidKey(), 'x-rapidapi-host': RAPID_API_HOST } });
-                
-                if (!response.ok) {
-                    if (response.status === 429 || response.status === 401 || response.status === 403) {
-                        rotateRapidKey();
-                        response = await fetch(searchUrl, { method: 'GET', headers: { 'x-rapidapi-key': getRapidKey(), 'x-rapidapi-host': RAPID_API_HOST } });
-                    }
-                }
-                
-                if (response.ok) {
-                    data = await response.json();
-                }
-            } catch (e) { console.log("RapidAPI fallback failed", e); }
-        }
+            if (state.metaFetchId !== fetchId) return;
+            if (state.currentTrackId !== trackId) return;
 
-        if (!data) return; // Both failed
-        if (state.metaFetchId !== fetchId) return;
-        if (state.currentTrackId !== trackId) return;
+            const match = performMatching(data, title, artist); if(!match) return;
+            const spotifyId = match.id; const spotifyUrl = `https://open.spotify.com/track/${spotifyId}`;
+            const promises = []; const resultKeys = [];
+            if(state.showCanvas) { promises.push(fetchCanvas(spotifyId)); resultKeys.push('canvas'); }
+            if(state.showLyrics) { promises.push(fetchLyrics(spotifyUrl)); resultKeys.push('lyrics'); }
+            const results = await Promise.allSettled(promises);
+            
+            if (state.metaFetchId !== fetchId) return;
+            if (state.currentTrackId !== trackId) return; 
 
-        // Match using the updated matching function
-        const match = performMatching(data, title, artist); 
-        if(!match) return;
-
-        const spotifyId = match.id; // Normalized ID from performMatching
-        const spotifyUrl = `https://open.spotify.com/track/${spotifyId}`;
-        
-        const promises = []; 
-        const resultKeys = [];
-        
-        if(state.showCanvas) { promises.push(fetchCanvas(spotifyId)); resultKeys.push('canvas'); }
-        if(state.showLyrics) { promises.push(fetchLyrics(spotifyUrl)); resultKeys.push('lyrics'); }
-        
-        const results = await Promise.allSettled(promises);
-        
-        if (state.metaFetchId !== fetchId) return;
-        if (state.currentTrackId !== trackId) return; 
-
-        let newCacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
-        if(downloads.some(d => d.id === trackId)) newCacheEntry.permanent = true;
-        
-        let hasData = false;
-        results.forEach((res, index) => { 
-            if(res.status === 'fulfilled' && res.value) { 
-                if(resultKeys[index] === 'canvas') newCacheEntry.canvasUrl = res.value; 
-                if(resultKeys[index] === 'lyrics') newCacheEntry.lyricsData = res.value; 
-                hasData = true; 
-            } 
-        });
-
-        if (hasData) { 
-            metaCache[trackId] = newCacheEntry; 
-            IdbHelper.set('vibeMetaCache', metaCache); 
-             if (state.currentTrackId === trackId && !state.videoMode) {
-                 if(newCacheEntry.canvasUrl && state.showCanvas) document.getElementById('canvas-video').src = newCacheEntry.canvasUrl;
-                 if(newCacheEntry.lyricsData) {
-                     state.lyricsData = newCacheEntry.lyricsData;
-                     if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); }
+            let newCacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
+            if(downloads.some(d => d.id === trackId)) newCacheEntry.permanent = true;
+            let hasData = false;
+            results.forEach((res, index) => { if(res.status === 'fulfilled' && res.value) { if(resultKeys[index] === 'canvas') newCacheEntry.canvasUrl = res.value; if(resultKeys[index] === 'lyrics') newCacheEntry.lyricsData = res.value; hasData = true; } });
+            if (hasData) { 
+                metaCache[trackId] = newCacheEntry; IdbHelper.set('vibeMetaCache', metaCache); 
+                 if (state.currentTrackId === trackId && !state.videoMode) {
+                     if(newCacheEntry.canvasUrl && state.showCanvas) document.getElementById('canvas-video').src = newCacheEntry.canvasUrl;
+                     if(newCacheEntry.lyricsData) {
+                         state.lyricsData = newCacheEntry.lyricsData;
+                         if(state.showLyrics) { document.getElementById('mini-lyrics-player').style.display = 'block'; document.getElementById('mini-lyric-text').innerText = "Lyrics ready"; renderFullLyrics(); }
+                     }
                  }
-             }
-        }
+            }
+        } catch(e) { console.log("Meta fetch failed", e); }
     }
 
     function performMatching(apiData, targetTrack, targetArtist) {
-        // Clean string helper
+        if (!apiData.tracks || apiData.tracks.length === 0) return null;
         const clean = (s) => (s || "").toLowerCase().replace(/[^\w\s]|_/g, "").replace(/\s+/g, " ").trim();
-        const tTitle = clean(targetTrack); 
-        const tArtist = clean(targetArtist);
-        
-        let bestMatch = null; 
-        let highestScore = 0;
-        let candidates = [];
-
-        // 1. Handle New API Structure (AyushSpot)
-        if (apiData.data && Array.isArray(apiData.data)) {
-            candidates = apiData.data.map(item => ({
-                id: item.track_id,
-                name: item.title,
-                // Split comma-separated string into array for matching logic
-                artists: (item.artist_names || "").split(',').map(s => s.trim()) 
-            }));
-        } 
-        // 2. Handle Old RapidAPI Structure (Fallback)
-        else if (apiData.tracks && Array.isArray(apiData.tracks)) {
-            candidates = apiData.tracks.map(item => ({
-                id: item.data.id,
-                name: item.data.name,
-                artists: item.data.artists.items.map(a => a.profile.name)
-            }));
-        }
-
-        if (candidates.length === 0) return null;
-
-        // Shared Matching Logic
-        candidates.forEach(track => {
-            const rTitle = clean(track.name);
-            const rArtists = track.artists.map(a => clean(a));
-            
-            let score = 0; 
-            let artistMatched = false;
-            
-            // Artist Score
+        const tTitle = clean(targetTrack); const tArtist = clean(targetArtist);
+        let bestMatch = null; let highestScore = 0;
+        apiData.tracks.forEach(item => {
+            const track = item.data; if (!track) return;
+            const rTitle = clean(track.name); const rArtists = track.artists.items.map(a => clean(a.profile.name));
+            let score = 0; let artistMatched = false;
             if (tArtist.length > 0) {
-                for (let ra of rArtists) { 
-                    if (ra === tArtist) { score += 100; artistMatched = true; break; } 
-                    else if (ra.includes(tArtist) || tArtist.includes(ra)) { score += 80; artistMatched = true; break; } 
-                }
-                if (!artistMatched) score = 0; // Penalize if artist matches nothing
-            } else { 
-                score += 50; // No artist provided, be lenient
-            }
-
-            // Title Score (only calculated if artist score didn't zero out, or strict matching)
-            if (score > 0) { 
-                if (rTitle === tTitle) score += 100; 
-                else if (rTitle.startsWith(tTitle) || tTitle.startsWith(rTitle)) score += 80; 
-                else if (rTitle.includes(tTitle)) score += 50; 
-            }
-
-            if (score > highestScore) { 
-                highestScore = score; 
-                bestMatch = track; // This object now has normalized {id, name}
-            }
+                for (let ra of rArtists) { if (ra === tArtist) { score += 100; artistMatched = true; break; } else if (ra.includes(tArtist) || tArtist.includes(ra)) { score += 80; artistMatched = true; break; } }
+                if (!artistMatched) score = 0;
+            } else { score += 50; }
+            if (score > 0) { if (rTitle === tTitle) score += 100; else if (rTitle.startsWith(tTitle) || tTitle.startsWith(rTitle)) score += 80; else if (rTitle.includes(tTitle)) score += 50; }
+            if (score > highestScore) { highestScore = score; bestMatch = track; }
         });
-
         return highestScore > 0 ? bestMatch : null;
     }
     
@@ -2722,71 +2637,52 @@ async function toggleFpMenu() {
         const qArtist = clean(artistName);
         const qLabel = clean(label); 
         
-        // Construct Query
+        // Construct Query with Label
         const query = `${qSong} ${qArtist} ${qLabel}`.trim();
-        let bestId = null;
+        
+        let attempts = 0;
+        const MAX_RETRIES = 5;
 
-        // --- 1. TRY NEW VIDEO API (AyushVid) ---
-        try {
-            const vidApiUrl = `https://ayushvid.vercel.app/api?q=${encodeURIComponent(query)}`;
-            const res = await fetch(vidApiUrl);
-            if (res.ok) {
-                const json = await res.json();
-                // Check format based on provided JSON: {"top_result": {"videoId": "..."}}
-                if (json.top_result && json.top_result.videoId) {
-                    bestId = json.top_result.videoId;
-                }
-            }
-        } catch (e) {
-            console.log("New Video API failed, switching to Jina fallback...");
-        }
+        while(attempts < MAX_RETRIES) {
+            try {
+                const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}Original full video`;
+// DIRECT JINA URL
+const directUrl = `https://r.jina.ai/${ytUrl}`; 
 
-        // --- 2. FALLBACK TO JINA/SCRAPING (If New API failed) ---
-        if (!bestId) {
-            let attempts = 0;
-            const MAX_RETRIES = 3; // Reduced retries since we have a primary API now
+const res = await fetch(directUrl);
+                if(!res.ok) throw new Error("Proxy error");
+                const text = await res.text();
 
-            while(attempts < MAX_RETRIES) {
-                try {
-                    const ytUrl = `https://www.youtbe.com/results?search_query=${encodeURIComponent(query)}Original full video`;
-                    const directUrl = `https://r.jina.ai/${ytUrl}`; 
+                // Regex to find the first video link
+                const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
+                const match = regex.exec(text);
 
-                    const res = await fetch(directUrl);
-                    if(!res.ok) throw new Error("Proxy error");
-                    const text = await res.text();
+                // DIRECTLY USE TOP 1ST RESULT
+                if (match && match[3]) {
+                    let bestId = match[3]; 
 
-                    // Regex to find the first video link
-                    const regex = /\[([^\]]+)\]\((https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11}))/;
-                    const match = regex.exec(text);
-
-                    if (match && match[3]) {
-                        bestId = match[3];
-                        break; // Found it, exit loop
+                    // Save to cache
+                    let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
+                    cacheEntry.ytId = bestId;
+                    metaCache[trackId] = cacheEntry;
+                    IdbHelper.set('vibeMetaCache', metaCache);
+                    
+                    // Only update currentTrackYTId if this fetch corresponds to the current track
+                    if (state.currentTrackId === trackId) {
+                        state.currentTrackYTId = bestId;
                     }
-                } catch (e) {
-                    console.log(`YT Jina Attempt ${attempts+1} failed`, e);
+                    return bestId;
                 }
-                attempts++;
-                if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1500));
+            } catch (e) {
+                console.log(`YT Attempt ${attempts+1} failed`, e);
             }
-        }
-
-        // --- 3. SAVE RESULT ---
-        if (bestId) {
-            let cacheEntry = metaCache[trackId] || { ts: Date.now(), permanent: false };
-            cacheEntry.ytId = bestId;
-            metaCache[trackId] = cacheEntry;
-            IdbHelper.set('vibeMetaCache', metaCache);
-            
-            // Only update currentTrackYTId if this fetch corresponds to the current track
-            if (state.currentTrackId === trackId) {
-                state.currentTrackYTId = bestId;
-            }
-            return bestId;
+            attempts++;
+            if(attempts < MAX_RETRIES) await new Promise(r => setTimeout(r, 1000));
         }
 
         return null; 
     }
+    
 function toggleVideoMode() {
         if (state.videoSwitching) return;
         state.videoSwitching = true;

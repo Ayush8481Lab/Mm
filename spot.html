@@ -241,14 +241,7 @@
         }
         #full-player.active { transform: translateY(0); }
         
-#fp-bg-gradient { 
-    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-    background-color: #121212; /* Default fallback */
-    /* This gradient overlays the color, fading smoothly into your app's var(--dark) color (#0f1014) */
-    background-image: linear-gradient(to bottom, rgba(15, 16, 20, 0.1) 0%, rgba(15, 16, 20, 0.7) 45%, rgba(15, 16, 20, 1) 90%);
-    z-index: -2; 
-    transition: background-color 1.2s ease-in-out, opacity 1s ease; 
-}
+#fp-bg-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #121212; background-image: linear-gradient(to bottom, rgba(15,16,20,0.1) 0%, rgba(15,16,20,0.7) 50%, rgba(15,16,20,1) 95%); z-index: -2; transition: background-color 1.2s ease, opacity 1s ease; }
         
         #full-player.canvas-immersive { justify-content: flex-end; padding-bottom: calc(env(safe-area-inset-bottom) + 30px); }
         #full-player.canvas-immersive .fp-top, #full-player.canvas-immersive .fp-info, #full-player.canvas-immersive .fp-controls, #full-player.canvas-immersive .slider-container, #full-player.canvas-immersive #mini-lyrics-player { display: none !important; }
@@ -1752,60 +1745,7 @@ let globalLoadRequestId = 0;
         releaseWakeLock(); 
     }
 
-// --- EXACT SPOTIFY-STYLE BACKGROUND EXTRACTION ---
-function updatePlayerBackground(imageUrl) {
-    const img = new Image();
-    img.crossOrigin = "Anonymous"; 
-    // Proxy to prevent CORS blocks
-    img.src = "https://corsproxy.io/?" + encodeURIComponent(imageUrl);
 
-    img.onload = function() {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-
-        try {
-            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-            let r = 0, g = 0, b = 0, count = 0;
-
-            // 1. Spotify Magic: Filter out pure black/white/gray to find the "pop" color
-            for (let i = 0; i < data.length; i += 16) { // Sample every 4th pixel for speed
-                let rP = data[i], gP = data[i+1], bP = data[i+2];
-                let max = Math.max(rP, gP, bP), min = Math.min(rP, gP, bP);
-                
-                // Ignore grayish/muddy pixels to get a vibrant average
-                if (max - min > 15 && max > 30 && max < 240) {
-                    r += rP; g += gP; b += bP; count++;
-                }
-            }
-
-            // Fallback: If image is completely grayscale, just do a normal average
-            if (count === 0) {
-                for (let i = 0; i < data.length; i += 16) {
-                    r += data[i]; g += data[i+1]; b += data[i+2]; count++;
-                }
-            }
-
-            r = Math.floor(r / count);
-            g = Math.floor(g / count);
-            b = Math.floor(b / count);
-
-            // 2. Premium Touch: Darken the color slightly so it looks rich and text remains readable
-            const premiumR = Math.floor(r * 0.65);
-            const premiumG = Math.floor(g * 0.65);
-            const premiumB = Math.floor(b * 0.65);
-
-            // 3. Apply ONLY to the background-color (the CSS gradient handles the fade to black)
-            document.getElementById('fp-bg-gradient').style.backgroundColor = `rgb(${premiumR}, ${premiumG}, ${premiumB})`;
-            
-        } catch (e) {
-            console.log("Canvas extraction skipped due to CORS");
-        }
-    };
-}
-
     function updateUI(track) {
         let displayArtist = track.artist; if(displayArtist) { let artists = displayArtist.split(', '); if(artists.length > 3) displayArtist = artists.slice(0, 3).join(', ') + '...'; }
         
@@ -3507,6 +3447,50 @@ window.addEventListener('resize', () => {
         }
     }
 });
+// --- SPOTIFY PREMIUM DYNAMIC BACKGROUND ---
+function updatePlayerBackground(imageUrl) {
+    if(!imageUrl) return;
+    const img = new Image();
+    img.crossOrigin = "Anonymous"; 
+    img.src = "https://corsproxy.io/?" + encodeURIComponent(imageUrl);
+
+    img.onload = function() {
+        try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            canvas.width = img.width;
+            canvas.height = img.height;
+            ctx.drawImage(img, 0, 0);
+
+            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+            let r = 0, g = 0, b = 0, count = 0;
+
+            // Filter out muddy/gray pixels to find the true vibrant color
+            for (let i = 0; i < data.length; i += 16) { 
+                let max = Math.max(data[i], data[i+1], data[i+2]);
+                let min = Math.min(data[i], data[i+1], data[i+2]);
+                if (max - min > 15 && max > 30 && max < 240) {
+                    r += data[i]; g += data[i+1]; b += data[i+2]; count++;
+                }
+            }
+            
+            // Fallback for black & white covers
+            if (count === 0) {
+                for (let i = 0; i < data.length; i += 16) {
+                    r += data[i]; g += data[i+1]; b += data[i+2]; count++;
+                }
+            }
+
+            // Darken it slightly (65%) for the premium readable look
+            const bgEl = document.getElementById('fp-bg-gradient');
+            if(bgEl) {
+                bgEl.style.backgroundColor = `rgb(${Math.floor((r/count)*0.65)}, ${Math.floor((g/count)*0.65)}, ${Math.floor((b/count)*0.65)})`;
+            }
+        } catch (e) {
+            console.log("Color extraction skipped");
+        }
+    };
+}
 </script>
 </body>
 </html>

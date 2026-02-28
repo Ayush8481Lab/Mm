@@ -239,9 +239,19 @@
             padding: 25px; display: flex; flex-direction: column; justify-content: space-evenly; 
             transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
         }
-        #full-player.active { transform: translateY(0); }
-        
-#fp-bg-gradient { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: #121212; background-image: linear-gradient(to bottom, rgba(15,16,20,0.1) 0%, rgba(15,16,20,0.7) 50%, rgba(15,16,20,1) 95%); z-index: -2; transition: background-color 1.2s ease, opacity 1s ease; }
+     #full-player { 
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+    background: #121212; /* No longer pure black */
+    z-index: 12000;
+    padding: 25px; display: flex; flex-direction: column; justify-content: space-evenly; 
+    transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
+}
+
+#fp-bg-gradient { 
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+    background: linear-gradient(to bottom, #333, #121212); /* Default fallback */
+    z-index: -2; transition: background 0.6s ease, opacity 1s ease; 
+}
         
         #full-player.canvas-immersive { justify-content: flex-end; padding-bottom: calc(env(safe-area-inset-bottom) + 30px); }
         #full-player.canvas-immersive .fp-top, #full-player.canvas-immersive .fp-info, #full-player.canvas-immersive .fp-controls, #full-player.canvas-immersive .slider-container, #full-player.canvas-immersive #mini-lyrics-player { display: none !important; }
@@ -1743,9 +1753,32 @@ let globalLoadRequestId = 0;
         if(lyVid) { lyVid.pause(); setTimeout(()=>lyVid.src="", 300); }
         
         releaseWakeLock(); 
-    }
+    }
+    function updatePlayerColors(imgUrl) {
+    const bg = document.getElementById('fp-bg-gradient');
+    const tempImg = new Image();
+    tempImg.crossOrigin = "Anonymous";
+    tempImg.src = imgUrl;
 
-
+    tempImg.onload = function() {
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1; canvas.height = 1;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(tempImg, 0, 0, 1, 1);
+            const p = ctx.getImageData(0, 0, 1, 1).data;
+            // Spotify Style: Dominant color on top, fading to soft dark gray (#121212) at bottom
+            bg.style.background = `linear-gradient(to bottom, rgba(${p[0]},${p[1]},${p[2]}, 0.8) 0%, #121212 100%)`;
+        } catch (e) {
+            // Fallback if CORS fails
+            bg.style.background = `linear-gradient(to bottom, #333 0%, #121212 100%)`;
+        }
+    };
+    
+    // Immediate dark fallback while loading
+    tempImg.onerror = () => { bg.style.background = `linear-gradient(to bottom, #333 0%, #121212 100%)`; };
+}
+
     function updateUI(track) {
         let displayArtist = track.artist; if(displayArtist) { let artists = displayArtist.split(', '); if(artists.length > 3) displayArtist = artists.slice(0, 3).join(', ') + '...'; }
         
@@ -1758,7 +1791,7 @@ let globalLoadRequestId = 0;
         
         document.getElementById('mini-img').src = hqImg; 
         document.getElementById('fp-art').src = hqImg;
-        updatePlayerBackground(hqImg);
+        updatePlayerColors(hqImg); // <--- Add this line
         
         const isLiked = likedSongs.some(s => s.id === track.id);
         ['mini-heart', 'fp-heart'].forEach(id => { const el = document.getElementById(id); if(isLiked) { el.classList.remove('far'); el.classList.add('fas', 'liked'); } else { el.classList.add('far'); el.classList.remove('fas', 'liked'); } });
@@ -3447,50 +3480,6 @@ window.addEventListener('resize', () => {
         }
     }
 });
-// --- SPOTIFY PREMIUM DYNAMIC BACKGROUND ---
-function updatePlayerBackground(imageUrl) {
-    if(!imageUrl) return;
-    const img = new Image();
-    img.crossOrigin = "Anonymous"; 
-    img.src = "https://corsproxy.io/?" + encodeURIComponent(imageUrl);
-
-    img.onload = function() {
-        try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-
-            const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
-            let r = 0, g = 0, b = 0, count = 0;
-
-            // Filter out muddy/gray pixels to find the true vibrant color
-            for (let i = 0; i < data.length; i += 16) { 
-                let max = Math.max(data[i], data[i+1], data[i+2]);
-                let min = Math.min(data[i], data[i+1], data[i+2]);
-                if (max - min > 15 && max > 30 && max < 240) {
-                    r += data[i]; g += data[i+1]; b += data[i+2]; count++;
-                }
-            }
-            
-            // Fallback for black & white covers
-            if (count === 0) {
-                for (let i = 0; i < data.length; i += 16) {
-                    r += data[i]; g += data[i+1]; b += data[i+2]; count++;
-                }
-            }
-
-            // Darken it slightly (65%) for the premium readable look
-            const bgEl = document.getElementById('fp-bg-gradient');
-            if(bgEl) {
-                bgEl.style.backgroundColor = `rgb(${Math.floor((r/count)*0.65)}, ${Math.floor((g/count)*0.65)}, ${Math.floor((b/count)*0.65)})`;
-            }
-        } catch (e) {
-            console.log("Color extraction skipped");
-        }
-    };
-}
 </script>
 </body>
 </html>

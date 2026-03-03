@@ -1372,7 +1372,15 @@
     </div>
 
 
-
+<!-- Search "View All" Overlay -->
+<div id="search-all-view" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--dark); z-index: 230; overflow-y: auto; padding-bottom: 150px; transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);">
+    <div class="back-btn" onclick="closeSearchAll()"><i class="fas fa-arrow-left"></i></div>
+    <div class="view-header" style="padding-top: 80px; padding-bottom: 10px; background: none;">
+        <h2 id="search-all-title" style="font-size: 22px; font-weight: 800; color: white;">Results</h2>
+    </div>
+    <div id="search-all-content" style="padding: 0 20px;"></div>
+    <div id="search-all-loader" class="loader" style="display: none; margin-bottom: 40px;"></div>
+</div>
     <!-- Mini Player -->
 
     <div id="mini-player" class="mp-smooth">
@@ -2537,6 +2545,14 @@ let globalLoadRequestId = 0;
             closeFullLyrics();
             return;
         }
+           // ADD THIS CHECK:
+    if (document.getElementById('search-all-view') && document.getElementById('search-all-view').classList.contains('active')) {
+        const view = document.getElementById('search-all-view');
+        view.style.transform = "translateX(100%)";
+        setTimeout(() => view.classList.remove('active'), 300);
+        history.back(); 
+        return;
+    }
 
         // 2. Close Full Player
         if (document.getElementById('full-player').classList.contains('active')) { 
@@ -2836,125 +2852,252 @@ let globalLoadRequestId = 0;
 
 
     function renderSearchResults(data) {
+    const resEl = document.getElementById('search-results'); 
+    resEl.innerHTML = '';
+    const q = document.getElementById('search-input').value.toLowerCase().trim();
 
-        const resEl = document.getElementById('search-results'); resEl.innerHTML = '';
+    // --- 1. SMART TOP RESULTS (Relevance Based) ---
+    let candidates = [];
 
-        if(data.songs && data.songs.length > 0) {
+    // Helper to calculate match score
+    const getScore = (item, type) => {
+        let score = 0;
+        const title = decodeStr(item.name || item.title || "").toLowerCase();
+        // Get subtitle/artist string safely
+        let subtitle = "";
+        if (type === 'song') subtitle = getArtistName(item).toLowerCase();
+        else if (type === 'album') subtitle = (getArtistName(item) || item.subtitle || "").toLowerCase();
+        else if (type === 'playlist') subtitle = (item.subtitle || "").toLowerCase();
+        
+        // Scoring Logic
+        if (title === q) score += 100; // Exact Title Match
+        else if (title.startsWith(q)) score += 80; // Title Starts With
+        else if (title.includes(" " + q)) score += 60; // Title contains word
+        else if (title.includes(q)) score += 40; // Title contains string
 
-            const header = document.createElement('div'); header.className = 'search-header'; header.innerText = 'Songs'; resEl.appendChild(header);
-
-            data.songs.forEach(s => {
-
-                const div = document.createElement('div'); div.className = 'list-item';
-
-                const img =  extractImg(s.image, '50'); 
-
-                const title = decodeStr(s.name || s.title);
-
-                const artist = getArtistName(s);
-
-                const isPlaying = state.currentTrackId === s.id;
-
-                div.innerHTML = `<img src="${img}"> <div class="list-info"><div class="marquee-container"><h4 class="marquee-content ${isPlaying?'text-green':''}">${title}</h4></div><div class="marquee-container"><p class="marquee-content">${artist}</p></div></div>`;
-
-                div.onclick = () => playSong(s.id, null, { ...s, title, subtitle: artist, img });
-
-                resEl.appendChild(div);
-
-            });
-
+        if (type !== 'artist') {
+            if (subtitle === q) score += 70; // Artist Exact Match
+            else if (subtitle.startsWith(q)) score += 50; // Artist Starts With
+            else if (subtitle.includes(q)) score += 20; // Artist contains
         }
 
-        if(data.albums && data.albums.length > 0) {
+        // Boost Artists slightly as they are usually what people search for in Top Results
+        if (type === 'artist') score += 10;
 
-            const header = document.createElement('div'); header.className = 'search-header'; header.innerText = 'Albums'; resEl.appendChild(header);
+        return score;
+    };
 
-            const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
+    // Gather Top 3 candidates from each category to test relevance
+    if (data.songs) data.songs.slice(0, 3).forEach(i => candidates.push({ ...i, type: 'song', score: getScore(i, 'song') }));
+    if (data.albums) data.albums.slice(0, 3).forEach(i => candidates.push({ ...i, type: 'album', score: getScore(i, 'album') }));
+    if (data.artists) data.artists.slice(0, 3).forEach(i => candidates.push({ ...i, type: 'artist', score: getScore(i, 'artist') }));
+    if (data.playlists) data.playlists.slice(0, 3).forEach(i => candidates.push({ ...i, type: 'playlist', score: getScore(i, 'playlist') }));
 
-            data.albums.forEach(a => {
+    // Filter out low relevance (score < 20) and Sort by Score Descending
+    const topItems = candidates.filter(i => i.score >= 20).sort((a, b) => b.score - a.score).slice(0, 5);
 
-                const div = document.createElement('div'); div.className = 'card';
+    if (topItems.length > 0) {
+        const topHeader = document.createElement('div'); 
+        topHeader.className = 'section-title'; 
+        topHeader.innerText = 'Top Results';
+        resEl.appendChild(topHeader);
 
-                const img = extractImg(a.image, '250');
+        const topGrid = document.createElement('div'); 
+        topGrid.className = 'grid-scroll'; 
+        
+        topItems.forEach(item => {
+            const div = document.createElement('div'); div.className = 'card';
+            if(item.type === 'artist') div.className += ' circle-img';
+            
+            const img = extractImg(item.image, '250');
+            const title = decodeStr(item.name || item.title);
+            let sub = item.type;
+            if (item.type === 'song' || item.type === 'album') sub = getArtistName(item);
 
-                const title = decodeStr(a.name || a.title);
+            div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p style="text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${sub}</p>`;
+            
+            // Click Logic
+            if(item.type === 'song') div.onclick = () => playSong(item.id, null, { ...item, img });
+            else if(item.type === 'artist') div.onclick = () => openArtist(item.id);
+            else div.onclick = () => openCollection(item.type, item.url || item.perma_url, { title, img, subtitle: sub });
 
-                const albumUrl = a.url || a.perma_url || "";
-
-                div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p>Album</p>`;
-
-                div.onclick = () => openCollection('album', albumUrl, { title, img, subtitle: 'Album' });
-
-                gridDiv.appendChild(div);
-
-            });
-
-            resEl.appendChild(gridDiv);
-
-        }
-
-        if(data.artists && data.artists.length > 0) {
-
-            const header = document.createElement('div'); header.className = 'search-header'; header.innerText = 'Artists'; resEl.appendChild(header);
-
-            const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
-
-            data.artists.forEach(a => {
-
-                const div = document.createElement('div'); div.className = 'card circle-img';
-
-                const img = extractImg(a.image, '250');
-
-                const name = decodeStr(a.name);
-
-                div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${name}</h3></div><p>Artist</p>`;
-
-                div.onclick = () => openArtist(a.id);
-
-                gridDiv.appendChild(div);
-
-            });
-
-            resEl.appendChild(gridDiv);
-
-        }
-
-        if(data.playlists && data.playlists.length > 0) {
-
-            const header = document.createElement('div'); header.className = 'search-header'; header.innerText = 'Playlists'; resEl.appendChild(header);
-
-            const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
-
-            data.playlists.forEach(a => {
-
-                const div = document.createElement('div'); div.className = 'card';
-
-                const img = extractImg(a.image, '250');
-
-                const title = decodeStr(a.name || a.title);
-
-                const plUrl = a.url || a.perma_url || "";
-
-                let logoHtml = `<img src="${APP_LOGO_URL}" class="card-logo">`;
-
-                div.innerHTML = `${logoHtml}<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p>Playlist</p>`;
-
-                div.onclick = () => openCollection('playlist', plUrl, { title, img, subtitle: 'Playlist' }, false, true);
-
-                gridDiv.appendChild(div);
-
-            });
-
-            resEl.appendChild(gridDiv);
-
-        }
-
-        window.observeMarquees();
-
+            topGrid.appendChild(div);
+        });
+        resEl.appendChild(topGrid);
     }
 
+    // --- Helper for Sections ---
+    const createHeader = (title, type) => {
+        const div = document.createElement('div');
+        div.className = 'search-header flex';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+        div.innerHTML = `<span>${title}</span> <span onclick="openSearchAll('${type}', '${document.getElementById('search-input').value}')" style="font-size: 11px; color: var(--primary); cursor: pointer; text-transform: uppercase; padding-right:15px;">View All</span>`;
+        return div;
+    };
 
+    // --- REST OF THE RESULTS (Songs, Albums, etc.) ---
+    // (Same as before, just kept standard)
+    if(data.songs && data.songs.length > 0) {
+        resEl.appendChild(createHeader('Songs', 'songs'));
+        data.songs.slice(0, 5).forEach(s => {
+            const div = document.createElement('div'); div.className = 'list-item';
+            const img = extractImg(s.image, '50');
+            const title = decodeStr(s.name || s.title);
+            const artist = getArtistName(s);
+            const isPlaying = state.currentTrackId === s.id;
+            div.innerHTML = `<img src="${img}"> <div class="list-info"><div class="marquee-container"><h4 class="marquee-content ${isPlaying?'text-green':''}">${title}</h4></div><div class="marquee-container"><p class="marquee-content">${artist}</p></div></div>`;
+            div.onclick = () => playSong(s.id, null, { ...s, title, subtitle: artist, img });
+            resEl.appendChild(div);
+        });
+    }
 
+    if(data.albums && data.albums.length > 0) {
+        resEl.appendChild(createHeader('Albums', 'albums'));
+        const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
+        data.albums.forEach(a => {
+            const div = document.createElement('div'); div.className = 'card';
+            const img = extractImg(a.image, '250');
+            const title = decodeStr(a.name || a.title);
+            div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p>Album</p>`;
+            div.onclick = () => openCollection('album', a.url||a.perma_url, { title, img, subtitle: 'Album' });
+            gridDiv.appendChild(div);
+        });
+        resEl.appendChild(gridDiv);
+    }
+
+    if(data.artists && data.artists.length > 0) {
+        resEl.appendChild(createHeader('Artists', 'artists'));
+        const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
+        data.artists.forEach(a => {
+            const div = document.createElement('div'); div.className = 'card circle-img';
+            const img = extractImg(a.image, '250');
+            const name = decodeStr(a.name);
+            div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${name}</h3></div><p>Artist</p>`;
+            div.onclick = () => openArtist(a.id);
+            gridDiv.appendChild(div);
+        });
+        resEl.appendChild(gridDiv);
+    }
+
+    if(data.playlists && data.playlists.length > 0) {
+        resEl.appendChild(createHeader('Playlists', 'playlists'));
+        const gridDiv = document.createElement('div'); gridDiv.className = 'grid-scroll';
+        data.playlists.forEach(a => {
+            const div = document.createElement('div'); div.className = 'card';
+            const img = extractImg(a.image, '250');
+            const title = decodeStr(a.name || a.title);
+            let logoHtml = `<img src="${APP_LOGO_URL}" class="card-logo">`;
+            div.innerHTML = `${logoHtml}<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p>Playlist</p>`;
+            div.onclick = () => openCollection('playlist', a.url||a.perma_url, { title, img, subtitle: 'Playlist' }, false, true);
+            gridDiv.appendChild(div);
+        });
+        resEl.appendChild(gridDiv);
+    }
+    window.observeMarquees();
+}
+function openSearchAll(type, query) {
+    searchAllState = { query: query, type: type, page: 1, loading: false, hasMore: true };
+    
+    // UI Setup
+    document.getElementById('search-all-view').classList.add('active');
+    document.getElementById('search-all-view').style.transform = "translateX(0)";
+    document.getElementById('search-all-title').innerText = `All ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    document.getElementById('search-all-content').innerHTML = '';
+    
+    // Layout: Songs = List, Others = Grid
+    const content = document.getElementById('search-all-content');
+    if (type === 'songs') {
+        content.className = 'list-view';
+        content.style.display = 'block';
+    } else {
+        content.className = 'lib-grid-view';
+        content.style.display = 'grid';
+        content.style.gridTemplateColumns = 'repeat(auto-fill, minmax(140px, 1fr))'; // Responsive Grid
+        content.style.gap = '15px';
+    }
+
+    history.pushState({view: 'search-all'}, null, '');
+    loadSearchAllPage();
+}
+
+function closeSearchAll() {
+    const view = document.getElementById('search-all-view');
+    view.style.transform = "translateX(100%)";
+    setTimeout(() => view.classList.remove('active'), 300);
+    history.back();
+}
+
+async function loadSearchAllPage() {
+    if (searchAllState.loading || !searchAllState.hasMore) return;
+    
+    searchAllState.loading = true;
+    document.getElementById('search-all-loader').style.display = 'block';
+
+    try {
+        const url = `${BASE_API}/search/${searchAllState.type}?query=${encodeURIComponent(searchAllState.query)}&page=${searchAllState.page}`;
+        const res = await fetch(url);
+        const json = await res.json();
+        const results = json.data.results || [];
+
+        if (results.length === 0) {
+            searchAllState.hasMore = false;
+        } else {
+            const container = document.getElementById('search-all-content');
+
+            results.forEach(item => {
+                const img = extractImg(item.image, searchAllState.type === 'songs' ? '50' : '250');
+                const title = decodeStr(item.name || item.title);
+                
+                if (searchAllState.type === 'songs') {
+                    // Render Song List Item
+                    const div = document.createElement('div'); 
+                    div.className = 'list-item';
+                    const artist = getArtistName(item);
+                    div.innerHTML = `<img src="${img}"> <div class="list-info"><div class="marquee-container"><h4 class="marquee-content">${title}</h4></div><div class="marquee-container"><p class="marquee-content">${artist}</p></div></div>`;
+                    div.onclick = () => playSong(item.id, null, { ...item, title, subtitle: artist, img });
+                    container.appendChild(div);
+                } else {
+                    // Render Card (Album/Artist/Playlist)
+                    const div = document.createElement('div'); 
+                    div.className = 'card';
+                    div.style.width = '100%'; div.style.maxWidth = 'none'; div.style.minWidth = '0';
+                    
+                    if(searchAllState.type === 'artists') div.className += ' circle-img';
+                    
+                    // --- BUG FIX START ---
+                    // 1. Determine the correct visual subtitle
+                    let displaySubtitle = searchAllState.type.slice(0, -1); // default 'album', 'playlist'
+                    if(searchAllState.type === 'albums') displaySubtitle = item.year || 'Album';
+                    
+                    // 2. Determine the correct functional type for clicking
+                    const actualType = searchAllState.type.slice(0, -1); // 'album', 'playlist'
+
+                    div.innerHTML = `<img src="${img}"><div class="marquee-container"><h3 class="marquee-content">${title}</h3></div><p style="text-transform:capitalize">${displaySubtitle}</p>`;
+                    
+                    if(searchAllState.type === 'artists') {
+                        div.onclick = () => openArtist(item.id);
+                    } else {
+                        // Pass 'actualType' ('album' or 'playlist'), NOT the year/subtitle
+                        div.onclick = () => openCollection(actualType, item.url||item.perma_url, { title, img, subtitle: displaySubtitle });
+                    }
+                    // --- BUG FIX END ---
+                    
+                    container.appendChild(div);
+                }
+            });
+
+            searchAllState.page++;
+            if(window.observeMarquees) window.observeMarquees();
+        }
+    } catch (e) {
+        console.error("Search pagination error", e);
+        searchAllState.hasMore = false;
+    } finally {
+        searchAllState.loading = false;
+        document.getElementById('search-all-loader').style.display = 'none';
+    }
+}
     async function playSong(id, fullUrl, preData = null) {
 
         try {
@@ -7214,6 +7357,15 @@ window.addEventListener('resize', () => {
 
     }
 
+});
+let searchAllState = { query: '', type: '', page: 1, loading: false, hasMore: true };
+
+// Scroll Listener for Search Infinite Loading
+const searchAllView = document.getElementById('search-all-view');
+searchAllView.addEventListener('scroll', () => {
+    if (searchAllView.scrollTop + searchAllView.clientHeight >= searchAllView.scrollHeight - 200) {
+        loadSearchAllPage();
+    }
 });
 
 </script>

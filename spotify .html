@@ -4654,13 +4654,13 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
             }
         });
     }
-   async function openArtist(id) {
+ async function openArtist(id) {
         document.getElementById('full-player').classList.remove('active');
      
         history.pushState({view: 'artist'}, null, '');
         const view = document.getElementById('artist-view'); view.classList.add('active');
         
-        
+        // Reset UI
         document.getElementById('artist-name').innerText = "Loading...";
         document.getElementById('artist-role').innerText = "";
         document.getElementById('artist-stats').innerText = "";
@@ -4672,20 +4672,101 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
         document.getElementById('artist-bio-container').style.display = 'none';
 
         try {
-            const[detailsRes, songsRes, albumsRes] = await Promise.all([
-                fetch(`${BASE_API}/artists/${id}`),
-                fetch(`${BASE_API}/artists/${id}/songs`),
-                fetch(`${BASE_API}/artists/${id}/albums`)
-            ]);
+            let d, songData, albumData;
+
+            try {
+                // 1. Try Loading Main Data
+                const[detailsRes, songsRes, albumsRes] = await Promise.all([
+                    fetch(`${BASE_API}/artists/${id}`),
+                    fetch(`${BASE_API}/artists/${id}/songs`),
+                    fetch(`${BASE_API}/artists/${id}/albums`)
+                ]);
+
+                if (!detailsRes.ok) throw new Error("Main Details Failed");
+
+                const details = await detailsRes.json();
+                songData = await songsRes.json();
+                albumData = await albumsRes.json();
+                
+                if (!details.data) throw new Error("Empty Data");
+                
+                d = details.data;
+
+            } catch (mainError) {
+                console.warn("Main artist data failed, switching to fallback...", mainError);
+
+                // 2. Fallback: Load Page 0 Data
+                const [fbSongsRes, fbAlbumsRes] = await Promise.all([
+                    fetch(`${BASE_API}/artists/${id}/songs?page=0`),
+                    fetch(`${BASE_API}/artists/${id}/albums?page=0`)
+                ]);
+
+                const fbSongJson = await fbSongsRes.json();
+                const fbAlbumJson = await fbAlbumsRes.json();
+
+                const fbSongs = fbSongJson.data.songs || fbSongJson.data || [];
+                const fbAlbums = fbAlbumJson.data.albums || fbAlbumJson.data || [];
+
+                // 3. Reconstruct 'd' (Details) object by finding the correct artist in the song list
+                let fbImg = "https://via.placeholder.com/150";
+                let fbName = "Artist";
+
+                if (fbSongs.length > 0) {
+                    const targetId = String(id).trim();
+                    let found = null;
+
+                    // Iterate songs to find the artist object matching the ID
+                    for (const s of fbSongs) {
+                        if (s.artists) {
+                            // Check primary artists first
+                            if (s.artists.primary) {
+                                found = s.artists.primary.find(a => String(a.id).trim() === targetId);
+                            }
+                            // Check all artists if not in primary
+                            if (!found && s.artists.all) {
+                                found = s.artists.all.find(a => String(a.id).trim() === targetId);
+                            }
+                        }
+                        if (found) break; // Stop once we find the artist details
+                    }
+
+                    if (found) {
+                        fbName = found.name || fbName;
+                        if (found.image) {
+                            fbImg = extractImg(found.image);
+                        }
+                    } else {
+                        // Backup if exact ID match inside song array fails
+                        fbName = getArtistName(fbSongs[0]) || fbName;
+                    }
+                }
+
+                d = {
+                    name: fbName,
+                    dominantType: "Artist",
+                    image: fbImg,
+                    fanCount: null,      // Set to NULL so we can hide it later
+                    followerCount: null, // Set to NULL so we can hide it later
+                    bio: [],
+                    singles: [] 
+                };
+
+                // Mock the Data Objects expected by the renderer
+                songData = { data: { songs: fbSongs } };
+                albumData = { data: { albums: fbAlbums } };
+            }
             
-            const details = await detailsRes.json();
-            const songData = await songsRes.json();
-            const albumData = await albumsRes.json();
-            const d = details.data;
-            
+            // --- RENDERING LOGIC ---
             document.getElementById('artist-name').innerText = decodeStr(d.name);
             document.getElementById('artist-role').innerText = decodeStr(d.dominantType || "Artist");
-            document.getElementById('artist-stats').innerText = `${(d.fanCount || 0).toLocaleString()} Fans • ${d.followerCount ? d.followerCount.toLocaleString() : 0} Followers`;
+            
+            // --- UPDATED STATS LOGIC: Hide if null (Fallback) ---
+            if (d.fanCount != null || d.followerCount != null) {
+                document.getElementById('artist-stats').innerText = `${(d.fanCount || 0).toLocaleString()} Fans • ${d.followerCount ? d.followerCount.toLocaleString() : 0} Followers`;
+            } else {
+                document.getElementById('artist-stats').innerText = ""; // Hide completely in fallback
+            }
+
             document.getElementById('artist-img').src = extractImg(d.image);
             
             // Render Bio
@@ -4742,14 +4823,12 @@ async function openCollection(type, url, preData, isOffline = false, forceLogo =
                 albumsEl.appendChild(div);
             });
             
-            // "All" Buttons mapping
             document.getElementById('btn-all-songs').onclick = () => openArtistAll(id, 'songs', d.name);
             document.getElementById('btn-all-albums').onclick = () => openArtistAll(id, 'albums', d.name);
 
             window.observeMarquees();
         } catch(e) { console.error(e); showToast("Error loading artist data"); }
     }
-
 
     // --- MODAL LOGIC ---
 

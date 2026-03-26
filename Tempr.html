@@ -91,7 +91,7 @@
             left: 50%; 
             transform: translate(-50%,-50%); 
             width: 100%; 
-            height: 227.77%; /* Pushes top/bottom YT UI out of view */
+            height: 177.77%; /* Pushes top/bottom YT UI out of view */
             pointer-events: none; 
         }
         
@@ -129,7 +129,7 @@
         .seek-bg {
             position: absolute;
             top: 0; bottom: 0;
-            width: 125%;
+            width: 150%;
             background: rgba(255, 255, 255, 0.15);
             border-radius: 50%;
             transform: scale(0);
@@ -233,7 +233,7 @@
 
         .play-pause-btn:hover { transform: scale(1.1); }
 
-        /* Pulsing animation for Buffering (Replaces loader) */
+        /* Pulsing animation for Buffering */
         @keyframes pulseBuffer {
             0% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.3; transform: scale(0.9); }
@@ -337,7 +337,7 @@
         /* Scrollable Sub-menus */
         #settings-speed, #settings-quality {
             display: none;
-            max-height: 150px; /* Forces scroll if content overflows */
+            max-height: 250px; /* Forces scroll if content overflows */
             overflow-y: auto;
             -ms-overflow-style: none;  /* IE and Edge */
             scrollbar-width: none;  /* Firefox */
@@ -690,11 +690,12 @@
             }
         }
 
-        // 8. Shield Smart Tap & Double Tap Logic
+        // 8. Shield Smart Tap & Double Tap Accumulation Logic
         let tapCount = 0;
         let tapTimer = null;
         let lastTapSide = null;
         let animationTimer = null;
+        let baseSeekTime = 0; // Locks current time on first tap to calculate exact jumps
 
         function showUI() { customUI.classList.remove('hide'); startHideTimer(); }
 
@@ -728,8 +729,10 @@
             tapCount++;
             if (tapCount === 1) {
                 lastTapSide = side;
+                baseSeekTime = ytPlayer.getCurrentTime(); // Lock the exact time of the first tap
+                
                 tapTimer = setTimeout(() => {
-                    toggleUIOnly(); // Was just a single tap
+                    toggleUIOnly(); // It was just a single tap
                     tapCount = 0;
                     lastTapSide = null;
                 }, 250);
@@ -738,16 +741,17 @@
                     clearTimeout(tapTimer);
                     triggerDoubleTapSeek(side, tapCount);
                     
-                    // Reset tap count slightly after so 3rd/4th consecutive taps chain perfectly
+                    // Allow up to 500ms between rapid taps to chain 30s, 40s, 50s jumps
                     tapTimer = setTimeout(() => { 
                         tapCount = 0; 
                         lastTapSide = null; 
-                    }, 500);
+                    }, 500); 
                 } else {
-                    // Tapped the opposite side, reset counter
+                    // Tapped the opposite side, reset tracking to new side
                     clearTimeout(tapTimer);
                     tapCount = 1;
                     lastTapSide = side;
+                    baseSeekTime = ytPlayer.getCurrentTime();
                     tapTimer = setTimeout(() => { toggleUIOnly(); tapCount = 0; lastTapSide = null; }, 250);
                 }
             }
@@ -761,20 +765,30 @@
         function triggerDoubleTapSeek(side, count) {
             if (!ytPlayer || !ytPlayer.seekTo) return;
             
-            const seekAmount = (count - 1) * 10;
-            const newTime = ytPlayer.getCurrentTime() + (side === 'left' ? -10 : 10);
+            const totalSeekAmount = (count - 1) * 10;
+            const offset = side === 'left' ? -totalSeekAmount : totalSeekAmount;
+            
+            let newTime = baseSeekTime + offset;
+            
+            // Boundaries
+            if (newTime < 0) newTime = 0;
+            if (newTime > ytPlayer.getDuration()) newTime = ytPlayer.getDuration();
+
             ytPlayer.seekTo(newTime, true);
 
-            // Animate Ripple
-            clearTimeout(animationTimer);
+            // Force reflow of CSS to restart the ripple animation cleanly for rapid consecutive taps
             rippleLeft.classList.remove('active');
             rippleRight.classList.remove('active');
+            void rippleLeft.offsetWidth; 
+            void rippleRight.offsetWidth;
+
+            clearTimeout(animationTimer);
 
             if (side === 'left') {
-                txtSeekLeft.innerText = `${seekAmount} seconds`;
+                txtSeekLeft.innerText = `${totalSeekAmount} seconds`;
                 rippleLeft.classList.add('active');
             } else {
-                txtSeekRight.innerText = `${seekAmount} seconds`;
+                txtSeekRight.innerText = `${totalSeekAmount} seconds`;
                 rippleRight.classList.add('active');
             }
 

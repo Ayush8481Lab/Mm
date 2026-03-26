@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Custom Clean YT Player (16:9)</title>
+    <title>Custom Clean YT Player (Pro UI)</title>
     
     <!-- Font Awesome for Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -91,7 +91,7 @@
             left: 50%; 
             transform: translate(-50%,-50%); 
             width: 100%; 
-            height: 177.77%; /* Stretches iframe height to push top/bottom YT UI out of view */
+            height: 177.77%; /* Pushes top/bottom YT UI out of view */
             pointer-events: none; 
         }
         
@@ -109,6 +109,52 @@
             cursor: pointer;
         }
 
+        /* YouTube Style Seek Ripple Animation */
+        .seek-ripple {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 40%;
+            z-index: 26;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+            overflow: hidden;
+        }
+        .seek-ripple.left { left: 0; }
+        .seek-ripple.right { right: 0; }
+
+        .seek-bg {
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 150%;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 50%;
+            transform: scale(0);
+            transition: transform 0.2s ease-out;
+        }
+        .seek-ripple.left .seek-bg { left: -50%; }
+        .seek-ripple.right .seek-bg { right: -50%; }
+
+        .seek-ripple.active { opacity: 1; }
+        .seek-ripple.active .seek-bg { transform: scale(1); }
+
+        .seek-content {
+            position: relative;
+            z-index: 2;
+            color: white;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            font-size: 13px;
+            font-weight: bold;
+            text-shadow: 0 1px 5px rgba(0,0,0,0.8);
+        }
+        .seek-content i { font-size: 24px; }
+
         /* Custom UI Overlay */
         .custom-ui {
             position: absolute;
@@ -121,21 +167,14 @@
             transition: opacity 0.3s ease;
         }
 
-        /* When hidden, prevent any accidental clicks on buttons */
-        .custom-ui.hide {
-            opacity: 0;
-        }
+        .custom-ui.hide { opacity: 0; }
         .custom-ui.hide button, 
         .custom-ui.hide input[type=range], 
-        .custom-ui.hide .settings-menu {
-            pointer-events: none !important;
-        }
+        .custom-ui.hide .settings-menu { pointer-events: none !important; }
 
         .custom-ui button, 
         .custom-ui input[type=range], 
-        .settings-menu {
-            pointer-events: auto;
-        }
+        .settings-menu { pointer-events: auto; }
 
         /* TOP RIGHT: Speaker & Settings */
         .top-right-controls {
@@ -146,8 +185,9 @@
             gap: 20px;
         }
 
-        /* NO BACKGROUND ICONS */
+        /* NO BACKGROUND ICONS WITH INVISIBLE LARGE TOUCH AREA */
         .icon-btn {
+            position: relative;
             background: transparent;
             border: none;
             color: white;
@@ -160,9 +200,15 @@
             text-shadow: 0 2px 10px rgba(0,0,0,0.8);
         }
 
-        .icon-btn:hover {
-            transform: scale(1.15);
+        /* Invisible expanded touch target */
+        .icon-btn::before {
+            content: '';
+            position: absolute;
+            top: -20px; bottom: -20px; left: -20px; right: -20px;
+            border-radius: 50%;
         }
+
+        .icon-btn:hover i { transform: scale(1.15); }
 
         /* CENTER: Play / Pause */
         .center-controls {
@@ -185,19 +231,15 @@
             text-shadow: 0 5px 20px rgba(0,0,0,0.8);
         }
 
-        .play-pause-btn:hover {
-            transform: scale(1.1);
-        }
+        .play-pause-btn:hover { transform: scale(1.1); }
 
-        /* Pulsing animation for Buffering */
+        /* Pulsing animation for Buffering (Replaces loader) */
         @keyframes pulseBuffer {
-            0% { opacity: 1; }
-            50% { opacity: 0.3; }
-            100% { opacity: 1; }
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
         }
-        .is-buffering {
-            animation: pulseBuffer 1s infinite;
-        }
+        .is-buffering { animation: pulseBuffer 1s infinite; pointer-events: none; }
 
         /* BOTTOM LINE: Time, Slider, Fullscreen */
         .bottom-controls {
@@ -249,11 +291,9 @@
             box-shadow: 0 0 5px rgba(0,0,0,0.5);
         }
 
-        .progress-slider::-webkit-slider-thumb:hover {
-            transform: scale(1.3);
-        }
+        .progress-slider::-webkit-slider-thumb:hover { transform: scale(1.3); }
 
-        /* Custom Settings Menu UI */
+        /* Custom Scrollable Settings Menu UI */
         .settings-menu {
             position: absolute;
             top: 60px;
@@ -266,12 +306,10 @@
             display: none;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            overflow: hidden; /* Keeps corners smooth */
+            overflow: hidden; 
         }
 
-        .settings-menu.active {
-            display: flex;
-        }
+        .settings-menu.active { display: flex; }
 
         .setting-row {
             padding: 14px 18px;
@@ -285,9 +323,7 @@
             transition: background 0.2s;
         }
 
-        .setting-row:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
+        .setting-row:hover { background: rgba(255, 255, 255, 0.1); }
 
         .setting-row span.sub-text {
             font-size: 12px;
@@ -298,8 +334,23 @@
             gap: 8px;
         }
 
-        /* Sub-menus for Speed and Quality */
+        /* Scrollable Sub-menus */
+        #settings-speed, #settings-quality {
+            display: none;
+            max-height: 250px; /* Forces scroll if content overflows */
+            overflow-y: auto;
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        
+        #settings-speed::-webkit-scrollbar, #settings-quality::-webkit-scrollbar {
+            display: none; /* Hide scrollbar in Chrome/Safari */
+        }
+
         .setting-header {
+            position: sticky;
+            top: 0;
+            background: rgba(20, 20, 20, 0.98);
             padding: 14px 18px;
             font-size: 14px;
             font-weight: bold;
@@ -309,11 +360,6 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            transition: background 0.2s;
-        }
-
-        .setting-header:hover {
-            background: rgba(255, 255, 255, 0.1);
         }
 
         .setting-option {
@@ -321,29 +367,15 @@
             font-size: 14px;
             color: white;
             cursor: pointer;
-            transition: background 0.2s;
             display: flex;
             justify-content: space-between;
         }
 
-        .setting-option:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .setting-option.active {
-            color: #ffffff;
-            font-weight: bold;
-        }
-
-        /* Hide submenus by default */
-        #settings-speed, #settings-quality {
-            display: none;
-        }
+        .setting-option.active { color: #ffffff; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <!-- Input Box for Link -->
     <div class="input-area">
         <input type="text" id="yt-link" placeholder="Paste YouTube link here...">
         <button onclick="loadVideo()">Play</button>
@@ -358,14 +390,30 @@
                 <div id="player"></div>
             </div>
         </div>
+
+        <!-- Seek Ripple Overlays -->
+        <div class="seek-ripple left" id="ripple-left">
+            <div class="seek-bg"></div>
+            <div class="seek-content">
+                <i class="fas fa-backward"></i>
+                <span id="seek-text-left">10 seconds</span>
+            </div>
+        </div>
+        <div class="seek-ripple right" id="ripple-right">
+            <div class="seek-bg"></div>
+            <div class="seek-content">
+                <i class="fas fa-forward"></i>
+                <span id="seek-text-right">10 seconds</span>
+            </div>
+        </div>
         
-        <!-- Shield handles showing/hiding UI on touch/click -->
+        <!-- Smart Touch Shield -->
         <div class="shield" id="shield"></div>
 
         <!-- Custom User Interface Overlay -->
         <div class="custom-ui" id="custom-ui">
             
-            <!-- Top Right: Speaker & Settings -->
+            <!-- Top Right Controls -->
             <div class="top-right-controls">
                 <button class="icon-btn" id="mute-btn" onclick="toggleMute()">
                     <i class="fas fa-volume-up"></i>
@@ -377,8 +425,6 @@
 
             <!-- Custom Clean Settings Menu -->
             <div class="settings-menu" id="settings-menu">
-                
-                <!-- Main Menu View -->
                 <div id="settings-main">
                     <div class="setting-row" onclick="openSubMenu('speed')">
                         <span>Speed</span>
@@ -390,9 +436,8 @@
                     </div>
                 </div>
 
-                <!-- Speed Menu View -->
                 <div id="settings-speed">
-                    <div class="setting-header" onclick="closeSubMenu()"><i class="fas fa-chevron-left"></i> Playback Speed</div>
+                    <div class="setting-header" onclick="closeSubMenu()"><i class="fas fa-chevron-left"></i> Speed</div>
                     <div class="setting-option speed-opt" onclick="changeSpeed(0.25, '0.25x', this)">0.25x</div>
                     <div class="setting-option speed-opt" onclick="changeSpeed(0.5, '0.5x', this)">0.5x</div>
                     <div class="setting-option speed-opt" onclick="changeSpeed(0.75, '0.75x', this)">0.75x</div>
@@ -402,34 +447,29 @@
                     <div class="setting-option speed-opt" onclick="changeSpeed(2, '2x', this)">2x</div>
                 </div>
 
-                <!-- Quality Menu View -->
                 <div id="settings-quality">
-                    <div class="setting-header" onclick="closeSubMenu()"><i class="fas fa-chevron-left"></i> Video Quality</div>
+                    <div class="setting-header" onclick="closeSubMenu()"><i class="fas fa-chevron-left"></i> Quality</div>
                     <div class="setting-option quality-opt active" onclick="changeQuality('default', 'Auto', this)">Auto</div>
                     <div class="setting-option quality-opt" onclick="changeQuality('hd1080', '1080p', this)">1080p</div>
                     <div class="setting-option quality-opt" onclick="changeQuality('hd720', '720p', this)">720p</div>
                     <div class="setting-option quality-opt" onclick="changeQuality('large', '480p', this)">480p</div>
                     <div class="setting-option quality-opt" onclick="changeQuality('medium', '360p', this)">360p</div>
                 </div>
-
             </div>
 
-            <!-- Center: Play / Pause (Also pulses during Buffering) -->
+            <!-- Center Play / Pause -->
             <div class="center-controls">
                 <button class="play-pause-btn" id="center-play-btn" onclick="togglePlayPause()">
                     <i class="fas fa-play" id="center-play-icon"></i>
                 </button>
             </div>
 
-            <!-- Bottom: Time, Slider, Fullscreen -->
+            <!-- Bottom Controls -->
             <div class="bottom-controls">
                 <span class="time-text" id="current-time">0:00</span>
-                
                 <input type="range" id="progress-slider" class="progress-slider" min="0" max="100" value="0">
-                
                 <span class="time-text" id="total-time">0:00</span>
-                
-                <button class="icon-btn" onclick="toggleFullscreen()">
+                <button class="icon-btn" style="font-size:18px;" onclick="toggleFullscreen()">
                     <i class="fas fa-expand"></i>
                 </button>
             </div>
@@ -466,9 +506,13 @@
         const lblSpeed = document.getElementById('lbl-speed');
         const lblQuality = document.getElementById('lbl-quality');
 
-        function onYouTubeIframeAPIReady() {
-            isYtApiReady = true;
-        }
+        // Ripple Elements
+        const rippleLeft = document.getElementById('ripple-left');
+        const rippleRight = document.getElementById('ripple-right');
+        const txtSeekLeft = document.getElementById('seek-text-left');
+        const txtSeekRight = document.getElementById('seek-text-right');
+
+        function onYouTubeIframeAPIReady() { isYtApiReady = true; }
 
         function extractVideoID(url) {
             const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
@@ -481,42 +525,27 @@
             const url = document.getElementById('yt-link').value;
             currentVideoId = extractVideoID(url);
 
-            if (!currentVideoId) {
-                alert("Invalid YouTube link!");
-                return;
-            }
-
-            if (!isYtApiReady) {
-                alert("Player engine is loading, please try again in a few seconds.");
-                return;
-            }
+            if (!currentVideoId) { alert("Invalid YouTube link!"); return; }
+            if (!isYtApiReady) { alert("Engine loading, try again in a sec."); return; }
 
             playerContainer.style.display = 'block';
             
-            // Set icon to pause and make it pulse while loading
+            // Start buffering animation
             centerPlayIcon.className = 'fas fa-pause';
             centerPlayBtn.classList.add('is-buffering');
-            showUI(); // Make sure UI is visible to see buffering
+            showUI();
 
             if (ytPlayer && ytPlayer.loadVideoById) {
                 ytPlayer.loadVideoById(currentVideoId);
                 resetMenuUI();
             } else {
                 const hostOrigin = window.location.protocol === 'file:' ? '*' : window.location.origin;
-
                 ytPlayer = new YT.Player('player', {
                     videoId: currentVideoId,
                     playerVars: {
-                        autoplay: 1,
-                        controls: 0,           
-                        disablekb: 1,          
-                        fs: 0,                 
-                        modestbranding: 1,     
-                        rel: 0,                
-                        playsinline: 1,        
-                        iv_load_policy: 3,     
-                        enablejsapi: 1,        
-                        origin: hostOrigin     
+                        autoplay: 1, controls: 0, disablekb: 1, fs: 0,
+                        modestbranding: 1, rel: 0, playsinline: 1,
+                        iv_load_policy: 3, enablejsapi: 1, origin: hostOrigin     
                     },
                     events: {
                         'onReady': onPlayerReady,
@@ -533,28 +562,25 @@
         }
 
         function onPlayerStateChange(event) {
-            // Remove pulse animation by default
             centerPlayBtn.classList.remove('is-buffering');
 
             if (event.data === YT.PlayerState.PLAYING) {
                 centerPlayIcon.className = 'fas fa-pause';
-                startHideTimer(); // Start hiding UI once it actually plays
+                startHideTimer(); 
             } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
                 centerPlayIcon.className = 'fas fa-play';
-                showUI(); // Always show UI when paused
+                showUI(); 
             } else if (event.data === YT.PlayerState.BUFFERING) {
-                // Buffering Animation: Icon becomes pause and pulses
                 centerPlayIcon.className = 'fas fa-pause';
                 centerPlayBtn.classList.add('is-buffering');
-                showUI(); // Ensure UI is visible so user sees it loading
+                showUI(); 
             }
         }
 
-        // 3. Play / Pause Logic (Triggered ONLY by clicking the center button)
+        // 3. Play / Pause
         function togglePlayPause() {
             if (!ytPlayer || !ytPlayer.getPlayerState) return;
             const state = ytPlayer.getPlayerState();
-            
             if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
                 ytPlayer.pauseVideo();
             } else {
@@ -562,22 +588,19 @@
             }
         }
 
-        // 4. Progress Tracker & Slider
+        // 4. Progress Tracker
         function startProgressTracker() {
             if (progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(() => {
                 if (!ytPlayer || !ytPlayer.getDuration || isDraggingSlider) return;
-                
                 const cTime = ytPlayer.getCurrentTime();
                 const dTime = ytPlayer.getDuration();
                 
                 if (dTime > 0) {
                     slider.max = dTime;
                     slider.value = cTime;
-                    
                     currTimeText.innerText = formatTime(cTime);
                     totalTimeText.innerText = formatTime(dTime);
-                    
                     const percent = (cTime / dTime) * 100;
                     slider.style.backgroundSize = `${percent}% 100%`;
                 }
@@ -586,41 +609,31 @@
 
         slider.addEventListener('mousedown', () => isDraggingSlider = true);
         slider.addEventListener('touchstart', () => isDraggingSlider = true);
-        
         slider.addEventListener('input', () => {
             currTimeText.innerText = formatTime(slider.value);
             const percent = (slider.value / slider.max) * 100;
             slider.style.backgroundSize = `${percent}% 100%`;
         });
-
-        const seekVideo = () => {
-            isDraggingSlider = false;
-            if(ytPlayer) ytPlayer.seekTo(slider.value, true);
-        };
+        const seekVideo = () => { isDraggingSlider = false; if(ytPlayer) ytPlayer.seekTo(slider.value, true); };
         slider.addEventListener('mouseup', seekVideo);
         slider.addEventListener('touchend', seekVideo);
 
-        // 5. Volume Control
+        // 5. Volume
         function toggleMute() {
             if (!ytPlayer) return;
-            if (ytPlayer.isMuted()) {
-                ytPlayer.unMute();
-                muteIcon.className = 'fas fa-volume-up';
-            } else {
-                ytPlayer.mute();
-                muteIcon.className = 'fas fa-volume-mute';
-            }
+            if (ytPlayer.isMuted()) { ytPlayer.unMute(); muteIcon.className = 'fas fa-volume-up'; } 
+            else { ytPlayer.mute(); muteIcon.className = 'fas fa-volume-mute'; }
         }
 
-        // 6. Custom Settings Menu Logic
+        // 6. Settings Menu Logic
         function toggleSettings() {
             if (settingsMenu.classList.contains('active')) {
                 settingsMenu.classList.remove('active');
                 startHideTimer();
             } else {
-                closeSubMenu(); // Reset to main view
+                closeSubMenu();
                 settingsMenu.classList.add('active');
-                clearTimeout(uiHideTimer); // Keep UI awake while settings are open
+                clearTimeout(uiHideTimer); 
             }
         }
 
@@ -638,37 +651,21 @@
 
         function changeSpeed(rate, label, element) {
             if (!ytPlayer) return;
-            
-            // Highlight selected option
             document.querySelectorAll('.speed-opt').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
-            
-            // Apply speed and update label
             ytPlayer.setPlaybackRate(parseFloat(rate));
             lblSpeed.innerHTML = `${label} <i class="fas fa-chevron-right"></i>`;
-            
-            // Auto close menu
             settingsMenu.classList.remove('active');
             startHideTimer();
         }
 
         function changeQuality(quality, label, element) {
             if (!ytPlayer || !currentVideoId) return;
-
-            // Highlight selected option
             document.querySelectorAll('.quality-opt').forEach(el => el.classList.remove('active'));
             element.classList.add('active');
             lblQuality.innerHTML = `${label} <i class="fas fa-chevron-right"></i>`;
-
-            // Force Reload Frame at exact time to enforce quality change
             const cTime = ytPlayer.getCurrentTime();
-            ytPlayer.loadVideoById({
-                videoId: currentVideoId,
-                startSeconds: cTime,
-                suggestedQuality: quality
-            });
-
-            // Auto close menu
+            ytPlayer.loadVideoById({ videoId: currentVideoId, startSeconds: cTime, suggestedQuality: quality });
             settingsMenu.classList.remove('active');
             startHideTimer();
         }
@@ -676,45 +673,35 @@
         function resetMenuUI() {
             document.querySelectorAll('.speed-opt').forEach(el => el.classList.remove('active'));
             document.querySelectorAll('.quality-opt').forEach(el => el.classList.remove('active'));
-            
-            // Reset to normal & auto
             document.querySelectorAll('.speed-opt')[3].classList.add('active');
             document.querySelectorAll('.quality-opt')[0].classList.add('active');
-            
             lblSpeed.innerHTML = `Normal <i class="fas fa-chevron-right"></i>`;
             lblQuality.innerHTML = `Auto <i class="fas fa-chevron-right"></i>`;
         }
 
-        // 7. Fullscreen Toggle
+        // 7. Fullscreen
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
-                if (playerContainer.requestFullscreen) {
-                    playerContainer.requestFullscreen();
-                } else if (playerContainer.webkitRequestFullscreen) {
-                    playerContainer.webkitRequestFullscreen();
-                }
+                if (playerContainer.requestFullscreen) playerContainer.requestFullscreen();
+                else if (playerContainer.webkitRequestFullscreen) playerContainer.webkitRequestFullscreen();
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             }
         }
 
-        // 8. Shield UI Show / Hide Logic
-        function showUI() {
-            customUI.classList.remove('hide');
-            startHideTimer();
-        }
+        // 8. Shield Smart Tap & Double Tap Logic
+        let tapCount = 0;
+        let tapTimer = null;
+        let lastTapSide = null;
+        let animationTimer = null;
+
+        function showUI() { customUI.classList.remove('hide'); startHideTimer(); }
 
         function startHideTimer() {
             clearTimeout(uiHideTimer);
-            
             const isPaused = ytPlayer && ytPlayer.getPlayerState && 
                             (ytPlayer.getPlayerState() === YT.PlayerState.PAUSED || ytPlayer.getPlayerState() === YT.PlayerState.ENDED);
-            
-            // Don't auto-hide if settings are open or video is paused
             if (!settingsMenu.classList.contains('active') && !isPaused) {
                 uiHideTimer = setTimeout(() => {
                     customUI.classList.add('hide');
@@ -723,24 +710,84 @@
             }
         }
 
-        // Clicking the blank video area (Shield) ONLY hides or shows the UI
-        shield.addEventListener('click', () => {
-            if (customUI.classList.contains('hide')) {
-                showUI();
+        shield.addEventListener('click', (e) => {
+            const rect = shield.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            
+            // Determine Tap Side (Left 35%, Right 35%, Center 30%)
+            let side = 'center';
+            if (x < rect.width * 0.35) side = 'left';
+            else if (x > rect.width * 0.65) side = 'right';
+
+            if (side === 'center') {
+                toggleUIOnly();
+                tapCount = 0;
+                return;
+            }
+
+            tapCount++;
+            if (tapCount === 1) {
+                lastTapSide = side;
+                tapTimer = setTimeout(() => {
+                    toggleUIOnly(); // Was just a single tap
+                    tapCount = 0;
+                    lastTapSide = null;
+                }, 250);
             } else {
-                customUI.classList.add('hide');
-                settingsMenu.classList.remove('active');
+                if (side === lastTapSide) {
+                    clearTimeout(tapTimer);
+                    triggerDoubleTapSeek(side, tapCount);
+                    
+                    // Reset tap count slightly after so 3rd/4th consecutive taps chain perfectly
+                    tapTimer = setTimeout(() => { 
+                        tapCount = 0; 
+                        lastTapSide = null; 
+                    }, 500);
+                } else {
+                    // Tapped the opposite side, reset counter
+                    clearTimeout(tapTimer);
+                    tapCount = 1;
+                    lastTapSide = side;
+                    tapTimer = setTimeout(() => { toggleUIOnly(); tapCount = 0; lastTapSide = null; }, 250);
+                }
             }
         });
 
-        // Keep UI awake if mouse moves over player
+        function toggleUIOnly() {
+            if (customUI.classList.contains('hide')) showUI();
+            else { customUI.classList.add('hide'); settingsMenu.classList.remove('active'); }
+        }
+
+        function triggerDoubleTapSeek(side, count) {
+            if (!ytPlayer || !ytPlayer.seekTo) return;
+            
+            const seekAmount = (count - 1) * 10;
+            const newTime = ytPlayer.getCurrentTime() + (side === 'left' ? -10 : 10);
+            ytPlayer.seekTo(newTime, true);
+
+            // Animate Ripple
+            clearTimeout(animationTimer);
+            rippleLeft.classList.remove('active');
+            rippleRight.classList.remove('active');
+
+            if (side === 'left') {
+                txtSeekLeft.innerText = `${seekAmount} seconds`;
+                rippleLeft.classList.add('active');
+            } else {
+                txtSeekRight.innerText = `${seekAmount} seconds`;
+                rippleRight.classList.add('active');
+            }
+
+            animationTimer = setTimeout(() => {
+                rippleLeft.classList.remove('active');
+                rippleRight.classList.remove('active');
+            }, 600);
+        }
+
         playerContainer.addEventListener('mousemove', () => {
-            if (!customUI.classList.contains('hide')) {
-                startHideTimer();
-            }
+            if (!customUI.classList.contains('hide')) startHideTimer();
         });
 
-        // Utility: Format Time
         function formatTime(seconds) {
             if (isNaN(seconds)) return '0:00';
             const m = Math.floor(seconds / 60);

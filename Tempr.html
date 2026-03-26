@@ -85,13 +85,15 @@
 
         /* INNER FRAME: Cropping Technology */
         .video-cover { 
-            position: absolute; 
-            top: 50%; 
-            left: 50%; 
-            transform: translate(-50%,-50%); 
-            width: 100%; 
-            height: 177.77%; /* Stretches iframe height to push top/bottom YT UI out of view */
-            pointer-events: none; 
+            position: relative;
+            width: 90%;
+            max-width: 1000px;
+            aspect-ratio: 9 / 16; /* Reverted to Landscape */
+            background: black;
+            border-radius: 12px;
+            overflow: hidden; /* Hides the cropped YT branding */
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: none;  
         }
         
         #wrap, #player, iframe { 

@@ -91,7 +91,7 @@
             left: 50%; 
             transform: translate(-50%,-50%); 
             width: 100%; 
-            height: 227.77%; /* Stretches iframe height to push top/bottom YT UI out of view */
+            height: 177.77%; /* Stretches iframe height to push top/bottom YT UI out of view */
             pointer-events: none; 
         }
         
@@ -253,7 +253,7 @@
             transform: scale(1.3);
         }
 
-        /* Custom Settings Menu UI (Replaces the ugly native dropdowns) */
+        /* Custom Settings Menu UI */
         .settings-menu {
             position: absolute;
             top: 60px;
@@ -331,7 +331,7 @@
         }
 
         .setting-option.active {
-            color: #ff2d55;
+            color: #ffffff;
             font-weight: bold;
         }
 
@@ -496,6 +496,7 @@
             // Set icon to pause and make it pulse while loading
             centerPlayIcon.className = 'fas fa-pause';
             centerPlayBtn.classList.add('is-buffering');
+            showUI(); // Make sure UI is visible to see buffering
 
             if (ytPlayer && ytPlayer.loadVideoById) {
                 ytPlayer.loadVideoById(currentVideoId);

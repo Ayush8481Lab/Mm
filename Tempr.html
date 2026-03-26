@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Custom Clean YT Player</title>
+    <title>Custom Clean YT Player (9:16)</title>
     
     <!-- Font Awesome for Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -34,7 +34,7 @@
             gap: 10px;
             margin-bottom: 20px;
             width: 90%;
-            max-width: 800px;
+            max-width: 450px;
             z-index: 100;
         }
 
@@ -53,8 +53,8 @@
             padding: 12px 25px;
             border-radius: 8px;
             border: none;
-            background: #ff2d55;
-            color: white;
+            background: #ffffff;
+            color: #000000;
             font-weight: bold;
             cursor: pointer;
             transition: 0.2s;
@@ -64,33 +64,36 @@
             transform: scale(0.95);
         }
 
-        /* Player Container */
+        /* 9:16 Player Container */
         #player-container {
             position: relative;
             width: 90%;
-            max-width: 1000px;
-            aspect-ratio: 16 / 9;
+            max-width: 450px;
+            aspect-ratio: 9 / 16; /* Vertical Video Ratio */
+            max-height: 85vh;
             background: black;
             border-radius: 12px;
-            overflow: hidden; /* CRITICAL: Hides the cropped YT branding */
+            overflow: hidden; /* Hides the cropped YT branding */
             box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-            display: none; /* Hidden until URL is loaded */
+            display: none; 
         }
 
         #player-container:fullscreen {
             width: 100%;
             max-width: none;
+            max-height: none;
             border-radius: 0;
         }
 
         /* --- INNER & OUTER IFRAME TECHNOLOGY (CROPPING LOGIC) --- */
+        /* Zooming in slightly (130%) forces the top title and bottom logo completely out of bounds */
         .video-cover { 
             position: absolute; 
             top: 50%; 
             left: 50%; 
             transform: translate(-50%,-50%); 
-            width: 100%; 
-            height: 177.77%; /* Stretches height to hide top/bottom YT UI */
+            width: 130%; 
+            height: 130%; 
             pointer-events: none; 
         }
         
@@ -112,10 +115,10 @@
         .custom-ui {
             position: absolute;
             inset: 0;
-            z-index: 30; /* Above the shield */
+            z-index: 30; 
             display: flex;
             flex-direction: column;
-            pointer-events: none; /* Let clicks pass to shield unless clicking a button */
+            pointer-events: none; 
             opacity: 1;
             transition: opacity 0.3s ease;
         }
@@ -139,28 +142,25 @@
             gap: 15px;
         }
 
+        /* NO BACKGROUND ICONS */
         .icon-btn {
-            background: rgba(0, 0, 0, 0.6);
+            background: transparent;
             border: none;
             color: white;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            font-size: 16px;
+            font-size: 20px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(5px);
             transition: all 0.2s;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.8);
         }
 
         .icon-btn:hover {
-            background: rgba(255, 45, 85, 0.8);
-            transform: scale(1.1);
+            transform: scale(1.15);
         }
 
-        /* CENTER: Play / Pause */
+        /* CENTER: Play / Pause (No Background) */
         .center-controls {
             position: absolute;
             top: 50%;
@@ -169,23 +169,19 @@
         }
 
         .play-pause-btn {
-            background: rgba(0, 0, 0, 0.6);
+            background: transparent;
             border: none;
             color: white;
-            width: 70px;
-            height: 70px;
-            border-radius: 50%;
-            font-size: 28px;
+            font-size: 55px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(5px);
             transition: all 0.2s;
+            text-shadow: 0 5px 20px rgba(0,0,0,0.8);
         }
 
         .play-pause-btn:hover {
-            background: rgba(255, 45, 85, 0.9);
             transform: scale(1.1);
         }
 
@@ -195,33 +191,34 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 60px;
+            height: 70px;
             background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
             display: flex;
             align-items: center;
-            padding: 0 20px;
-            gap: 15px;
+            padding: 0 15px;
+            gap: 12px;
         }
 
         .time-text {
             font-size: 13px;
             font-weight: 600;
             color: white;
-            min-width: 45px;
+            min-width: 40px;
             text-align: center;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.8);
         }
 
-        /* Custom Slider (White glider, red dot) */
+        /* Custom Slider (Pure White Theme) */
         .progress-slider {
             flex: 1;
             -webkit-appearance: none;
             appearance: none;
             height: 4px;
-            background: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.2);
             border-radius: 2px;
             outline: none;
             cursor: pointer;
-            background-image: linear-gradient(white, white); /* White Fill */
+            background-image: linear-gradient(#ffffff, #ffffff);
             background-repeat: no-repeat;
             background-size: 0% 100%;
         }
@@ -232,7 +229,7 @@
             height: 14px;
             width: 14px;
             border-radius: 50%;
-            background: #ff2d55; /* Red Dot */
+            background: #ffffff;
             cursor: pointer;
             transition: transform 0.1s;
             box-shadow: 0 0 5px rgba(0,0,0,0.5);
@@ -242,48 +239,72 @@
             transform: scale(1.3);
         }
 
-        /* Settings Dropdown (Aligned to Right) */
+        /* Settings Menu (Improved UI) */
         .settings-menu {
             position: absolute;
-            top: 70px;
+            top: 60px;
             right: 20px;
-            background: rgba(20, 20, 20, 0.95);
+            background: rgba(15, 15, 15, 0.95);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 12px;
             padding: 15px;
-            width: 200px;
+            width: 250px;
             backdrop-filter: blur(10px);
             display: none;
             flex-direction: column;
             gap: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         }
 
         .settings-menu.active {
             display: flex;
         }
 
-        .setting-group label {
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .setting-title {
             font-size: 11px;
             color: #aaa;
             text-transform: uppercase;
             letter-spacing: 1px;
             font-weight: 700;
-            margin-bottom: 5px;
-            display: block;
         }
 
-        .setting-group select {
-            width: 100%;
-            padding: 8px;
-            background: #333;
+        .btn-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .opt-btn {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
             color: white;
-            border: none;
+            padding: 8px;
             border-radius: 6px;
-            outline: none;
             cursor: pointer;
+            flex: 1;
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
         }
 
-        /* Loader */
+        .opt-btn:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .opt-btn.active {
+            background: white;
+            color: black;
+            border-color: white;
+        }
+
+        /* Loader (White) */
         .loader {
             position: absolute;
             top: 50%;
@@ -292,7 +313,7 @@
             width: 40px;
             height: 40px;
             border: 4px solid rgba(255,255,255,0.2);
-            border-top: 4px solid #ff2d55;
+            border-top: 4px solid #ffffff;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             z-index: 35;
@@ -306,8 +327,8 @@
 
     <!-- Input Box for Link -->
     <div class="input-area">
-        <input type="text" id="yt-link" placeholder="Paste YouTube link here (e.g. https://youtu.be/...)">
-        <button onclick="loadVideo()">Play Video</button>
+        <input type="text" id="yt-link" placeholder="Paste YouTube link here...">
+        <button onclick="loadVideo()">Play</button>
     </div>
 
     <!-- Main Player Container -->
@@ -320,7 +341,6 @@
             </div>
         </div>
         
-        <!-- Loading Spinner -->
         <div class="loader" id="loader"></div>
 
         <!-- Shield catches clicks to play/pause -->
@@ -339,29 +359,26 @@
                 </button>
             </div>
 
-            <!-- Settings Menu Popup -->
+            <!-- Settings Menu Popup (Improved Modern UI) -->
             <div class="settings-menu" id="settings-menu">
                 <div class="setting-group">
-                    <label>Speed</label>
-                    <select id="speed-select" onchange="changeSpeed(this.value)">
-                        <option value="0.25">0.25x</option>
-                        <option value="0.5">0.5x</option>
-                        <option value="0.75">0.75x</option>
-                        <option value="1" selected>Normal</option>
-                        <option value="1.25">1.25x</option>
-                        <option value="1.5">1.5x</option>
-                        <option value="2">2x</option>
-                    </select>
+                    <div class="setting-title">Speed</div>
+                    <div class="btn-grid">
+                        <button class="opt-btn speed-btn" onclick="setSpeed(0.5, this)">0.5x</button>
+                        <button class="opt-btn speed-btn active" onclick="setSpeed(1, this)">1x</button>
+                        <button class="opt-btn speed-btn" onclick="setSpeed(1.5, this)">1.5x</button>
+                        <button class="opt-btn speed-btn" onclick="setSpeed(2, this)">2x</button>
+                    </div>
                 </div>
                 <div class="setting-group">
-                    <label>Quality</label>
-                    <select id="quality-select" onchange="changeQuality(this.value)">
-                        <option value="default">Auto</option>
-                        <option value="highres">Max (1080p+)</option>
-                        <option value="hd720">720p</option>
-                        <option value="large">480p</option>
-                        <option value="medium">360p</option>
-                    </select>
+                    <div class="setting-title">Quality</div>
+                    <div class="btn-grid">
+                        <button class="opt-btn quality-btn active" onclick="setQuality('default', this)">Auto</button>
+                        <button class="opt-btn quality-btn" onclick="setQuality('hd1080', this)">1080p</button>
+                        <button class="opt-btn quality-btn" onclick="setQuality('hd720', this)">720p</button>
+                        <button class="opt-btn quality-btn" onclick="setQuality('large', this)">480p</button>
+                        <button class="opt-btn quality-btn" onclick="setQuality('medium', this)">360p</button>
+                    </div>
                 </div>
             </div>
 
@@ -380,7 +397,7 @@
                 
                 <span class="time-text" id="total-time">0:00</span>
                 
-                <button class="icon-btn" style="width: 35px; height: 35px;" onclick="toggleFullscreen()">
+                <button class="icon-btn" onclick="toggleFullscreen()">
                     <i class="fas fa-expand"></i>
                 </button>
             </div>
@@ -392,6 +409,7 @@
 
     <script>
         let ytPlayer = null;
+        let currentVideoId = null;
         let isYtApiReady = false;
         let isDraggingSlider = false;
         let uiHideTimer = null;
@@ -409,12 +427,12 @@
         const muteIcon = document.querySelector('#mute-btn i');
         const settingsMenu = document.getElementById('settings-menu');
 
-        // Required API callback for YouTube to signal readiness
+        // Required API callback for YouTube
         function onYouTubeIframeAPIReady() {
             isYtApiReady = true;
         }
 
-        // Extract YT ID from any standard link
+        // Extract YT ID
         function extractVideoID(url) {
             const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
             const match = url.match(regex);
@@ -424,41 +442,40 @@
         // 1. Load the Video
         function loadVideo() {
             const url = document.getElementById('yt-link').value;
-            const videoId = extractVideoID(url);
+            currentVideoId = extractVideoID(url);
 
-            if (!videoId) {
+            if (!currentVideoId) {
                 alert("Invalid YouTube link!");
                 return;
             }
 
             if (!isYtApiReady) {
-                alert("YouTube system is loading, please try again in a few seconds.");
+                alert("Player engine is loading, please try again in a few seconds.");
                 return;
             }
 
             playerContainer.style.display = 'block';
             loader.style.display = 'block';
 
-            // If player exists, just load new video
             if (ytPlayer && ytPlayer.loadVideoById) {
-                ytPlayer.loadVideoById(videoId);
+                ytPlayer.loadVideoById(currentVideoId);
+                resetSettingsUI();
             } else {
-                // Determine origin safely for local or web deployment
                 const hostOrigin = window.location.protocol === 'file:' ? '*' : window.location.origin;
 
                 ytPlayer = new YT.Player('player', {
-                    videoId: videoId,
+                    videoId: currentVideoId,
                     playerVars: {
                         autoplay: 1,
-                        controls: 0,           // Hide YT controls
-                        disablekb: 1,          // Disable YT keyboard shortcuts
-                        fs: 0,                 // Hide YT fullscreen button
-                        modestbranding: 1,     // Hide YT logo
-                        rel: 0,                // No related videos
-                        playsinline: 1,        // Play inline on mobile
-                        iv_load_policy: 3,     // Hide annotations
-                        enablejsapi: 1,        // Crucial for JS control
-                        origin: hostOrigin     // Fixes connection issues
+                        controls: 0,           
+                        disablekb: 1,          
+                        fs: 0,                 
+                        modestbranding: 1,     
+                        rel: 0,                
+                        playsinline: 1,        
+                        iv_load_policy: 3,     
+                        enablejsapi: 1,        
+                        origin: hostOrigin     
                     },
                     events: {
                         'onReady': onPlayerReady,
@@ -491,7 +508,6 @@
             if (!ytPlayer || !ytPlayer.getPlayerState) return;
             const state = ytPlayer.getPlayerState();
             
-            // Handles both Playing and Buffering
             if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
                 ytPlayer.pauseVideo();
             } else {
@@ -512,18 +528,15 @@
                     slider.max = dTime;
                     slider.value = cTime;
                     
-                    // Update Text
                     currTimeText.innerText = formatTime(cTime);
                     totalTimeText.innerText = formatTime(dTime);
                     
-                    // Update white track fill behind the red dot
                     const percent = (cTime / dTime) * 100;
                     slider.style.backgroundSize = `${percent}% 100%`;
                 }
             }, 250);
         }
 
-        // User interacts with slider
         slider.addEventListener('mousedown', () => isDraggingSlider = true);
         slider.addEventListener('touchstart', () => isDraggingSlider = true);
         
@@ -552,19 +565,50 @@
             }
         }
 
-        // 6. Settings (Speed & Quality)
+        // 6. Settings Logic (Speed & Quality with Auto-Close and Force Reload)
         function toggleSettings() {
             settingsMenu.classList.toggle('active');
         }
 
-        function changeSpeed(rate) {
-            if (ytPlayer) ytPlayer.setPlaybackRate(parseFloat(rate));
+        function setSpeed(rate, btnElement) {
+            if (!ytPlayer) return;
+            
+            // Update UI buttons
+            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+            
+            // Apply Speed
+            ytPlayer.setPlaybackRate(parseFloat(rate));
+            
+            // Auto-Close Settings
             settingsMenu.classList.remove('active');
         }
 
-        function changeQuality(quality) {
-            if (ytPlayer) ytPlayer.setPlaybackQuality(quality);
+        function setQuality(quality, btnElement) {
+            if (!ytPlayer || !currentVideoId) return;
+
+            // Update UI buttons
+            document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            // Force Reload Frame at exact time to apply quality
+            const cTime = ytPlayer.getCurrentTime();
+            ytPlayer.loadVideoById({
+                videoId: currentVideoId,
+                startSeconds: cTime,
+                suggestedQuality: quality
+            });
+
+            // Auto-Close Settings
             settingsMenu.classList.remove('active');
+        }
+
+        // Reset Settings UI when loading a brand new video link
+        function resetSettingsUI() {
+            document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.quality-btn').forEach(b => b.classList.remove('active'));
+            document.querySelector('.speed-btn:nth-child(2)').classList.add('active'); // 1x
+            document.querySelector('.quality-btn:nth-child(1)').classList.add('active'); // Auto
         }
 
         // 7. Fullscreen Toggle
@@ -589,10 +633,8 @@
             customUI.classList.remove('hide');
             clearTimeout(uiHideTimer);
             
-            // Don't auto-hide if settings are open
             if(!settingsMenu.classList.contains('active')) {
                 uiHideTimer = setTimeout(() => {
-                    // Only hide if video is playing
                     if(ytPlayer && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
                         customUI.classList.add('hide');
                         settingsMenu.classList.remove('active');
@@ -601,13 +643,11 @@
             }
         }
 
-        // Shield catches clicks: pauses/plays and wakes up the UI
         shield.addEventListener('click', () => {
             togglePlayPause();
             showUI();
         });
 
-        // Wake UI on mouse move over the container
         playerContainer.addEventListener('mousemove', showUI);
         playerContainer.addEventListener('touchstart', showUI);
 

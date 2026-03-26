@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Custom Clean YT Player</title>
+    
+    <!-- Font Awesome for Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: #0f1014;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        /* URL Input Area */
+        .input-area {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            width: 90%;
+            max-width: 800px;
+            z-index: 100;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            background: #1e222b;
+            color: white;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .input-area button {
+            padding: 12px 25px;
+            border-radius: 8px;
+            border: none;
+            background: #ff2d55;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .input-area button:active {
+            transform: scale(0.95);
+        }
+
+        /* Player Container */
+        #player-container {
+            position: relative;
+            width: 90%;
+            max-width: 1000px;
+            aspect-ratio: 16 / 9;
+            background: black;
+            border-radius: 12px;
+            overflow: hidden; /* CRITICAL: Hides the cropped YT branding */
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            display: none; /* Hidden until URL is loaded */
+        }
+
+        #player-container:fullscreen {
+            width: 100%;
+            max-width: none;
+            border-radius: 0;
+        }
+
+        /* --- INNER & OUTER IFRAME TECHNOLOGY (CROPPING LOGIC) --- */
+        .video-cover { 
+            position: absolute; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%,-50%); 
+            width: 100%; 
+            height: 177.77%; /* Stretches height to hide top/bottom YT UI */
+            pointer-events: none; 
+        }
+        
+        #wrap, #player, iframe { 
+            width: 100%; 
+            height: 100%; 
+            pointer-events: none; 
+        }
+
+        /* Shield prevents accidental clicks on the hidden YT UI */
+        .shield { 
+            position: absolute; 
+            inset: 0; 
+            z-index: 25; 
+            cursor: pointer;
+        }
+
+        /* Custom UI Overlay */
+        .custom-ui {
+            position: absolute;
+            inset: 0;
+            z-index: 30; /* Above the shield */
+            display: flex;
+            flex-direction: column;
+            pointer-events: none; /* Let clicks pass to shield unless clicking a button */
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .custom-ui.hide {
+            opacity: 0;
+        }
+
+        .custom-ui button, 
+        .custom-ui input[type=range], 
+        .settings-menu {
+            pointer-events: auto;
+        }
+
+        /* TOP RIGHT: Speaker & Settings */
+        .top-right-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .icon-btn {
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 45, 85, 0.8);
+            transform: scale(1.1);
+        }
+
+        /* CENTER: Play / Pause */
+        .center-controls {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .play-pause-btn {
+            background: rgba(0, 0, 0, 0.6);
+            border: none;
+            color: white;
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            font-size: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+            transition: all 0.2s;
+        }
+
+        .play-pause-btn:hover {
+            background: rgba(255, 45, 85, 0.9);
+            transform: scale(1.1);
+        }
+
+        /* BOTTOM LINE: Time, Slider, Fullscreen */
+        .bottom-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+        }
+
+        .time-text {
+            font-size: 13px;
+            font-weight: 600;
+            color: white;
+            min-width: 45px;
+            text-align: center;
+        }
+
+        /* Custom Slider (White glider, red dot) */
+        .progress-slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            background-image: linear-gradient(white, white); /* White Fill */
+            background-repeat: no-repeat;
+            background-size: 0% 100%;
+        }
+
+        .progress-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 14px;
+            width: 14px;
+            border-radius: 50%;
+            background: #ff2d55; /* Red Dot */
+            cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+
+        .progress-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.3);
+        }
+
+        /* Settings Dropdown (Aligned to Right) */
+        .settings-menu {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 15px;
+            width: 200px;
+            backdrop-filter: blur(10px);
+            display: none;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .settings-menu.active {
+            display: flex;
+        }
+
+        .setting-group label {
+            font-size: 11px;
+            color: #aaa;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .setting-group select {
+            width: 100%;
+            padding: 8px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        /* Loader */
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255,255,255,0.2);
+            border-top: 4px solid #ff2d55;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            z-index: 35;
+            display: none;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- Input Box for Link -->
+    <div class="input-area">
+        <input type="text" id="yt-link" placeholder="Paste YouTube link here (e.g. https://youtu.be/...)">
+        <button onclick="loadVideo()">Play Video</button>
+    </div>
+
+    <!-- Main Player Container -->
+    <div id="player-container">
+        
+        <!-- Cropped Iframe Container -->
+        <div class="video-cover">
+            <div id="wrap">
+                <div id="player"></div>
+            </div>
+        </div>
+        
+        <!-- Loading Spinner -->
+        <div class="loader" id="loader"></div>
+
+        <!-- Shield catches clicks to play/pause -->
+        <div class="shield" id="shield"></div>
+
+        <!-- Custom User Interface Overlay -->
+        <div class="custom-ui" id="custom-ui">
+            
+            <!-- Top Right: Speaker & Settings -->
+            <div class="top-right-controls">
+                <button class="icon-btn" id="mute-btn" onclick="toggleMute()">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                <button class="icon-btn" onclick="toggleSettings()">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+
+            <!-- Settings Menu Popup -->
+            <div class="settings-menu" id="settings-menu">
+                <div class="setting-group">
+                    <label>Speed</label>
+                    <select id="speed-select" onchange="changeSpeed(this.value)">
+                        <option value="0.25">0.25x</option>
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1" selected>Normal</option>
+                        <option value="1.25">1.25x</option>
+                        <option value="1.5">1.5x</option>
+                        <option value="2">2x</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label>Quality</label>
+                    <select id="quality-select" onchange="changeQuality(this.value)">
+                        <option value="default">Auto</option>
+                        <option value="highres">Max (1080p+)</option>
+                        <option value="hd720">720p</option>
+                        <option value="large">480p</option>
+                        <option value="medium">360p</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Center: Play / Pause -->
+            <div class="center-controls">
+                <button class="play-pause-btn" id="center-play-btn" onclick="togglePlayPause()">
+                    <i class="fas fa-play"></i>
+                </button>
+            </div>
+
+            <!-- Bottom: Time, Slider, Fullscreen -->
+            <div class="bottom-controls">
+                <span class="time-text" id="current-time">0:00</span>
+                
+                <input type="range" id="progress-slider" class="progress-slider" min="0" max="100" value="0">
+                
+                <span class="time-text" id="total-time">0:00</span>
+                
+                <button class="icon-btn" style="width: 35px; height: 35px;" onclick="toggleFullscreen()">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        let ytPlayer = null;
+        let isYtApiReady = false;
+        let isDraggingSlider = false;
+        let uiHideTimer = null;
+        let progressInterval = null;
+
+        // Elements
+        const playerContainer = document.getElementById('player-container');
+        const customUI = document.getElementById('custom-ui');
+        const shield = document.getElementById('shield');
+        const centerPlayIcon = document.querySelector('#center-play-btn i');
+        const slider = document.getElementById('progress-slider');
+        const currTimeText = document.getElementById('current-time');
+        const totalTimeText = document.getElementById('total-time');
+        const loader = document.getElementById('loader');
+        const muteIcon = document.querySelector('#mute-btn i');
+        const settingsMenu = document.getElementById('settings-menu');
+
+        // Required API callback for YouTube to signal readiness
+        function onYouTubeIframeAPIReady() {
+            isYtApiReady = true;
+        }
+
+        // Extract YT ID from any standard link
+        function extractVideoID(url) {
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+            const match = url.match(regex);
+            return match ? match[1] : null;
+        }
+
+        // 1. Load the Video
+        function loadVideo() {
+            const url = document.getElementById('yt-link').value;
+            const videoId = extractVideoID(url);
+
+            if (!videoId) {
+                alert("Invalid YouTube link!");
+                return;
+            }
+
+            if (!isYtApiReady) {
+                alert("YouTube system is loading, please try again in a few seconds.");
+                return;
+            }
+
+            playerContainer.style.display = 'block';
+            loader.style.display = 'block';
+
+            // If player exists, just load new video
+            if (ytPlayer && ytPlayer.loadVideoById) {
+                ytPlayer.loadVideoById(videoId);
+            } else {
+                // Determine origin safely for local or web deployment
+                const hostOrigin = window.location.protocol === 'file:' ? '*' : window.location.origin;
+
+                ytPlayer = new YT.Player('player', {
+                    videoId: videoId,
+                    playerVars: {
+                        autoplay: 1,
+                        controls: 0,           // Hide YT controls
+                        disablekb: 1,          // Disable YT keyboard shortcuts
+                        fs: 0,                 // Hide YT fullscreen button
+                        modestbranding: 1,     // Hide YT logo
+                        rel: 0,                // No related videos
+                        playsinline: 1,        // Play inline on mobile
+                        iv_load_policy: 3,     // Hide annotations
+                        enablejsapi: 1,        // Crucial for JS control
+                        origin: hostOrigin     // Fixes connection issues
+                    },
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+            }
+        }
+
+        // 2. Player Events
+        function onPlayerReady(event) {
+            loader.style.display = 'none';
+            event.target.playVideo();
+            startProgressTracker();
+        }
+
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.PLAYING) {
+                loader.style.display = 'none';
+                centerPlayIcon.className = 'fas fa-pause';
+            } else if (event.data === YT.PlayerState.PAUSED || event.data === YT.PlayerState.ENDED) {
+                centerPlayIcon.className = 'fas fa-play';
+            } else if (event.data === YT.PlayerState.BUFFERING) {
+                loader.style.display = 'block';
+            }
+        }
+
+        // 3. Play / Pause Logic
+        function togglePlayPause() {
+            if (!ytPlayer || !ytPlayer.getPlayerState) return;
+            const state = ytPlayer.getPlayerState();
+            
+            // Handles both Playing and Buffering
+            if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) {
+                ytPlayer.pauseVideo();
+            } else {
+                ytPlayer.playVideo();
+            }
+        }
+
+        // 4. Progress Tracker & Slider Logic
+        function startProgressTracker() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressInterval = setInterval(() => {
+                if (!ytPlayer || !ytPlayer.getDuration || isDraggingSlider) return;
+                
+                const cTime = ytPlayer.getCurrentTime();
+                const dTime = ytPlayer.getDuration();
+                
+                if (dTime > 0) {
+                    slider.max = dTime;
+                    slider.value = cTime;
+                    
+                    // Update Text
+                    currTimeText.innerText = formatTime(cTime);
+                    totalTimeText.innerText = formatTime(dTime);
+                    
+                    // Update white track fill behind the red dot
+                    const percent = (cTime / dTime) * 100;
+                    slider.style.backgroundSize = `${percent}% 100%`;
+                }
+            }, 250);
+        }
+
+        // User interacts with slider
+        slider.addEventListener('mousedown', () => isDraggingSlider = true);
+        slider.addEventListener('touchstart', () => isDraggingSlider = true);
+        
+        slider.addEventListener('input', () => {
+            currTimeText.innerText = formatTime(slider.value);
+            const percent = (slider.value / slider.max) * 100;
+            slider.style.backgroundSize = `${percent}% 100%`;
+        });
+
+        const seekVideo = () => {
+            isDraggingSlider = false;
+            if(ytPlayer) ytPlayer.seekTo(slider.value, true);
+        };
+        slider.addEventListener('mouseup', seekVideo);
+        slider.addEventListener('touchend', seekVideo);
+
+        // 5. Volume Control
+        function toggleMute() {
+            if (!ytPlayer) return;
+            if (ytPlayer.isMuted()) {
+                ytPlayer.unMute();
+                muteIcon.className = 'fas fa-volume-up';
+            } else {
+                ytPlayer.mute();
+                muteIcon.className = 'fas fa-volume-mute';
+            }
+        }
+
+        // 6. Settings (Speed & Quality)
+        function toggleSettings() {
+            settingsMenu.classList.toggle('active');
+        }
+
+        function changeSpeed(rate) {
+            if (ytPlayer) ytPlayer.setPlaybackRate(parseFloat(rate));
+            settingsMenu.classList.remove('active');
+        }
+
+        function changeQuality(quality) {
+            if (ytPlayer) ytPlayer.setPlaybackQuality(quality);
+            settingsMenu.classList.remove('active');
+        }
+
+        // 7. Fullscreen Toggle
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                if (playerContainer.requestFullscreen) {
+                    playerContainer.requestFullscreen();
+                } else if (playerContainer.webkitRequestFullscreen) {
+                    playerContainer.webkitRequestFullscreen();
+                }
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                }
+            }
+        }
+
+        // 8. Auto Hide UI Logic
+        function showUI() {
+            customUI.classList.remove('hide');
+            clearTimeout(uiHideTimer);
+            
+            // Don't auto-hide if settings are open
+            if(!settingsMenu.classList.contains('active')) {
+                uiHideTimer = setTimeout(() => {
+                    // Only hide if video is playing
+                    if(ytPlayer && ytPlayer.getPlayerState() === YT.PlayerState.PLAYING) {
+                        customUI.classList.add('hide');
+                        settingsMenu.classList.remove('active');
+                    }
+                }, 3000);
+            }
+        }
+
+        // Shield catches clicks: pauses/plays and wakes up the UI
+        shield.addEventListener('click', () => {
+            togglePlayPause();
+            showUI();
+        });
+
+        // Wake UI on mouse move over the container
+        playerContainer.addEventListener('mousemove', showUI);
+        playerContainer.addEventListener('touchstart', showUI);
+
+        // Utility: Format Time
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return '0:00';
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s < 10 ? '0' + s : s}`;
+        }
+    </script>
+</body>
+</html>

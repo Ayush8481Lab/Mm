@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Custom Clean YT Player (Pro UI)</title>
+    <title>Custom Clean YT Player (Pro UI + CC)</title>
     
     <!-- Font Awesome for Icons -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -91,7 +91,7 @@
             left: 50%; 
             transform: translate(-50%,-50%); 
             width: 100%; 
-            height: 227.77%; /* Pushes top/bottom YT UI out of view */
+            height: 177.77%; /* Pushes top/bottom YT UI out of view */
             pointer-events: none; 
         }
         
@@ -129,7 +129,7 @@
         .seek-bg {
             position: absolute;
             top: 0; bottom: 0;
-            width: 126%;
+            width: 150%;
             background: rgba(255, 255, 255, 0.15);
             border-radius: 50%;
             transform: scale(0);
@@ -176,7 +176,7 @@
         .custom-ui input[type=range], 
         .settings-menu { pointer-events: auto; }
 
-        /* TOP RIGHT: Speaker & Settings */
+        /* TOP RIGHT: Controls (CC, Speaker, Settings) */
         .top-right-controls {
             position: absolute;
             top: 20px;
@@ -200,7 +200,7 @@
             text-shadow: 0 2px 10px rgba(0,0,0,0.8);
         }
 
-        /* Invisible expanded touch target */
+        /* Invisible expanded touch target for easy tapping */
         .icon-btn::before {
             content: '';
             position: absolute;
@@ -264,7 +264,7 @@
             text-shadow: 0 1px 4px rgba(0,0,0,0.8);
         }
 
-        /* Custom Slider () */
+        /* Custom Slider (Pure White Theme) */
         .progress-slider {
             flex: 1;
             -webkit-appearance: none;
@@ -274,7 +274,7 @@
             border-radius: 2px;
             outline: none;
             cursor: pointer;
-            background-image: linear-gradient(#FF0033, #FF0033);
+            background-image: linear-gradient(#ffffff, #ffffff);
             background-repeat: no-repeat;
             background-size: 0% 100%;
         }
@@ -285,7 +285,7 @@
             height: 14px;
             width: 14px;
             border-radius: 50%;
-            background: #FF0033;
+            background: #ffffff;
             cursor: pointer;
             transition: transform 0.1s;
             box-shadow: 0 0 5px rgba(0,0,0,0.5);
@@ -337,14 +337,14 @@
         /* Scrollable Sub-menus */
         #settings-speed, #settings-quality {
             display: none;
-            max-height: 160px; /* Forces scroll if content overflows */
+            max-height: 250px;
             overflow-y: auto;
-            -ms-overflow-style: none;  /* IE and Edge */
-            scrollbar-width: none;  /* Firefox */
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
         
         #settings-speed::-webkit-scrollbar, #settings-quality::-webkit-scrollbar {
-            display: none; /* Hide scrollbar in Chrome/Safari */
+            display: none;
         }
 
         .setting-header {
@@ -413,8 +413,11 @@
         <!-- Custom User Interface Overlay -->
         <div class="custom-ui" id="custom-ui">
             
-            <!-- Top Right Controls -->
+            <!-- Top Right Controls: CC, Speaker, Settings -->
             <div class="top-right-controls">
+                <button class="icon-btn" onclick="toggleCC()">
+                    <i class="fas fa-closed-captioning" id="cc-icon"></i>
+                </button>
                 <button class="icon-btn" id="mute-btn" onclick="toggleMute()">
                     <i class="fas fa-volume-up"></i>
                 </button>
@@ -487,6 +490,10 @@
         let uiHideTimer = null;
         let progressInterval = null;
 
+        // Subtitles Logic States
+        let isCCOn = false;
+        let isCCLoading = false;
+
         // Elements
         const playerContainer = document.getElementById('player-container');
         const customUI = document.getElementById('custom-ui');
@@ -497,6 +504,7 @@
         const currTimeText = document.getElementById('current-time');
         const totalTimeText = document.getElementById('total-time');
         const muteIcon = document.querySelector('#mute-btn i');
+        const ccIcon = document.getElementById('cc-icon');
         
         // Menu Elements
         const settingsMenu = document.getElementById('settings-menu');
@@ -588,7 +596,40 @@
             }
         }
 
-        // 4. Progress Tracker
+        // 4. CC (Subtitles) Logic
+        function toggleCC() {
+            if (!ytPlayer || typeof ytPlayer.getOption !== 'function') return;
+            if (isCCLoading) return;
+
+            if (!isCCOn) {
+                isCCLoading = true;
+                ytPlayer.loadModule("captions"); // Command API to prep captions
+
+                // Give it a short delay to fetch the available tracks
+                setTimeout(() => {
+                    const tracklist = ytPlayer.getOption('captions', 'tracklist');
+                    
+                    if (tracklist && tracklist.length > 0) {
+                        // Activate the first available track
+                        ytPlayer.setOption('captions', 'track', tracklist[0]);
+                        isCCOn = true;
+                        ccIcon.style.color = "#ff2d55"; // Highlight Red
+                    } else {
+                        alert("Subtitles are not available for this video.");
+                    }
+                    isCCLoading = false;
+                    startHideTimer(); // Restart auto-hide timer
+                }, 300);
+            } else {
+                // Turn OFF captions
+                ytPlayer.setOption('captions', 'track', {});
+                isCCOn = false;
+                ccIcon.style.color = "white"; // Revert to white
+                startHideTimer();
+            }
+        }
+
+        // 5. Progress Tracker
         function startProgressTracker() {
             if (progressInterval) clearInterval(progressInterval);
             progressInterval = setInterval(() => {
@@ -618,14 +659,14 @@
         slider.addEventListener('mouseup', seekVideo);
         slider.addEventListener('touchend', seekVideo);
 
-        // 5. Volume
+        // 6. Volume
         function toggleMute() {
             if (!ytPlayer) return;
             if (ytPlayer.isMuted()) { ytPlayer.unMute(); muteIcon.className = 'fas fa-volume-up'; } 
             else { ytPlayer.mute(); muteIcon.className = 'fas fa-volume-mute'; }
         }
 
-        // 6. Settings Menu Logic
+        // 7. Settings Menu Logic
         function toggleSettings() {
             if (settingsMenu.classList.contains('active')) {
                 settingsMenu.classList.remove('active');
@@ -677,9 +718,14 @@
             document.querySelectorAll('.quality-opt')[0].classList.add('active');
             lblSpeed.innerHTML = `Normal <i class="fas fa-chevron-right"></i>`;
             lblQuality.innerHTML = `Auto <i class="fas fa-chevron-right"></i>`;
+
+            // Reset CC State
+            isCCOn = false;
+            isCCLoading = false;
+            ccIcon.style.color = "white";
         }
 
-        // 7. Fullscreen
+        // 8. Fullscreen
         function toggleFullscreen() {
             if (!document.fullscreenElement) {
                 if (playerContainer.requestFullscreen) playerContainer.requestFullscreen();
@@ -690,12 +736,12 @@
             }
         }
 
-        // 8. Shield Smart Tap & Double Tap Accumulation Logic
+        // 9. Shield Smart Tap & Double Tap Accumulation Logic
         let tapCount = 0;
         let tapTimer = null;
         let lastTapSide = null;
         let animationTimer = null;
-        let baseSeekTime = 0; // Locks current time on first tap to calculate exact jumps
+        let baseSeekTime = 0; 
 
         function showUI() { customUI.classList.remove('hide'); startHideTimer(); }
 
@@ -729,10 +775,10 @@
             tapCount++;
             if (tapCount === 1) {
                 lastTapSide = side;
-                baseSeekTime = ytPlayer.getCurrentTime(); // Lock the exact time of the first tap
+                baseSeekTime = ytPlayer.getCurrentTime(); 
                 
                 tapTimer = setTimeout(() => {
-                    toggleUIOnly(); // It was just a single tap
+                    toggleUIOnly(); 
                     tapCount = 0;
                     lastTapSide = null;
                 }, 250);
@@ -741,13 +787,11 @@
                     clearTimeout(tapTimer);
                     triggerDoubleTapSeek(side, tapCount);
                     
-                    // Allow up to 500ms between rapid taps to chain 30s, 40s, 50s jumps
                     tapTimer = setTimeout(() => { 
                         tapCount = 0; 
                         lastTapSide = null; 
                     }, 500); 
                 } else {
-                    // Tapped the opposite side, reset tracking to new side
                     clearTimeout(tapTimer);
                     tapCount = 1;
                     lastTapSide = side;
@@ -770,13 +814,11 @@
             
             let newTime = baseSeekTime + offset;
             
-            // Boundaries
             if (newTime < 0) newTime = 0;
             if (newTime > ytPlayer.getDuration()) newTime = ytPlayer.getDuration();
 
             ytPlayer.seekTo(newTime, true);
 
-            // Force reflow of CSS to restart the ripple animation cleanly for rapid consecutive taps
             rippleLeft.classList.remove('active');
             rippleRight.classList.remove('active');
             void rippleLeft.offsetWidth; 

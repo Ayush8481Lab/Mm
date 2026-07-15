@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deep Analysis Player - MPD Rewriter & Token Injection</title>
+    
+    <!-- Shaka Player JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.1/shaka-player.ui.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.1/controls.min.css">
+
+    <style>
+        body { background: #0f0f0f; color: #fff; font-family: Arial, sans-serif; display: flex; height: 100vh; margin: 0; }
+        .sidebar { width: 300px; background: #1a1a1a; overflow-y: auto; border-right: 1px solid #333; }
+        .channel-item { padding: 15px; border-bottom: 1px solid #333; cursor: pointer; display: flex; align-items: center; }
+        .channel-item:hover { background: #2a2a2a; }
+        .channel-item img { width: 50px; border-radius: 5px; margin-right: 10px; }
+        .main { flex: 1; display: flex; flex-direction: column; }
+        .video-wrapper { flex: 1; background: #000; display: flex; justify-content: center; align-items: center; }
+        video { width: 100%; height: 100%; max-height: 70vh; }
+        
+        .network-logger { height: 35vh; background: #050505; border-top: 2px solid #00bcd4; overflow-y: auto; padding: 10px; font-family: monospace; font-size: 13px; }
+        .log-req { color: #ffeb3b; margin: 2px 0; }
+        .log-res { color: #4caf50; margin: 2px 0; }
+        .log-err { color: #f44336; margin: 2px 0; font-weight: bold; }
+        .log-drm { color: #e91e63; margin: 2px 0; }
+        .log-token { color: #00bcd4; margin: 2px 0; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar" id="channel-list">
+        <div style="padding: 20px;">Loading API...</div>
+    </div>
+
+    <div class="main">
+        <div class="video-wrapper" data-shaka-player-container>
+            <video data-shaka-player id="video" autoplay controls></video>
+        </div>
+        
+        <div class="network-logger" id="logger">
+            <div style="color: #888;">[System] Engine Active with Token Injection & Manifest Rewriter...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://raw.githubusercontent.com/live4wap/links/refs/heads/main/jiomb";
+        
+        // YOUR AKAMAI AUTHENTICATION TOKEN
+        const AUTH_TOKEN = "?__hdnea__=st=1784095272~exp=1784116872~acl=/*~hmac=a1d48dc9aa18746d16d4c8599118f97c7be2b3eb0836d016287b664c05edd180";
+        
+        let player;
+
+        function logAction(msg, type = 'log-req') {
+            const logger = document.getElementById('logger');
+            const time = new Date().toISOString().substring(11, 23);
+            logger.innerHTML += `<div class="${type}">[${time}] ${msg}</div>`;
+            logger.scrollTop = logger.scrollHeight;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            initPlayer();
+            fetchChannels();
+        });
+
+        async function fetchChannels() {
+            try {
+                const response = await fetch(`${API_URL}?t=${new Date().getTime()}`);
+                const channels = await response.json();
+                
+                const list = document.getElementById('channel-list');
+                list.innerHTML = '';
+                
+                channels.forEach(channel => {
+                    const el = document.createElement('div');
+                    el.className = 'channel-item';
+                    el.innerHTML = `<img src="${channel.logo}" onerror="this.src='https://via.placeholder.com/50'"> 
+                                    <div><b>${channel.name}</b></div>`;
+                    el.onclick = () => playStream(channel);
+                    list.appendChild(el);
+                });
+            } catch (err) {
+                logAction("Failed to fetch API JSON. Check CORS.", "log-err");
+            }
+        }
+
+        function initPlayer() {
+            shaka.polyfill.installAll();
+            const video = document.getElementById('video');
+            player = new shaka.Player(video);
+            const netEngine = player.getNetworkingEngine();
+
+            // ==============================================================
+            // 1. OUTGOING FILTER: TOKEN INJECTION
+            // ==============================================================
+            netEngine.registerRequestFilter((type, request) => {
+                let reqType = "UNKNOWN";
+                if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST) reqType = "MANIFEST (.mpd)";
+                if (type === shaka.net.NetworkingEngine.RequestType.SEGMENT) reqType = "SEGMENT (.dash)";
+
+                if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST || type === shaka.net.NetworkingEngine.RequestType.SEGMENT) {
+                    for (let i = 0; i < request.uris.length; i++) {
+                        let uri = request.uris[i];
+                        
+                        if (!uri.includes("__hdnea__")) {
+                            const separator = uri.includes('?') ? '&' : '?';
+                            const cleanToken = AUTH_TOKEN.startsWith('?') ? AUTH_TOKEN.substring(1) : AUTH_TOKEN;
+                            request.uris[i] = uri + separator + cleanToken;
+                        }
+                    }
+                }
+
+                // Fixed Logger Parsing Bug
+                const finalUrl = request.uris[0];
+                const urlWithoutQuery = finalUrl.split('?')[0]; // strip the whole query string first
+                const fileName = urlWithoutQuery.split('/').pop(); // then get the file name
+                
+                logAction(`-> REQ: ${reqType}: ${fileName}`, "log-req");
+                if (finalUrl.includes("__hdnea__")) {
+                    logAction(`   [AUTH] Appended __hdnea__ Token to ${fileName}`, "log-token");
+                }
+            });
+
+            // ==============================================================
+            // 2. INCOMING FILTER: MPD REWRITER (THE 6002 FIX)
+            // ==============================================================
+            netEngine.registerResponseFilter((type, response) => {
+                if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST) {
+                    // Convert raw bytes to text
+                    let mpdText = new TextDecoder().decode(response.data);
+                    
+                    // Regex: Delete any Widevine tags (UUID: EDEF8BA9...)
+                    // This forces Shaka Player to fall back to the ClearKey system.
+                    mpdText = mpdText.replace(/<ContentProtection schemeIdUri="urn:uuid:EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED".*?<\/ContentProtection>/gis, '');
+                    mpdText = mpdText.replace(/<ContentProtection schemeIdUri="urn:uuid:EDEF8BA9-79D6-4ACE-A3C8-27DCD51D21ED".*?\/>/gis, '');
+
+                    // Convert text back to raw bytes for Shaka Player
+                    response.data = new TextEncoder().encode(mpdText);
+                    
+                    logAction(`<- RES: Loaded MANIFEST Successfully & Stripped Widevine DRM Tags`, "log-res");
+                } else if (type === shaka.net.NetworkingEngine.RequestType.SEGMENT) {
+                    logAction(`<- RES: Loaded SEGMENT Successfully`, "log-res");
+                }
+            });
+
+            player.addEventListener('error', onPlayerError);
+        }
+
+        async function playStream(channel) {
+            logAction(`\n=========================================`, "log-req");
+            logAction(`[PROCESS] Initiating Channel: ${channel.name}`, "log-req");
+            
+            try {
+                await player.unload();
+                
+                let drmConfig = { clearKeys: {} };
+                if (channel.keyId !== "null" && channel.key !== "null") {
+                    // Add standard hyphenation just in case Shaka gets strict
+                    const kid = channel.keyId;
+                    const key = channel.key;
+                    drmConfig.clearKeys[kid] = key;
+                    logAction(`[DRM] Injecting ClearKey -> ID: ${kid}`, "log-drm");
+                }
+
+                // Force player to rely purely on our ClearKeys
+                player.configure({
+                    drm: drmConfig,
+                    manifest: { dash: { ignoreDrmInfo: false } },
+                    streaming: { bufferingGoal: 5 }
+                });
+
+                await player.load(channel.url);
+                logAction(`[SUCCESS] PLAYBACK STARTED!`, "log-res");
+
+            } catch (error) {
+                onPlayerError({ detail: error });
+            }
+        }
+
+        function onPlayerError(event) {
+            const err = event.detail;
+            if (err.code === 1001) {
+                logAction(`[ERROR 1001] HTTP ${err.data[1]} on URL: ${err.data[0]}`, "log-err");
+            } else if (err.code >= 6000 && err.code < 7000) {
+                logAction(`[DRM ERROR ${err.code}] Setup failed or Keys mismatched.`, "log-err");
+            } else {
+                logAction(`[ERROR] Code ${err.code}`, "log-err");
+            }
+        }
+    </script>
+</body>
+</html>

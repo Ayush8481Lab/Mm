@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Live TV Player API</title>
+    
+    <!-- Shaka Player JS and CSS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.1/shaka-player.ui.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.1/controls.min.css">
+
+    <style>
+        :root {
+            --bg-dark: #0a0a0a;
+            --bg-panel: #141414;
+            --accent: #ff0033;
+            --text-main: #f0f0f0;
+            --text-dim: #888;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background-color: var(--bg-panel);
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #222;
+        }
+
+        .header {
+            padding: 20px;
+            background: #000;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        .header h1 { font-size: 1.2rem; margin-bottom: 10px;}
+
+        #search-box {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background: #222;
+            color: #fff;
+            outline: none;
+        }
+
+        #channel-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .channel-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            cursor: pointer;
+            border-bottom: 1px solid #222;
+            transition: 0.2s;
+        }
+
+        .channel-item:hover { background-color: #2a2a2a; }
+        .channel-item.active { background-color: #333; border-left: 5px solid var(--accent); }
+
+        .channel-logo {
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            object-fit: contain;
+            background: #fff;
+            margin-right: 15px;
+        }
+
+        .channel-name { font-weight: bold; font-size: 1rem; }
+        .channel-cat { font-size: 0.8rem; color: var(--text-dim); margin-top: 5px;}
+        .drm-badge { 
+            font-size: 0.7rem; 
+            background: var(--accent); 
+            padding: 2px 5px; 
+            border-radius: 3px; 
+            margin-top: 5px; 
+            display: inline-block;
+        }
+
+        /* Main Player Container */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .video-container {
+            flex: 1;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        video { width: 100%; height: 100%; }
+
+        /* Deep Analysis Error Console */
+        .debug-console {
+            height: 150px;
+            background: #111;
+            border-top: 1px solid #333;
+            padding: 10px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #4caf50;
+        }
+
+        .debug-console p { margin-bottom: 5px; border-bottom: 1px dashed #222; padding-bottom: 5px; }
+        .error-text { color: #ff5252; }
+        .warn-text { color: #ffc107; }
+
+        .status-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+
+        @media (max-width: 768px) {
+            body { flex-direction: column-reverse; }
+            .sidebar { width: 100%; height: 50vh; }
+            .main { height: 50vh; }
+            .debug-console { height: 100px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar Channels -->
+    <div class="sidebar">
+        <div class="header">
+            <h1>Live TV API Player</h1>
+            <input type="text" id="search-box" placeholder="Search channels..." onkeyup="filterChannels()">
+        </div>
+        <div id="channel-list">
+            <div style="padding: 20px; text-align: center; color: #888;">Fetching API...</div>
+        </div>
+    </div>
+
+    <!-- Main Player -->
+    <div class="main">
+        <div class="status-overlay" id="status-overlay" style="display: none;">
+            <h2 id="np-name">Select a Channel</h2>
+            <p id="np-status">Waiting...</p>
+        </div>
+
+        <div class="video-container" data-shaka-player-container>
+            <video data-shaka-player id="video" autoplay></video>
+        </div>
+
+        <!-- Deep Analysis Logger -->
+        <div class="debug-console" id="debug-console">
+            <p>> System initialized. Waiting for API fetch...</p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "https://raw.githubusercontent.com/live4wap/links/refs/heads/main/jiomb";
+        let allChannels = [];
+        let player;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            log("> Requesting channels from API...", "warn-text");
+            await fetchChannels();
+            initPlayer();
+        });
+
+        // 1. Fetch API Data
+        async function fetchChannels() {
+            try {
+                const timestamp = new Date().getTime();
+                const response = await fetch(`${API_URL}?t=${timestamp}`);
+                
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                
+                allChannels = await response.json();
+                log(`> API Success: Loaded ${allChannels.length} channels.`);
+                renderChannels(allChannels);
+            } catch (error) {
+                log(`> API Fetch Failed: ${error.message}`, "error-text");
+                document.getElementById('channel-list').innerHTML = `<div style="padding:20px;color:red;">Failed to load API data. Check internet or CORS.</div>`;
+            }
+        }
+
+        // 2. Render Channels in UI
+        function renderChannels(channels) {
+            const list = document.getElementById('channel-list');
+            list.innerHTML = ''; // clear
+
+            channels.forEach((channel, index) => {
+                const isEncrypted = (channel.keyId !== "null" && channel.key !== "null");
+                const item = document.createElement('div');
+                item.className = 'channel-item';
+                item.innerHTML = `
+                    <img src="${channel.logo}" class="channel-logo" onerror="this.src='https://via.placeholder.com/60?text=TV'">
+                    <div>
+                        <div class="channel-name">${channel.name}</div>
+                        <div class="channel-cat">${channel.category}</div>
+                        ${isEncrypted ? `<span class="drm-badge">ClearKey DRM</span>` : ''}
+                    </div>
+                `;
+                item.onclick = () => {
+                    document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+                    item.classList.add('active');
+                    playStream(channel);
+                };
+                list.appendChild(item);
+            });
+        }
+
+        // 3. Search Filter
+        function filterChannels() {
+            const query = document.getElementById('search-box').value.toLowerCase();
+            const filtered = allChannels.filter(c => c.name.toLowerCase().includes(query) || c.category.toLowerCase().includes(query));
+            renderChannels(filtered);
+        }
+
+        // 4. Initialize Shaka Player Deeply
+        function initPlayer() {
+            shaka.polyfill.installAll();
+            if (!shaka.Player.isBrowserSupported()) {
+                log("> Browser not supported for DASH playback", "error-text");
+                return;
+            }
+
+            const video = document.getElementById('video');
+            player = new shaka.Player(video);
+
+            // Advanced: Intercept Network Requests to prevent basic blocking
+            player.getNetworkingEngine().registerRequestFilter((type, request) => {
+                // If it's a Manifest or Segment request, we can append headers here if needed by the backend
+                // Note: Due to browser limits, setting 'User-Agent' here usually gets blocked, 
+                // but this is where you would put Authentication tokens if Jio provided them.
+            });
+
+            player.addEventListener('error', onPlayerError);
+            log("> Shaka Player Engine ready.");
+        }
+
+        // 5. Play Stream & Inject DRM
+        async function playStream(channel) {
+            try {
+                log(`> Loading Stream: ${channel.name} (ID: ${channel.id})`, "warn-text");
+                
+                // Update Status UI
+                document.getElementById('status-overlay').style.display = 'block';
+                document.getElementById('np-name').innerText = channel.name;
+                document.getElementById('np-status').innerText = 'Buffering...';
+                document.getElementById('np-status').style.color = 'yellow';
+
+                // Reset Player state
+                await player.unload();
+
+                // DRM Configuration
+                let drmConfig = { clearKeys: {} };
+                
+                if (channel.keyId !== "null" && channel.key !== "null") {
+                    // Shaka accepts plain Hexadecimal strings natively
+                    drmConfig.clearKeys[channel.keyId] = channel.key;
+                    log(`> Applying ClearKey DRM -> KeyID: ${channel.keyId.substring(0,6)}...`);
+                }
+
+                // Configure Player
+                player.configure({
+                    drm: drmConfig,
+                    streaming: {
+                        bufferingGoal: 10,
+                        rebufferingGoal: 2,
+                    }
+                });
+
+                // Load URL
+                await player.load(channel.url);
+                
+                log(`> Stream playing successfully: ${channel.name}`);
+                document.getElementById('np-status').innerText = '● LIVE';
+                document.getElementById('np-status').style.color = '#4caf50';
+
+            } catch (error) {
+                handleShakaError(error, channel.name);
+            }
+        }
+
+        // 6. Deep Error Analysis Function
+        function onPlayerError(event) {
+            handleShakaError(event.detail, "Current Stream");
+        }
+
+        function handleShakaError(error, channelName) {
+            document.getElementById('np-status').innerText = 'Offline / Error';
+            document.getElementById('np-status').style.color = '#ff5252';
+            
+            let errorMsg = `Code ${error.code}: `;
+            
+            // Map common Shaka errors for deep analysis
+            if (error.code === 1002 || error.code === 1001) {
+                errorMsg += "NETWORK/CORS ERROR! The server blocked the request. You need a CORS unblocker extension.";
+            } else if (error.code >= 6000 && error.code <= 6010) {
+                errorMsg += "DRM ERROR! The ClearKey provided in the API is invalid or expired.";
+            } else if (error.code === 1003) {
+                errorMsg += "HTTP 404/403. The channel URL is broken or geo-blocked by Jio.";
+            } else {
+                errorMsg += "Unknown formatting or playback error.";
+            }
+
+            log(`> Playback Failed for [${channelName}]: ${errorMsg}`, "error-text");
+            console.error('Deep Analysis Error Object:', error);
+        }
+
+        // Debug Logger
+        function log(message, className = "") {
+            const consoleDiv = document.getElementById('debug-console');
+            const time = new Date().toLocaleTimeString();
+            consoleDiv.innerHTML += `<p class="${className}">[${time}] ${message}</p>`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+    </script>
+</body>
+</html>

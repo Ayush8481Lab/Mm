@@ -10632,7 +10632,7 @@
         "name": "Zee TV HD",
         "id": "0-9-zeetvhd",
         "category": "ZEE5",
-        "url": "https://liveserverayush.onrender.com/0-9-zeetvhd.m3u8",
+        "url": "https://z5ak-cmaflive.zee5.com/cmaf/live/2105531/ZeeTVHDMSLELE/index.m3u8?hdnts=st=1786432690~exp=1786435690~acl=/cmaf/live/2105531/ZeeTVHDMSLELE/*~id=0e1dcde2-acd8-4f15-bdf1-03c616d1c093~data=non-ssai_0e1dcde2-acd8-4f15-bdf1-03c616d1c093~hmac=8bf1e3888b6cf41597fcd8a5a9edd092e75c8983f317ff523235ba05418ed9ef&req_id=non-ssai_0e1dcde2-acd8-4f15-bdf1-03c616d1c093",
         "keyId": "null",
         "key": "null",
         "logo": "https://akamaividz2.zee5.com/image/upload/w_auto,h_396,c_scale,f_webp,q_auto:eco/resources/0-9-zeetvhd/list/1920x1080list3424a135de534b88a95bfd69d193ae1c.jpg"

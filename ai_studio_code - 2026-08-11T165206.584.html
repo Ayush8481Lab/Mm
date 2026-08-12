@@ -13,6 +13,14 @@
             --text: #ffffff;
         }
 
+        /* Prevent blue highlight on mobile touch and accidental text selection */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            user-select: none;
+            box-sizing: border-box;
+        }
+
         html, body {
             margin: 0;
             padding: 0;
@@ -37,7 +45,8 @@
             width: 100%;
             height: 100%;
             outline: none;
-            cursor: pointer;
+            /* Keep cursor pointer so desktop users know they can double-click for fullscreen */
+            cursor: pointer; 
         }
 
         /* Controls Overlay */
@@ -83,6 +92,7 @@
             justify-content: center;
             opacity: 0.85;
             transition: opacity 0.2s, transform 0.1s;
+            outline: none;
         }
 
         button:hover {
@@ -244,7 +254,7 @@
             transform: translate(-50%, -50%);
             width: 85px;
             height: 85px;
-            background: transparent; /* 100% Transparent Background */
+            background: transparent; /* 100% Transparent */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -253,7 +263,7 @@
             z-index: 5;
             color: white;
             pointer-events: auto;
-            /* Drop-shadow ensures the white icon pops regardless of video background */
+            /* Drop-shadow makes the white icon pop against light backgrounds */
             filter: drop-shadow(0px 4px 15px rgba(0,0,0,0.75)); 
         }
 
@@ -267,7 +277,7 @@
             fill: white;
         }
 
-        /* JW Player style zoom-fade out when playing */
+        /* Zoom-fade out when playing */
         .playing .center-play {
             opacity: 0;
             pointer-events: none;
@@ -401,12 +411,11 @@
             let hideControlsTimeout = null;
             let clickTimer = null;
 
-            // --- 1. ROBUST URL PARSING (Solves '&' truncation issue) ---
+            // --- 1. ROBUST URL PARSING ---
             function getUrlParameter() {
                 const searchStr = window.location.search;
                 let extractedUrl = null;
                 
-                // Manually parse to prevent URLSearchParams from splitting at '&'
                 if (searchStr.indexOf('?url=') !== -1) {
                     extractedUrl = searchStr.substring(searchStr.indexOf('?url=') + 5);
                 } else if (searchStr.indexOf('&url=') !== -1) {
@@ -414,7 +423,6 @@
                 }
 
                 if (extractedUrl) {
-                    // Try to decode if it was URL Encoded, otherwise return raw string
                     if (extractedUrl.includes('%3A') || extractedUrl.includes('%2F') || extractedUrl.includes('%26')) {
                         try { return decodeURIComponent(extractedUrl); } catch (e) { }
                     }
@@ -485,7 +493,7 @@
 
             // --- 3. VIDEO CONTROLS LOGIC ---
 
-            // Play / Pause Toggle
+            // Play / Pause Toggle (Only triggers on explicit button clicks)
             function togglePlay() {
                 if (video.paused) {
                     video.play();
@@ -504,17 +512,18 @@
                 togglePlay();
             });
 
-            // Single click to play/pause, Double click to fullscreen
+            // Video Screen Click: Only wakes up controls (or toggles fullscreen on double tap)
+            // It will NO LONGER play/pause the video when you tap the screen.
             video.addEventListener('click', () => {
                 if (clickTimer === null) {
                     clickTimer = setTimeout(() => {
                         clickTimer = null;
-                        togglePlay();
+                        showControls(); // Just wake up controls on single tap
                     }, 250);
                 } else {
                     clearTimeout(clickTimer);
                     clickTimer = null;
-                    toggleFullscreen();
+                    toggleFullscreen(); // Double tap for fullscreen
                 }
             });
 
@@ -595,6 +604,7 @@
                 }
             }
 
+            // Mouse movement on desktop wakes up controls
             container.addEventListener('mousemove', showControls);
             container.addEventListener('mouseleave', () => {
                 if (!video.paused && !settingsMenu.classList.contains('show')) {

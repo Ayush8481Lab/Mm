@@ -111,12 +111,14 @@
             align-items: center;
             gap: 6px;
             color: var(--text);
-            font-size: 12px;
+            font-size: 13px;
             font-weight: 700;
             letter-spacing: 0.5px;
             cursor: pointer;
             opacity: 0.9;
             transition: opacity 0.2s;
+            /* Monospace numbers prevent jiggling when duration ticks */
+            font-variant-numeric: tabular-nums; 
         }
 
         .live-indicator:hover {
@@ -383,7 +385,7 @@
 
                 <div class="live-indicator" id="live-indicator" title="Sync to Live Edge">
                     <div class="live-dot" id="live-dot"></div>
-                    LIVE
+                    <span id="live-text">LIVE</span>
                 </div>
             </div>
 
@@ -434,6 +436,7 @@
             const qualityList = document.getElementById('quality-list');
             const liveIndicator = document.getElementById('live-indicator');
             const liveDot = document.getElementById('live-dot');
+            const liveText = document.getElementById('live-text');
             const errorMsg = document.getElementById('error-message');
             const errorText = document.getElementById('error-text');
             
@@ -452,7 +455,6 @@
                 container.classList.remove('loading'); // Stop spinner
             }
 
-            // Catch native HTML5 Video element errors
             video.addEventListener('error', () => {
                 showError("Playback Error: Stream could not be loaded.");
             });
@@ -524,8 +526,13 @@
                     hls = new Hls({
                         enableWorker: true,
                         lowLatencyMode: true,
-                        maxLiveSyncPlaybackRate: 1.5,
+                        // Set strictly to 1 so the video does not "fast forward" to catch up
+                        maxLiveSyncPlaybackRate: 1, 
                         liveSyncDurationCount: 3,
+                        // Prevent aggressive automatic seeking if user pauses intentionally
+                        liveMaxLatencyDurationCount: Infinity,
+                        maxBufferLength: 30,
+                        maxMaxBufferLength: 60,
                     });
                     
                     hls.loadSource(url);
@@ -536,7 +543,7 @@
                         attemptAutoplay();
                     });
 
-                    // Update Auto Quality Text when level switches (YouTube style)
+                    // Update Auto Quality Text when level switches
                     hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
                         const autoItem = document.querySelector('.settings-item[data-level="-1"]');
                         if (autoItem) {
@@ -553,18 +560,15 @@
                         if (data.fatal) {
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
-                                    // If manifest fails to load, the URL is likely invalid/dead. Kill it immediately.
                                     if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || 
                                         data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR) {
                                         hls.destroy();
-                                        showError("Error:Stream token Expired Refresh Site");
+                                        showError("Playback Error: Stream not found or invalid URL.");
                                     } else {
-                                        console.log("Network error, trying to recover...");
                                         hls.startLoad();
                                     }
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
-                                    console.log("Media error, recovering...");
                                     hls.recoverMediaError();
                                     break;
                                 default:
@@ -607,11 +611,10 @@
                 togglePlay();
             });
 
-            // Video Screen Click: Unmute if muted, else wake controls / double tap FS
+            // Video Screen Click
             video.addEventListener('click', () => {
                 if (isErrorState) return;
 
-                // Instantly unmute on first tap if currently muted
                 if (video.muted) {
                     video.muted = false;
                     if (video.volume === 0) {
@@ -782,28 +785,52 @@
                 }
             });
 
-            // Live Indicator Tracking
+            // --- Advanced DVR / Latency Live Tracker ---
             video.addEventListener('timeupdate', () => {
-                if (hls && hls.liveSyncPosition) {
-                    if (hls.liveSyncPosition - video.currentTime > 15) {
+                if (isErrorState) return;
+                
+                let liveEdge = 0;
+                
+                if (hls && hls.liveSyncPosition !== undefined) {
+                    liveEdge = hls.liveSyncPosition;
+                } else if (video.seekable && video.seekable.length > 0) {
+                    // Fallback for native Safari HLS
+                    liveEdge = video.seekable.end(video.seekable.length - 1);
+                }
+
+                if (liveEdge > 0) {
+                    const latency = liveEdge - video.currentTime;
+                    
+                    // If behind live edge by more than 6 seconds, show duration (e.g., -0:15)
+                    if (latency > 6) {
                         liveDot.classList.add('behind');
+                        const diff = Math.floor(latency);
+                        const mins = Math.floor(diff / 60);
+                        const secs = diff % 60;
+                        liveText.innerText = `-${mins}:${secs.toString().padStart(2, '0')}`;
                     } else {
                         liveDot.classList.remove('behind');
+                        liveText.innerText = 'LIVE';
                     }
                 }
             });
 
-            // Sync back to live edge
+            // Click to Sync back to live edge
             liveIndicator.addEventListener('click', (e) => {
                 e.stopPropagation();
                 if (isErrorState) return;
-                if (hls && hls.liveSyncPosition) {
+                
+                if (hls && hls.liveSyncPosition !== undefined) {
                     video.currentTime = hls.liveSyncPosition;
-                    video.play();
-                } else if (video.seekable.length > 0) {
+                } else if (video.seekable && video.seekable.length > 0) {
                     video.currentTime = video.seekable.end(video.seekable.length - 1);
-                    video.play();
                 }
+                
+                video.play();
+                
+                // Instantly update UI back to LIVE
+                liveDot.classList.remove('behind');
+                liveText.innerText = 'LIVE';
             });
         });
     </script>

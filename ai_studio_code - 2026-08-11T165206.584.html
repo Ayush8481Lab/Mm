@@ -3,343 +3,645 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>High-Performance HLS Player</title>
+    <title>Live Stream Player</title>
     <!-- Load HLS.js from CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         :root {
             --primary: #007bff;
-            --bg-color: #0f0f13;
-            --container-bg: #1c1c22;
-            --text-color: #ffffff;
+            --live-red: #ff3333;
+            --text: #ffffff;
+            --bg-overlay: rgba(0, 0, 0, 0.7);
         }
-        
-        * {
-            box-sizing: border-box;
+
+        html, body {
             margin: 0;
             padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
         }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .header {
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .header h1 {
-            font-weight: 600;
-            font-size: 1.8rem;
-            margin-bottom: 5px;
-            background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 10px;
-            width: 100%;
-            max-width: 800px;
-            margin-bottom: 20px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            padding: 12px 15px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            background: #24242c;
-            color: white;
-            font-size: 14px;
-            outline: none;
-            transition: border 0.3s ease;
-        }
-
-        input[type="text"]:focus {
-            border-color: var(--primary);
-        }
-
-        button.load-btn {
-            padding: 0 20px;
-            border: none;
-            border-radius: 8px;
-            background: var(--primary);
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.3s ease, transform 0.1s ease;
-        }
-
-        button.load-btn:hover {
-            background: #0056b3;
-        }
-
-        button.load-btn:active {
-            transform: scale(0.96);
-        }
-
-        /* Player Container */
-        .player-wrapper {
+        .player-container {
             position: relative;
             width: 100%;
-            max-width: 800px;
-            background: #000;
-            border-radius: 12px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
-            overflow: hidden;
+            height: 100%;
             display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
         }
 
         video {
             width: 100%;
-            height: auto;
-            aspect-ratio: 16 / 9;
-            display: block;
-        }
-
-        /* Custom Quality Selector */
-        .quality-container {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            z-index: 10;
-        }
-
-        .quality-btn {
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 8px 14px;
-            border-radius: 6px;
+            height: 100%;
+            outline: none;
             cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            backdrop-filter: blur(8px);
+        }
+
+        /* Controls Overlay */
+        .controls-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 80px 20px 20px;
+            background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 50%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to video */
+        }
+
+        .player-container.idle .controls-overlay {
+            opacity: 0;
+        }
+        
+        .player-container.idle {
+            cursor: none;
+        }
+
+        .controls-left, .controls-right {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            pointer-events: auto; /* Re-enable clicks on controls */
+        }
+
+        button {
+            background: none;
+            border: none;
+            color: var(--text);
+            cursor: pointer;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.85;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+
+        /* Live Indicator */
+        .live-indicator {
             display: flex;
             align-items: center;
             gap: 6px;
-            transition: all 0.2s ease;
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            opacity: 0.9;
+            transition: opacity 0.2s;
         }
 
-        .quality-btn:hover {
-            background: rgba(0, 0, 0, 0.8);
-            border-color: rgba(255, 255, 255, 0.4);
+        .live-indicator:hover {
+            opacity: 1;
         }
 
-        .quality-menu {
-            position: absolute;
-            top: 100%;
-            right: 0;
-            margin-top: 8px;
-            background: rgba(15, 15, 19, 0.95);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 8px;
-            list-style: none;
-            width: 120px;
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--live-red);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--live-red);
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        .live-dot.behind {
+            background-color: #888;
+            box-shadow: none;
+        }
+
+        /* Volume Slider */
+        .volume-container {
+            display: flex;
+            align-items: center;
+        }
+
+        .volume-slider {
+            width: 0;
+            opacity: 0;
+            transition: width 0.3s ease, opacity 0.3s ease;
             overflow: hidden;
-            backdrop-filter: blur(10px);
+            padding-left: 0;
+        }
+
+        .volume-container:hover .volume-slider, .volume-slider input:active {
+            width: 75px;
+            opacity: 1;
+            padding-left: 8px;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            margin-top: -4px;
+            box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.4);
+            border-radius: 2px;
+        }
+
+        /* Settings Menu */
+        .settings-menu {
+            position: absolute;
+            bottom: 60px;
+            right: 20px;
+            background: rgba(24, 24, 24, 0.95);
+            border-radius: 6px;
+            min-width: 140px;
             display: none;
             flex-direction: column;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            z-index: 20;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.6);
+            overflow: hidden;
+            pointer-events: auto;
+            backdrop-filter: blur(8px);
         }
 
-        .quality-menu.show {
+        .settings-menu.show {
             display: flex;
-            animation: fadeIn 0.2s ease;
+            animation: slideUp 0.2s ease-out;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-10px); }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .quality-menu li {
+        .settings-header {
             padding: 10px 15px;
+            font-size: 12px;
+            color: #aaa;
+            font-weight: 600;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.3);
+        }
+
+        .settings-item {
+            padding: 10px 15px;
+            color: white;
             font-size: 13px;
             cursor: pointer;
-            text-align: right;
-            border-left: 3px solid transparent;
-            transition: background 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
         }
 
-        .quality-menu li:hover {
-            background: rgba(255, 255, 255, 0.1);
+        .settings-item:hover {
+            background: rgba(255,255,255,0.15);
         }
 
-        .quality-menu li.active {
-            color: #4facfe;
+        .settings-item.active {
+            color: var(--primary);
             font-weight: 600;
-            border-left: 3px solid #4facfe;
-            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .settings-item.active::after {
+            content: '✓';
+            font-size: 14px;
+        }
+
+        /* Center Play Button */
+        .center-play {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 72px;
+            height: 72px;
+            background: rgba(28, 28, 28, 0.7);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: opacity 0.3s, transform 0.2s, background 0.2s;
+            z-index: 5;
+            color: white;
+            pointer-events: auto;
+        }
+
+        .center-play:hover {
+            background: var(--primary);
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        .center-play svg {
+            width: 36px;
+            height: 36px;
+            margin-left: 6px;
+        }
+
+        .playing .center-play {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.2);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: none;
+            z-index: 4;
+        }
+
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        .loading .spinner { display: block; }
+        .loading .center-play { display: none; }
+
+        /* Error Messaging */
+        .error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            background: rgba(220, 53, 69, 0.9);
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            display: none;
+            z-index: 20;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            max-width: 80%;
+            word-wrap: break-word;
         }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <h1>Super-Fast HLS Player</h1>
-        <p style="font-size: 13px; color: #888;">Hardware-accelerated HTML5 video with quality switching</p>
-    </div>
-
-    <div class="input-group">
-        <input type="text" id="stream-url" value="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" placeholder="Paste .m3u8 URL here...">
-        <button class="load-btn" id="load-btn">Play</button>
-    </div>
-
-    <div class="player-wrapper">
-        <video id="video" controls crossorigin playsinline></video>
+    <div class="player-container" id="player-container">
+        <!-- Native video element -->
+        <video id="video" playsinline></video>
         
-        <div class="quality-container" id="quality-container" style="display: none;">
-            <button class="quality-btn" id="quality-btn">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                <span id="quality-text">Auto</span>
-            </button>
-            <ul class="quality-menu" id="quality-menu">
-                <!-- Quality list injected via JS -->
-            </ul>
+        <div class="spinner" id="spinner"></div>
+        
+        <div class="center-play" id="center-play" title="Play">
+            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+
+        <div class="error-message" id="error-message"></div>
+
+        <div class="controls-overlay" id="controls">
+            <div class="controls-left">
+                <button id="play-pause-btn" title="Play">
+                    <svg id="play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="pause-icon" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                
+                <div class="volume-container">
+                    <button id="mute-btn" title="Mute">
+                        <svg id="vol-up-icon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                        <svg id="vol-off-icon" viewBox="0 0 24 24" style="display: none;"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>
+                    </button>
+                    <div class="volume-slider">
+                        <input type="range" id="volume-range" min="0" max="1" step="0.05" value="1">
+                    </div>
+                </div>
+
+                <div class="live-indicator" id="live-indicator" title="Sync to Live Edge">
+                    <div class="live-dot" id="live-dot"></div>
+                    LIVE
+                </div>
+            </div>
+
+            <div class="controls-right">
+                <button id="settings-btn" title="Quality Settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                </button>
+                <button id="fullscreen-btn" title="Fullscreen">
+                    <svg id="fs-enter-icon" viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                    <svg id="fs-exit-icon" viewBox="0 0 24 24" style="display: none;"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+                </button>
+            </div>
+        </div>
+        
+        <div class="settings-menu" id="settings-menu">
+            <div class="settings-header">Video Quality</div>
+            <div id="quality-list">
+                <!-- Quality items injected via JS -->
+            </div>
         </div>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const video = document.getElementById('video');
-            const urlInput = document.getElementById('stream-url');
-            const loadBtn = document.getElementById('load-btn');
-            
-            const qualityContainer = document.getElementById('quality-container');
-            const qualityBtn = document.getElementById('quality-btn');
-            const qualityText = document.getElementById('quality-text');
-            const qualityMenu = document.getElementById('quality-menu');
+            const container = document.getElementById('player-container');
+            const playPauseBtn = document.getElementById('play-pause-btn');
+            const playIcon = document.getElementById('play-icon');
+            const pauseIcon = document.getElementById('pause-icon');
+            const centerPlay = document.getElementById('center-play');
+            const muteBtn = document.getElementById('mute-btn');
+            const volUpIcon = document.getElementById('vol-up-icon');
+            const volOffIcon = document.getElementById('vol-off-icon');
+            const volumeRange = document.getElementById('volume-range');
+            const fullscreenBtn = document.getElementById('fullscreen-btn');
+            const fsEnterIcon = document.getElementById('fs-enter-icon');
+            const fsExitIcon = document.getElementById('fs-exit-icon');
+            const settingsBtn = document.getElementById('settings-btn');
+            const settingsMenu = document.getElementById('settings-menu');
+            const qualityList = document.getElementById('quality-list');
+            const liveIndicator = document.getElementById('live-indicator');
+            const liveDot = document.getElementById('live-dot');
+            const errorMsg = document.getElementById('error-message');
             
             let hls = null;
+            let hideControlsTimeout = null;
+            let clickTimer = null;
 
-            // Toggle quality menu
-            qualityBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                qualityMenu.classList.toggle('show');
-            });
+            // --- 1. GET URL FROM EMBED PARAMS ---
+            const urlParams = new URLSearchParams(window.location.search);
+            const streamUrl = urlParams.get('url');
 
-            // Close menu when clicking outside
-            document.addEventListener('click', () => {
-                qualityMenu.classList.remove('show');
-            });
+            if (streamUrl) {
+                initPlayer(decodeURIComponent(streamUrl));
+            } else {
+                showError("No video source provided. Use ?url=YOUR_STREAM_URL.m3u8");
+            }
 
-            function setupPlayer(url) {
-                // Destroy existing HLS instance if present
-                if (hls) {
-                    hls.destroy();
-                    qualityMenu.innerHTML = '';
-                    qualityContainer.style.display = 'none';
-                }
-
+            // --- 2. HLS INITIALIZATION ---
+            function initPlayer(url) {
                 if (Hls.isSupported()) {
-                    // Initialize HLS with performance optimized settings
                     hls = new Hls({
                         enableWorker: true,
                         lowLatencyMode: true,
-                        maxBufferLength: 30, // Keeps memory low and streaming fast
+                        maxLiveSyncPlaybackRate: 1.5,
+                        liveSyncDurationCount: 3,
                     });
-
+                    
                     hls.loadSource(url);
                     hls.attachMedia(video);
 
                     hls.on(Hls.Events.MANIFEST_PARSED, (event, data) => {
-                        qualityContainer.style.display = 'block';
-                        const levels = data.levels;
-                        
-                        // Default Auto option
-                        let menuHtml = `<li class="active" data-level="-1">Auto</li>`;
-                        
-                        // Reverse loop to show highest quality at the top
-                        let sortedLevels = levels.map((l, i) => ({...l, originalIndex: i}))
-                                                 .sort((a, b) => b.height - a.height);
-                        
-                        sortedLevels.forEach((level) => {
-                            menuHtml += `<li data-level="${level.originalIndex}">${level.height}p</li>`;
-                        });
-                        
-                        qualityMenu.innerHTML = menuHtml;
-                        video.play().catch(e => console.log("Autoplay blocked:", e));
-
-                        // Handle manual quality selection
-                        document.querySelectorAll('#quality-menu li').forEach(item => {
-                            item.addEventListener('click', (e) => {
-                                const level = parseInt(e.target.getAttribute('data-level'));
-                                hls.currentLevel = level;
-                                
-                                // Update UI styles
-                                document.querySelectorAll('#quality-menu li').forEach(li => li.classList.remove('active'));
-                                e.target.classList.add('active');
-                                
-                                // Update Button Text
-                                if(level === -1) {
-                                    qualityText.innerText = 'Auto';
-                                } else {
-                                    qualityText.innerText = `${levels[level].height}p`;
-                                }
-                            });
-                        });
+                        setupQualityMenu(data.levels);
+                        // Trigger Play Automatically if browser allows
+                        video.play().catch(() => console.log('Autoplay blocked by browser.'));
                     });
-
-                    // Update UI gracefully if running in 'Auto' mode and quality switches
-                    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
-                        if (hls.autoLevelEnabled) {
-                            const height = hls.levels[data.level].height;
-                            qualityText.innerText = `Auto (${height}p)`;
-                        }
-                    });
-
+                    
                     hls.on(Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
-                                    console.error("Network error, trying to recover...");
                                     hls.startLoad();
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
-                                    console.error("Media error, trying to recover...");
                                     hls.recoverMediaError();
                                     break;
                                 default:
+                                    showError("Fatal Stream Error");
                                     hls.destroy();
-                                    alert("Fatal stream error.");
                                     break;
                             }
                         }
                     });
 
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                    // Fallback for Safari (which has built-in HLS support and handles quality automatically)
+                    // Safari / iOS Fallback (Handles Native Quality automatically)
                     video.src = url;
+                    settingsBtn.style.display = 'none'; // Hide manual quality menu
                     video.addEventListener('loadedmetadata', () => {
-                        video.play().catch(e => console.log("Autoplay blocked:", e));
+                        video.play().catch(() => {});
                     });
-                    // Hide custom quality menu as Safari forces native quality controls
-                    qualityContainer.style.display = 'none';
                 } else {
-                    alert('Your browser does not support HLS playback.');
+                    showError("HLS is not supported in this browser.");
                 }
             }
 
-            // Load button click
-            loadBtn.addEventListener('click', () => {
-                const url = urlInput.value.trim();
-                if(url) setupPlayer(url);
+            function showError(msg) {
+                errorMsg.innerText = msg;
+                errorMsg.style.display = 'block';
+                container.classList.add('error');
+            }
+
+            // --- 3. VIDEO CONTROLS LOGIC ---
+
+            // Play / Pause Toggle
+            function togglePlay() {
+                if (video.paused) {
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            }
+
+            playPauseBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                togglePlay();
             });
 
-            // Initialize player on page load
-            setupPlayer(urlInput.value);
+            centerPlay.addEventListener('click', (e) => {
+                e.stopPropagation();
+                togglePlay();
+            });
+
+            // Single click to play/pause, Double click to fullscreen
+            video.addEventListener('click', () => {
+                if (clickTimer === null) {
+                    clickTimer = setTimeout(() => {
+                        clickTimer = null;
+                        togglePlay();
+                    }, 250);
+                } else {
+                    clearTimeout(clickTimer);
+                    clickTimer = null;
+                    toggleFullscreen();
+                }
+            });
+
+            // UI State updates
+            video.addEventListener('play', () => {
+                container.classList.add('playing');
+                playIcon.style.display = 'none';
+                pauseIcon.style.display = 'block';
+                showControls();
+            });
+
+            video.addEventListener('pause', () => {
+                container.classList.remove('playing');
+                playIcon.style.display = 'block';
+                pauseIcon.style.display = 'none';
+                showControls();
+            });
+
+            video.addEventListener('waiting', () => container.classList.add('loading'));
+            video.addEventListener('playing', () => container.classList.remove('loading'));
+
+            // Volume Controls
+            muteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                video.muted = !video.muted;
+            });
+
+            volumeRange.addEventListener('input', (e) => {
+                video.volume = e.target.value;
+                video.muted = e.target.value === '0';
+            });
+
+            video.addEventListener('volumechange', () => {
+                volumeRange.value = video.muted ? 0 : video.volume;
+                if (video.muted || video.volume === 0) {
+                    volUpIcon.style.display = 'none';
+                    volOffIcon.style.display = 'block';
+                } else {
+                    volUpIcon.style.display = 'block';
+                    volOffIcon.style.display = 'none';
+                }
+            });
+
+            // Fullscreen Logic
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    container.requestFullscreen().catch(err => console.log(err));
+                } else {
+                    document.exitFullscreen();
+                }
+            }
+
+            fullscreenBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleFullscreen();
+            });
+
+            document.addEventListener('fullscreenchange', () => {
+                if (document.fullscreenElement) {
+                    fsEnterIcon.style.display = 'none';
+                    fsExitIcon.style.display = 'block';
+                } else {
+                    fsEnterIcon.style.display = 'block';
+                    fsExitIcon.style.display = 'none';
+                }
+            });
+
+            // Auto-hide Controls
+            function showControls() {
+                container.classList.remove('idle');
+                clearTimeout(hideControlsTimeout);
+                if (!video.paused) {
+                    hideControlsTimeout = setTimeout(() => {
+                        if (!settingsMenu.classList.contains('show')) {
+                            container.classList.add('idle');
+                        }
+                    }, 2500);
+                }
+            }
+
+            container.addEventListener('mousemove', showControls);
+            container.addEventListener('mouseleave', () => {
+                if (!video.paused && !settingsMenu.classList.contains('show')) {
+                    container.classList.add('idle');
+                }
+            });
+
+            // Quality Settings Menu
+            function setupQualityMenu(levels) {
+                qualityList.innerHTML = `<div class="settings-item active" data-level="-1">Auto</div>`;
+                
+                let sortedLevels = levels.map((l, i) => ({...l, originalIndex: i}))
+                                         .sort((a, b) => b.height - a.height);
+                                         
+                sortedLevels.forEach(level => {
+                    qualityList.innerHTML += `<div class="settings-item" data-level="${level.originalIndex}">${level.height}p</div>`;
+                });
+
+                const items = qualityList.querySelectorAll('.settings-item');
+                items.forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const level = parseInt(item.getAttribute('data-level'));
+                        if (hls) hls.currentLevel = level;
+                        
+                        items.forEach(i => i.classList.remove('active'));
+                        item.classList.add('active');
+                        settingsMenu.classList.remove('show');
+                    });
+                });
+            }
+
+            settingsBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                settingsMenu.classList.toggle('show');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!settingsMenu.contains(e.target) && e.target !== settingsBtn) {
+                    settingsMenu.classList.remove('show');
+                }
+            });
+
+            // Live Indicator Tracking (Turn grey if falling behind)
+            video.addEventListener('timeupdate', () => {
+                if (hls && hls.liveSyncPosition) {
+                    // Check if player is lagging more than 15 seconds behind the live edge
+                    if (hls.liveSyncPosition - video.currentTime > 15) {
+                        liveDot.classList.add('behind');
+                    } else {
+                        liveDot.classList.remove('behind');
+                    }
+                }
+            });
+
+            // Sync back to live edge on click
+            liveIndicator.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (hls && hls.liveSyncPosition) {
+                    video.currentTime = hls.liveSyncPosition;
+                    video.play();
+                } else if (video.seekable.length > 0) {
+                    video.currentTime = video.seekable.end(video.seekable.length - 1);
+                    video.play();
+                }
+            });
         });
     </script>
 </body>

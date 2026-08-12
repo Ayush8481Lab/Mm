@@ -45,7 +45,6 @@
             width: 100%;
             height: 100%;
             outline: none;
-            /* Keep cursor pointer so desktop users know they can double-click for fullscreen */
             cursor: pointer; 
         }
 
@@ -246,7 +245,7 @@
             font-size: 14px;
         }
 
-        /* Center Play Button (Perfected transparent design) */
+        /* Center Play/Pause Button */
         .center-play {
             position: absolute;
             top: 50%;
@@ -254,7 +253,7 @@
             transform: translate(-50%, -50%);
             width: 85px;
             height: 85px;
-            background: transparent; /* 100% Transparent */
+            background: transparent;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -263,12 +262,15 @@
             z-index: 5;
             color: white;
             pointer-events: auto;
-            /* Drop-shadow makes the white icon pop against light backgrounds */
             filter: drop-shadow(0px 4px 15px rgba(0,0,0,0.75)); 
         }
 
         .center-play:hover {
             transform: translate(-50%, -50%) scale(1.15);
+        }
+        
+        .center-play:active {
+            transform: translate(-50%, -50%) scale(0.95);
         }
 
         .center-play svg {
@@ -277,11 +279,11 @@
             fill: white;
         }
 
-        /* Zoom-fade out when playing */
-        .playing .center-play {
+        /* Hide Center Button when controls go idle */
+        .player-container.idle .center-play {
             opacity: 0;
             pointer-events: none;
-            transform: translate(-50%, -50%) scale(1.4); 
+            transform: translate(-50%, -50%) scale(1.3);
         }
 
         /* Loading Spinner */
@@ -337,8 +339,10 @@
         
         <div class="spinner" id="spinner"></div>
         
-        <div class="center-play" id="center-play" title="Play">
-            <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <!-- Updated Center Play/Pause Button -->
+        <div class="center-play" id="center-play" title="Play/Pause">
+            <svg id="center-play-icon" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="center-pause-icon" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
         </div>
 
         <div class="error-message" id="error-message"></div>
@@ -393,6 +397,8 @@
             const playIcon = document.getElementById('play-icon');
             const pauseIcon = document.getElementById('pause-icon');
             const centerPlay = document.getElementById('center-play');
+            const centerPlayIcon = document.getElementById('center-play-icon');
+            const centerPauseIcon = document.getElementById('center-pause-icon');
             const muteBtn = document.getElementById('mute-btn');
             const volUpIcon = document.getElementById('vol-up-icon');
             const volOffIcon = document.getElementById('vol-off-icon');
@@ -493,7 +499,7 @@
 
             // --- 3. VIDEO CONTROLS LOGIC ---
 
-            // Play / Pause Toggle (Only triggers on explicit button clicks)
+            // Play / Pause Toggle (Triggers on explicit button clicks)
             function togglePlay() {
                 if (video.paused) {
                     video.play();
@@ -513,12 +519,11 @@
             });
 
             // Video Screen Click: Only wakes up controls (or toggles fullscreen on double tap)
-            // It will NO LONGER play/pause the video when you tap the screen.
             video.addEventListener('click', () => {
                 if (clickTimer === null) {
                     clickTimer = setTimeout(() => {
                         clickTimer = null;
-                        showControls(); // Just wake up controls on single tap
+                        showControls(); // Wake up controls
                     }, 250);
                 } else {
                     clearTimeout(clickTimer);
@@ -527,18 +532,28 @@
                 }
             });
 
-            // UI State updates
+            // UI State updates (Updates BOTH bottom left and Center SVGs)
             video.addEventListener('play', () => {
                 container.classList.add('playing');
+                // Bottom Left Icon
                 playIcon.style.display = 'none';
                 pauseIcon.style.display = 'block';
+                // Center Icon (Switch to Pause)
+                centerPlayIcon.style.display = 'none';
+                centerPauseIcon.style.display = 'block';
+                
                 showControls();
             });
 
             video.addEventListener('pause', () => {
                 container.classList.remove('playing');
+                // Bottom Left Icon
                 playIcon.style.display = 'block';
                 pauseIcon.style.display = 'none';
+                // Center Icon (Switch to Play)
+                centerPlayIcon.style.display = 'block';
+                centerPauseIcon.style.display = 'none';
+                
                 showControls();
             });
 
@@ -595,6 +610,7 @@
             function showControls() {
                 container.classList.remove('idle');
                 clearTimeout(hideControlsTimeout);
+                // When video is playing, fade out controls after 2.5s of no activity
                 if (!video.paused) {
                     hideControlsTimeout = setTimeout(() => {
                         if (!settingsMenu.classList.contains('show')) {

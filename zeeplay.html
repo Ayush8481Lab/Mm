@@ -8,7 +8,7 @@
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         :root {
-            --primary: #ffffff; /* Changed primary color to white for spinner */
+            --primary: #ffffff; 
             --live-red: #ff3333;
             --text: #ffffff;
         }
@@ -286,7 +286,7 @@
             transform: translate(-50%, -50%) scale(1.3);
         }
 
-        /* BOLD WHITE/GREY FAST SPINNER (JW PLAYER STYLE) */
+        /* BOLD WHITE/GREY FAST SPINNER */
         .spinner {
             position: absolute;
             top: 50%;
@@ -294,16 +294,12 @@
             transform: translate(-50%, -50%);
             width: 60px;
             height: 60px;
-            /* Greyish translucent track */
             border: 5px solid rgba(255, 255, 255, 0.25);
-            /* Bold white moving part */
             border-top: 5px solid #ffffff;
             border-radius: 50%;
-            /* Faster rotation */
             animation: spin 0.6s linear infinite;
             display: none;
             z-index: 4;
-            /* Drop shadow keeps it visible over bright/white videos */
             filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.5));
         }
 
@@ -377,7 +373,7 @@
             </div>
 
             <div class="controls-right">
-                <!-- New Picture-in-Picture Button -->
+                <!-- Picture-in-Picture Button -->
                 <button id="pip-btn" title="Picture-in-Picture" style="display: none;">
                     <svg viewBox="0 0 24 24"><path d="M19 11h-8v6h8v-6zm4 8V5c0-1.1-.9-2-2-2H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2zm-2 0H3V5h18v14z"/></svg>
                 </button>
@@ -563,8 +559,17 @@
                 togglePlay();
             });
 
-            // Video Click (Wake controls / Double Tap FS)
+            // Video Screen Click: Unmute if muted, else wake controls / double tap FS
             video.addEventListener('click', () => {
+                // Instantly unmute on first tap if currently muted (crucial for browser gesture policy)
+                if (video.muted) {
+                    video.muted = false;
+                    if (video.volume === 0) {
+                        video.volume = previousVolume > 0 ? previousVolume : 1;
+                    }
+                    updateVolumeUI();
+                }
+
                 if (clickTimer === null) {
                     clickTimer = setTimeout(() => {
                         clickTimer = null;

@@ -279,8 +279,9 @@
             fill: white;
         }
 
-        /* Hide Center Button when controls go idle */
-        .player-container.idle .center-play {
+        /* Hide Center Button when controls go idle or on error */
+        .player-container.idle .center-play,
+        .player-container.error .center-play {
             opacity: 0;
             pointer-events: none;
             transform: translate(-50%, -50%) scale(1.3);
@@ -308,7 +309,8 @@
             100% { transform: translate(-50%, -50%) rotate(360deg); }
         }
 
-        .loading .spinner { display: block; }
+        /* Show loading ONLY if there's no error */
+        .loading:not(.error) .spinner { display: block; }
         .loading .center-play { display: none; }
 
         /* Error Messaging */
@@ -318,17 +320,27 @@
             left: 50%;
             transform: translate(-50%, -50%);
             color: #fff;
-            background: rgba(220, 53, 69, 0.9);
-            padding: 12px 24px;
+            background: rgba(24, 24, 24, 0.95);
+            padding: 16px 24px;
             border-radius: 8px;
+            border: 1px solid rgba(255, 51, 51, 0.4);
             font-size: 14px;
             font-weight: 500;
             display: none;
             z-index: 20;
             text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
             max-width: 80%;
             word-wrap: break-word;
+            backdrop-filter: blur(8px);
+        }
+        
+        .error-icon {
+            display: block;
+            margin: 0 auto 10px;
+            width: 32px;
+            height: 32px;
+            fill: var(--live-red);
         }
     </style>
 </head>
@@ -346,7 +358,10 @@
             <svg id="center-pause-icon" viewBox="0 0 24 24" style="display: none;"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
         </div>
 
-        <div class="error-message" id="error-message"></div>
+        <div class="error-message" id="error-message">
+            <svg class="error-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+            <span id="error-text">Playback Error</span>
+        </div>
 
         <div class="controls-overlay" id="controls">
             <div class="controls-left">
@@ -420,11 +435,27 @@
             const liveIndicator = document.getElementById('live-indicator');
             const liveDot = document.getElementById('live-dot');
             const errorMsg = document.getElementById('error-message');
+            const errorText = document.getElementById('error-text');
             
             let hls = null;
             let hideControlsTimeout = null;
             let clickTimer = null;
             let previousVolume = 1;
+            let isErrorState = false;
+
+            // --- ERROR HANDLING LOGIC ---
+            function showError(msg) {
+                isErrorState = true;
+                errorText.innerText = msg;
+                errorMsg.style.display = 'block';
+                container.classList.add('error');
+                container.classList.remove('loading'); // Stop spinner
+            }
+
+            // Catch native HTML5 Video element errors
+            video.addEventListener('error', () => {
+                showError("Playback Error: Stream could not be loaded.");
+            });
 
             // --- UI Volume Sync ---
             function updateVolumeUI() {
@@ -440,16 +471,16 @@
 
             // --- Smart Autoplay Logic ---
             function attemptAutoplay() {
+                if (isErrorState) return;
+                
                 video.muted = false;
                 video.volume = 1;
                 
                 const playPromise = video.play();
                 if (playPromise !== undefined) {
                     playPromise.then(() => {
-                        // Unmuted autoplay succeeded
                         updateVolumeUI();
                     }).catch(error => {
-                        // Unmuted blocked -> fallback to muted
                         if (error.name === 'NotAllowedError') {
                             video.muted = true;
                             video.play().catch(e => console.log("Muted autoplay blocked:", e));
@@ -522,14 +553,23 @@
                         if (data.fatal) {
                             switch (data.type) {
                                 case Hls.ErrorTypes.NETWORK_ERROR:
-                                    hls.startLoad();
+                                    // If manifest fails to load, the URL is likely invalid/dead. Kill it immediately.
+                                    if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || 
+                                        data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR) {
+                                        hls.destroy();
+                                        showError("Playback Error: Stream not found or invalid URL.");
+                                    } else {
+                                        console.log("Network error, trying to recover...");
+                                        hls.startLoad();
+                                    }
                                     break;
                                 case Hls.ErrorTypes.MEDIA_ERROR:
+                                    console.log("Media error, recovering...");
                                     hls.recoverMediaError();
                                     break;
                                 default:
-                                    showError("Fatal Stream Error");
                                     hls.destroy();
+                                    showError("Playback Error: Fatal stream error.");
                                     break;
                             }
                         }
@@ -542,19 +582,14 @@
                         attemptAutoplay();
                     });
                 } else {
-                    showError("HLS is not supported in this browser.");
+                    showError("Playback Error: HLS is not supported in this browser.");
                 }
-            }
-
-            function showError(msg) {
-                errorMsg.innerText = msg;
-                errorMsg.style.display = 'block';
-                container.classList.add('error');
             }
 
             // --- VIDEO CONTROLS LOGIC ---
 
             function togglePlay() {
+                if (isErrorState) return;
                 if (video.paused) {
                     video.play();
                 } else {
@@ -574,7 +609,9 @@
 
             // Video Screen Click: Unmute if muted, else wake controls / double tap FS
             video.addEventListener('click', () => {
-                // Instantly unmute on first tap if currently muted (crucial for browser gesture policy)
+                if (isErrorState) return;
+
+                // Instantly unmute on first tap if currently muted
                 if (video.muted) {
                     video.muted = false;
                     if (video.volume === 0) {
@@ -614,8 +651,13 @@
                 showControls();
             });
 
-            video.addEventListener('waiting', () => container.classList.add('loading'));
-            video.addEventListener('playing', () => container.classList.remove('loading'));
+            video.addEventListener('waiting', () => {
+                if (!isErrorState) container.classList.add('loading');
+            });
+            
+            video.addEventListener('playing', () => {
+                container.classList.remove('loading');
+            });
 
             // Volume Controls
             muteBtn.addEventListener('click', (e) => {
@@ -636,9 +678,10 @@
 
             // Picture in Picture Logic
             if (document.pictureInPictureEnabled) {
-                pipBtn.style.display = 'flex'; // Show button if supported
+                pipBtn.style.display = 'flex'; 
                 pipBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
+                    if (isErrorState) return;
                     try {
                         if (document.pictureInPictureElement) {
                             await document.exitPictureInPicture();
@@ -677,6 +720,7 @@
 
             // Auto-hide Controls
             function showControls() {
+                if (isErrorState) return;
                 container.classList.remove('idle');
                 clearTimeout(hideControlsTimeout);
                 if (!video.paused) {
@@ -729,7 +773,7 @@
 
             settingsBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
-                settingsMenu.classList.toggle('show');
+                if (!isErrorState) settingsMenu.classList.toggle('show');
             });
 
             document.addEventListener('click', (e) => {
@@ -752,6 +796,7 @@
             // Sync back to live edge
             liveIndicator.addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (isErrorState) return;
                 if (hls && hls.liveSyncPosition) {
                     video.currentTime = hls.liveSyncPosition;
                     video.play();

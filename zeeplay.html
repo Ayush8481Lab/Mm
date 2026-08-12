@@ -504,6 +504,19 @@
                         setupQualityMenu(data.levels);
                         attemptAutoplay();
                     });
+
+                    // Update Auto Quality Text when level switches (YouTube style)
+                    hls.on(Hls.Events.LEVEL_SWITCHED, (event, data) => {
+                        const autoItem = document.querySelector('.settings-item[data-level="-1"]');
+                        if (autoItem) {
+                            if (hls.autoLevelEnabled && hls.levels[data.level]) {
+                                const height = hls.levels[data.level].height;
+                                autoItem.innerText = `Auto (${height}p)`;
+                            } else {
+                                autoItem.innerText = 'Auto';
+                            }
+                        }
+                    });
                     
                     hls.on(Hls.Events.ERROR, (event, data) => {
                         if (data.fatal) {
@@ -702,6 +715,13 @@
                         
                         items.forEach(i => i.classList.remove('active'));
                         item.classList.add('active');
+                        
+                        // If manual level selected, revert Auto text back to standard "Auto"
+                        if (level !== -1) {
+                            const autoItem = document.querySelector('.settings-item[data-level="-1"]');
+                            if (autoItem) autoItem.innerText = 'Auto';
+                        }
+                        
                         settingsMenu.classList.remove('show');
                     });
                 });

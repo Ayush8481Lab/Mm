@@ -1,4 +1,13 @@
 #EXTM3U
 
-#EXTINF:8475 tvg-id="49d88f7f87e92fa1a2ce95f9d166e17d" tvg-name="Teri Baaton Mein Aisa Uljha Jiya" tvg-logo="https://qqcdnpictest.mxplay.com/pic/49d88f7f87e92fa1a2ce95f9d166e17d/en/2x3/320x480/test_pic1773832026833_badged_1787374818625.jpg" tvg-fanart="https://qqcdnpictest.mxplay.com/pic/49d88f7f87e92fa1a2ce95f9d166e17d/en/16x9/1600x900/test_pic1773832037776.jpg" group-title="Movies" movie-title="Teri Baaton Mein Aisa Uljha Jiya" movie-year="2024" movie-genre="Romance, Sci-Fi, Drama, Comedy" movie-desc="Aryan is not able to find a perfect life partner. He meets a perfect girl, Sifra, during an official assignment in the US and falls in love with her only to discover later that it's an impossible love story." movie-director="Aradhana Sah" movie-actors="Shahid Kapoor, Kriti Sanon, Dharmendra, Dimple Kapadia" movie-actors-images="https://qqcdnpictest.mxplay.com/pic/43ce841c69bac7f47f3af5dacd62f805/none/1x1/208x208/test_pic1550139404734.jpg, https://qqcdnpictest.mxplay.com/pic/b28ceb37baede919596bd0a346c89e4c/none/1x1/208x208/test_pic1550128759302.jpg, https://qqcdnpictest.mxplay.com/pic/e8213d1d34634c31baa2d1c9dd4f167c/none/1x1/208x208/test_pic1550127185969.jpg, https://qqcdnpictest.mxplay.com/pic/e93de651d2c66b6bc5a790050e6a0d27/none/1x1/208x208/test_pic1550127305612.jpg" movie-rating="13", Teri Baaton Mein Aisa Uljha Jiya (2024)
+#EXTINF:8475 type="movie" tvg-id="49d88f7f87e92fa1a2ce95f9d166e17d" tvg-name="Teri Baaton Mein Aisa Uljha Jiya" tvg-logo="https://qqcdnpictest.mxplay.com/pic/49d88f7f87e92fa1a2ce95f9d166e17d/en/2x3/320x480/test_pic1773832026833_badged_1787374818625.jpg" tvg-fanart="https://qqcdnpictest.mxplay.com/pic/49d88f7f87e92fa1a2ce95f9d166e17d/en/16x9/1600x900/test_pic1773832037776.jpg" group-title="VOD | ENGLISH", Teri Baaton Mein Aisa Uljha Jiya (2024)
+#KODIPROP:isMovie=true
+#KODIPROP:movieTitle=Teri Baaton Mein Aisa Uljha Jiya
+#KODIPROP:year=2024
+#KODIPROP:genre=Romance, Sci-Fi, Drama, Comedy
+#KODIPROP:plot=Aryan is not able to find a perfect life partner. He meets a perfect girl, Sifra, during an official assignment in the US and falls in love with her only to discover later that it's an impossible love story.
+#KODIPROP:director=Aradhana Sah
+#KODIPROP:cast=Shahid Kapoor, Kriti Sanon, Dharmendra, Dimple Kapadia
+#KODIPROP:rating=13
+#KODIPROP:mpaa=13
 https://d3sgzbosmwirao.cloudfront.net/video/9713b70d110825f2338446e94ac7a990e809bcdd579357c7dd92050813bc389b/1/hls/h264_high.m3u8

@@ -1,4 +1,31 @@
 #EXTM3U
 
-#EXTINF:-1 tvg-id="49d88f7f87e92fa1a2ce95f9d166e17d" tvg-logo="https://qqcdnpictest.mxplay.com/pic/49d88f7f87e92fa1a2ce95f9d166e17d/en/16x9/640x360/test_pic1773832021037_badged_1787374817095.jpg" group-title="Movies", Teri Baaton Mein Aisa Uljha Jiya
-https://d3sgzbosmwirao.cloudfront.net/video/d237883f8d15bd33fb24bc4b64952b2381f2ebf0ff7681bea108c0ec0606f0cc/2/dash/h264_high.mpd#.mp4
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/b62d0dc40b28b7ea708164274a3d445f/0c6cf0a677e8fb04716449e3584cb286_1280x1920.jpg" group-title="Web Series", Battleground S01E01 - Fukra Ne Kiya Proposal Accept?
+https://d3sgzbosmwirao.cloudfront.net/video/1dc5f7cadce19d3d61771426f9807e9a2d91b1fd3606681f50aee39a10be0329/3/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/da74379ffc9afc25abfe576bf81ef710/7a898622f7e4dae5785f7f563a73135a_1280x1920.jpg" group-title="Web Series", Battleground S01E02 - Abhijeet Aur Rubina Ka Jhagda?
+https://d3sgzbosmwirao.cloudfront.net/video/6ae43617bf5fdc17a3a2c582ec8539415bf8685d9a2b6bafda806bd112a8512e/3/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/a40de9326394afa04a68ccdfb3a8f6cc/3bc649f21a069488f17c7a3cb6c81be5_1280x1920.jpg" group-title="Web Series", Battleground S01E03 - Bihari Tarzan Kar Paya Impress?
+https://d3sgzbosmwirao.cloudfront.net/video/34baaf7ba51767b4b30bb06886c11b4e02a39963beb31bce7fa68b720df3114f/3/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/ed191a3c090dec6c46f3279394b84894/2bedc11aa05e9f8b90babe07218d29bc_1280x1920.jpg" group-title="Web Series", Battleground S01E04 - Battle Begins: Asim vs Fukra
+https://d3sgzbosmwirao.cloudfront.net/video/431702ca35f5c6446aba497c303bbac3fb741afad219a2938373c66f5b429423/3/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/e0a50f6874458cf46c42a5738a3fc99a/aa659e4531ed5923f5260d01520166da_1280x1920.jpg" group-title="Web Series", Battleground S01E05 - Kyu Hui Mehak Insecure?
+https://d3sgzbosmwirao.cloudfront.net/video/220b1328a914861a81389aa51c569a7184eae0d990d50b7980222b5151589fc9/4/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/d69073caaa50ce48289e6edd6a6b3460/test_pic1776330166011.jpg" group-title="Web Series", Battleground S02E01 - Cheating Ki Ya Strategy Thi?
+https://d3sgzbosmwirao.cloudfront.net/video/3df4a6974a33bfd3cb25002c7135da28c393a0a1ef604dee5e0457b2a398524b/1/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/281a635e796053557f12a61a0c6fc4d0/test_pic1776330252549.jpg" group-title="Web Series", Battleground S02E02 - Haath Daal Ke Faad Dunga!
+https://d3sgzbosmwirao.cloudfront.net/video/0feb871b6e20b02cad22a3e9bd35f704d8d1da0e05c7d755ddef068f51f502aa/1/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/26c18175607121a60c1f3a1012bd754e/test_pic1776478983782.jpg" group-title="Web Series", Battleground S02E03 - Khesari Hue Fukra Se Pareshan!
+https://d3sgzbosmwirao.cloudfront.net/video/3d4f36519df02c02fe6377975488a392dd384a747edf4b9f9f0c9a0a11155270/1/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/772a5c866b9f14cb01070a0a9e53a12f/test_pic1776479020448.jpg" group-title="Web Series", Battleground S02E04 - Fukra Bana Target!
+https://d3sgzbosmwirao.cloudfront.net/video/5e3c6a3d9db66ef59bf4ca2fa65dba2630ca44fd8ddfbc1d353ae6715651cf35/1/dash/h264_high.mpd#.mp4
+
+#EXTINF:-1 tvg-logo="https://qqcdnpictest.mxplay.com/media/images/3d8fd1d5c49eab48c881667fa8e8cca5/test_pic1776576405553.jpg" group-title="Web Series", Battleground S02E05 - Ghar Pravesh Pe Hua Kalesh!
+https://d3sgzbosmwirao.cloudfront.net/video/b30c0077de783f769605ca95df2c5dd75c402fa6229ae4b5dccc8a3a5db08640/1/dash/h264_high.mpd#.mp4

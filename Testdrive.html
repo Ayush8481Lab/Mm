@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DRM Protected Secure Video</title>
+    <title>Strict DRM Protected Video</title>
     
     <!-- Load Google's Shaka Player library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
@@ -39,14 +39,16 @@
             margin-bottom: 20px;
             text-align: center;
             color: #ff4757;
+            padding: 0 20px;
         }
     </style>
 </head>
 <body>
 
     <div class="warning">
-        <h2>🔒 DRM Protected Video</h2>
-        <p>Play the video and try to take a screenshot. The video will be blacked out.</p>
+        <h2>🔒 STRICT DRM (Widevine L1)</h2>
+        <p>This player demands Hardware-Level Security. If it plays, screenshots will be black.</p>
+        <p id="status-text" style="color: #ffa502;">Loading...</p>
     </div>
 
     <!-- The Video Player -->
@@ -55,16 +57,14 @@
     </div>
 
     <script>
-        // 1. Wait for the page to load
         document.addEventListener('DOMContentLoaded', initApp);
 
         function initApp() {
-            // Check if the browser supports Shaka Player (EME support)
             shaka.polyfill.installAll();
             if (shaka.Player.isBrowserSupported()) {
                 initPlayer();
             } else {
-                alert('Browser not supported for secure video playback.');
+                document.getElementById('status-text').innerText = 'Browser not supported.';
             }
         }
 
@@ -72,35 +72,42 @@
             const videoElement = document.getElementById('secure-video');
             const player = new shaka.Player(videoElement);
 
-            // Listen for errors
             player.addEventListener('error', (event) => {
                 console.error('Error code', event.detail.code, 'object', event.detail);
+                document.getElementById('status-text').innerText = `Error: Your browser refused strict hardware security (Code: ${event.detail.code}).`;
+                document.getElementById('status-text').style.color = "#ff4757";
             });
 
-            // 2. CONFIGURE DRM (WIDEVINE)
-            // This tells the browser to demand hardware-level screenshot protection
+            // 2. CONFIGURE STRICT HARDWARE DRM (WIDEVINE L1)
             player.configure({
                 drm: {
                     servers: {
-                        // This is the License Server URL. It verifies the encryption key.
                         'com.widevine.alpha': 'https://cwip-shaka-proxy.appspot.com/no_auth'
+                    },
+                    advanced: {
+                        'com.widevine.alpha': {
+                            // THIS IS THE MAGIC LINE THAT BLOCKS SCREENSHOTS
+                            videoRobustness: 'HW_SECURE_ALL', 
+                            audioRobustness: 'SW_SECURE_CRYPTO'
+                        }
                     }
                 }
             });
 
-            // 3. LOAD THE ENCRYPTED VIDEO
-            // This is a special encrypted streaming format (.mpd), NOT a standard .mp4
             const videoUrl = 'https://storage.googleapis.com/shaka-demo-assets/sintel-widevine/dash.mpd';
 
             try {
                 await player.load(videoUrl);
-                console.log('The encrypted video has now been loaded!');
+                document.getElementById('status-text').innerText = 'Hardware DRM Active! Try taking a screenshot now.';
+                document.getElementById('status-text').style.color = "#2ed573";
             } catch (e) {
+                // If it fails here, it means the phone/browser cannot guarantee screenshot protection
                 console.error('Error loading video', e);
+                document.getElementById('status-text').innerText = 'Playback Failed: Your device/browser does not support Strict Hardware DRM.';
+                document.getElementById('status-text').style.color = "#ff4757";
             }
         }
         
-        // Basic right-click protection for the web page
         document.addEventListener('contextmenu', e => e.preventDefault());
     </script>
 </body>

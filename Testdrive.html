@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRM Protected Secure Video</title>
+    
+    <!-- Load Google's Shaka Player library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
+    
+    <style>
+        body {
+            background-color: #121212;
+            color: white;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+        
+        #video-container {
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            border-radius: 8px;
+            overflow: hidden;
+            background: black;
+        }
+
+        video {
+            width: 100%;
+            display: block;
+        }
+
+        .warning {
+            margin-bottom: 20px;
+            text-align: center;
+            color: #ff4757;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="warning">
+        <h2>🔒 DRM Protected Video</h2>
+        <p>Play the video and try to take a screenshot. The video will be blacked out.</p>
+    </div>
+
+    <!-- The Video Player -->
+    <div id="video-container">
+        <video id="secure-video" controls autoplay></video>
+    </div>
+
+    <script>
+        // 1. Wait for the page to load
+        document.addEventListener('DOMContentLoaded', initApp);
+
+        function initApp() {
+            // Check if the browser supports Shaka Player (EME support)
+            shaka.polyfill.installAll();
+            if (shaka.Player.isBrowserSupported()) {
+                initPlayer();
+            } else {
+                alert('Browser not supported for secure video playback.');
+            }
+        }
+
+        async function initPlayer() {
+            const videoElement = document.getElementById('secure-video');
+            const player = new shaka.Player(videoElement);
+
+            // Listen for errors
+            player.addEventListener('error', (event) => {
+                console.error('Error code', event.detail.code, 'object', event.detail);
+            });
+
+            // 2. CONFIGURE DRM (WIDEVINE)
+            // This tells the browser to demand hardware-level screenshot protection
+            player.configure({
+                drm: {
+                    servers: {
+                        // This is the License Server URL. It verifies the encryption key.
+                        'com.widevine.alpha': 'https://cwip-shaka-proxy.appspot.com/no_auth'
+                    }
+                }
+            });
+
+            // 3. LOAD THE ENCRYPTED VIDEO
+            // This is a special encrypted streaming format (.mpd), NOT a standard .mp4
+            const videoUrl = 'https://storage.googleapis.com/shaka-demo-assets/sintel-widevine/dash.mpd';
+
+            try {
+                await player.load(videoUrl);
+                console.log('The encrypted video has now been loaded!');
+            } catch (e) {
+                console.error('Error loading video', e);
+            }
+        }
+        
+        // Basic right-click protection for the web page
+        document.addEventListener('contextmenu', e => e.preventDefault());
+    </script>
+</body>
+</html>

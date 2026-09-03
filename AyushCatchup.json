@@ -85,11 +85,6 @@
         "baseUrl": "https://jiotvcod.cdn.jio.com/bpk-tv/Sanskar_MOB/WDVCatchup/index.mpd"
     },
     {
-        "name": "SET HD",
-        "id": 291,
-        "baseUrl": "https://jiotvcod.cdn.jio.com/bpk-tv/Sony_HD_MOB/WDVCatchup/index.mpd"
-    },
-    {
         "name": "Times NOW",
         "id": 383,
         "baseUrl": "https://jiotvcod.cdn.jio.com/bpk-tv/Times_NOW_MOB/WDVCatchup/index.mpd"

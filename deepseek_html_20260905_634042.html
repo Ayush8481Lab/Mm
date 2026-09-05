@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shaka DRM Key Tester with File Upload</title>
+    <title>Shaka DRM Key Tester (Token Preserving)</title>
     <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.0/dist/shaka-player.compiled.js">
     </script>
     <style>
@@ -462,7 +462,7 @@
                 <video id="videoPlayer" controls autoplay playsinline></video>
                 <div class="placeholder" id="videoPlaceholder">
                     Enter MPD URL and DRM keys to start playback<br>
-                    <span style="font-size:11px;color:#484f58;">Supports DASH MPD with ClearKey DRM</span>
+                    <span style="font-size:11px;color:#484f58;">Tokenized MPDs: query string will be preserved for segments</span>
                 </div>
             </div>
 
@@ -492,8 +492,8 @@
             </div>
 
             <div class="input-group">
-                <label>MPD URL</label>
-                <input type="text" id="mpdUrl" placeholder="https://.../index.mpd" spellcheck="false">
+                <label>MPD URL (include token if needed)</label>
+                <input type="text" id="mpdUrl" placeholder="https://.../index.mpd?__hdnea__=..." spellcheck="false">
             </div>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
@@ -527,10 +527,9 @@
     {
         "name": "Channel Name",
         "id": "123",
-        "url": "https://.../index.mpd",
+        "url": "https://.../index.mpd?token=...",
         "keyId": "hexkeyid",
-        "key": "hexkey",
-        "logo": "optional.png"
+        "key": "hexkey"
     }
 ]'></textarea>
             </div>
@@ -610,15 +609,15 @@
         let tryAllAbort = false;
         let channelStatuses = new Map();
         let logLines = [];
+        let currentRequestFilter = null; // store the request filter to unregister later
 
         // =============================================
         // INITIALIZATION
         // =============================================
         document.addEventListener('DOMContentLoaded', () => {
             initShaka();
-            log('info', 'Shaka DRM Key Tester with file upload initialized.');
-            log('info', 'You can paste JSON or upload a JSON file.');
-            log('info', 'Tip: If your MPD URL requires a token (like __hdnea__), include it in the URL.');
+            log('info', 'Shaka DRM Key Tester with token preservation initialized.');
+            log('info', 'Query parameters from MPD URL are appended to segment requests automatically.');
             updateUI();
         });
 
@@ -687,15 +686,12 @@
             reader.onload = (e) => {
                 const content = e.target.result;
                 document.getElementById('jsonInput').value = content;
-                log('info', `JSON file "${file.name}" loaded into textarea. Click "Parse JSON" to process.`);
-                // Optionally auto-parse
-                // parseJson();
+                log('info', `JSON file "${file.name}" loaded. Click "Parse JSON" to process.`);
             };
             reader.onerror = () => {
                 log('error', 'Failed to read file.');
             };
             reader.readAsText(file);
-            // Reset input so same file can be re-uploaded
             event.target.value = '';
         }
 
@@ -705,49 +701,31 @@
         function onPlayerError(event) {
             const error = event.detail;
             const code = error.code;
-            const category = error.category;
-
             let msg = 'Unknown error';
-            if (code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) {
-                msg = 'DRM License / Key error — likely wrong key.';
-            } else if (code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
-                msg = 'HTTP error — check MPD URL or network.';
-            } else if (code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) {
-                msg = 'Invalid manifest — check MPD URL or token.';
-            } else if (code === shaka.util.Error.Code.MANIFEST_REQUEST_FAILED) {
-                msg = 'Manifest request failed — check URL/token.';
-            } else if (code === shaka.util.Error.Code.UNSUPPORTED_SCHEME) {
-                msg = 'Unsupported scheme — check URL.';
-            } else if (code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE) {
-                msg = 'Key system config unavailable — DRM not supported.';
-            } else if (error.message) {
-                msg = error.message;
-            }
+            if (code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) msg = 'DRM License / Key error — likely wrong key.';
+            else if (code === shaka.util.Error.Code.BAD_HTTP_STATUS) msg = 'HTTP error — check MPD URL or token.';
+            else if (code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) msg = 'Invalid manifest — check MPD URL or token.';
+            else if (code === shaka.util.Error.Code.MANIFEST_REQUEST_FAILED) msg = 'Manifest request failed — check URL/token.';
+            else if (code === shaka.util.Error.Code.UNSUPPORTED_SCHEME) msg = 'Unsupported scheme.';
+            else if (code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE) msg = 'Key system config unavailable.';
+            else if (error.message) msg = error.message;
 
-            log('error', `Player error: ${msg} (code: ${code}, category: ${category})`);
+            log('error', `Player error: ${msg} (code: ${code})`);
 
             if (isTryingAll && !tryAllAbort) {
-                if (code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED ||
-                    code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE ||
-                    code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID ||
-                    code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
+                if ([shaka.util.Error.Code.LICENSE_REQUEST_FAILED,
+                        shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE,
+                        shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID,
+                        shaka.util.Error.Code.BAD_HTTP_STATUS
+                    ].includes(code)) {
                     markChannelStatus(currentIndex, 'fail');
-                    setTimeout(() => {
-                        if (isTryingAll && !tryAllAbort) {
-                            advanceAndTry();
-                        }
-                    }, 800);
+                    setTimeout(() => { if (isTryingAll && !tryAllAbort) advanceAndTry(); }, 800);
                 } else {
-                    log('error', 'Non-DRM/network error encountered. Stopping auto-try.');
                     stopTryAll();
                 }
             } else if (isAutoAdvance && isTryingAll && !tryAllAbort) {
                 markChannelStatus(currentIndex, 'fail');
-                setTimeout(() => {
-                    if (isTryingAll && !tryAllAbort) {
-                        advanceAndTry();
-                    }
-                }, 800);
+                setTimeout(() => { if (isTryingAll && !tryAllAbort) advanceAndTry(); }, 800);
             }
 
             updateUI();
@@ -760,22 +738,16 @@
         function updatePlayerStatus(status) {
             const dot = document.getElementById('playerStatusDot');
             dot.classList.remove('active', 'error');
-            if (status === 'playing') {
-                dot.classList.add('active');
-            } else if (status === 'error') {
-                dot.classList.add('error');
-            }
+            if (status === 'playing') dot.classList.add('active');
+            else if (status === 'error') dot.classList.add('error');
         }
 
         // =============================================
-        // JSON PARSING (from textarea)
+        // JSON PARSING
         // =============================================
         function parseJson() {
             const jsonText = document.getElementById('jsonInput').value.trim();
-            if (!jsonText) {
-                log('warning', 'JSON textarea is empty.');
-                return;
-            }
+            if (!jsonText) { log('warning', 'JSON textarea is empty.'); return; }
             try {
                 const parsed = JSON.parse(jsonText);
                 if (Array.isArray(parsed)) {
@@ -783,13 +755,12 @@
                     channelStatuses.clear();
                     channels.forEach(ch => channelStatuses.set(ch.id || ch.name, 'pending'));
                     currentIndex = 0;
-                    log('success', `Parsed ${channels.length} channels from JSON.`);
+                    log('success', `Parsed ${channels.length} channels.`);
                     updateChannelList();
                     updateUI();
-                    // Auto-fill manual inputs from first channel
                     fillManualFromChannel();
                 } else {
-                    log('error', 'JSON must be an array of channel objects.');
+                    log('error', 'JSON must be an array.');
                 }
             } catch (e) {
                 log('error', 'Invalid JSON: ' + e.message);
@@ -800,30 +771,18 @@
             const sample = [{
                 "name": "Star Gold HD",
                 "id": "156",
-                "category": "STAR",
                 "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_HD_MOB/WDVLive/index.mpd",
                 "keyId": "39b5c756c18355d9978fe6c6311b4891",
-                "key": "3aaa7efc64f9b81b91512d1af2c56e3c",
-                "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_HD.png"
-            }, {
-                "name": "Star Gold Select HD",
-                "id": "1113",
-                "category": "STAR",
-                "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_Select_HD_MOB/WDVLive/index.mpd",
-                "keyId": "8620bd6e911d5c6e88e3bcf4b4ad1f35",
-                "key": "7a8178e013c9af468cc4e2171b6f9857",
-                "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_Select_HD.png"
+                "key": "3aaa7efc64f9b81b91512d1af2c56e3c"
             }, {
                 "name": "Colors HD (with token)",
                 "id": "COLORSHD",
-                "category": "Viacom18",
                 "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/ColorsHD_MOB/WDVLive/index.mpd?__hdnea__=st=1788584410~exp=1788606010~acl=/*~hmac=d7497bd3fa57f9dfeba55602a2a9b2df0959f59f6ada07c82c88bc658dcdcd7e",
                 "keyId": "00000000000000000000000000000000",
-                "key": "00000000000000000000000000000000",
-                "logo": ""
+                "key": "00000000000000000000000000000000"
             }];
             document.getElementById('jsonInput').value = JSON.stringify(sample, null, 2);
-            log('info', 'Sample JSON loaded. Click "Parse JSON" to use it.');
+            log('info', 'Sample JSON loaded. Click "Parse JSON".');
         }
 
         function clearJson() {
@@ -843,32 +802,24 @@
             const listEl = document.getElementById('channelList');
             const countEl = document.getElementById('channelCount');
             countEl.textContent = channels.length;
-
             if (channels.length === 0) {
-                listEl.innerHTML = `
-                    <div style="padding:16px;text-align:center;color:#484f58;font-size:12px;">
-                        No channels loaded. Paste JSON or upload a file.
-                    </div>`;
+                listEl.innerHTML = `<div style="padding:16px;text-align:center;color:#484f58;">No channels loaded.</div>`;
                 return;
             }
-
             listEl.innerHTML = channels.map((ch, i) => {
                 const chId = ch.id || ch.name || `idx-${i}`;
                 const status = channelStatuses.get(chId) || 'pending';
-                let statusClass = 'pending';
-                let statusText = 'Pending';
-                if (status === 'testing') { statusClass = 'testing';
-                    statusText = 'Testing...'; } else if (status === 'success') { statusClass = 'success';
-                    statusText = '✓ Success'; } else if (status === 'fail') { statusClass = 'fail';
-                    statusText = '✗ Failed'; }
+                let statusClass = 'pending', statusText = 'Pending';
+                if (status === 'testing') { statusClass = 'testing'; statusText = 'Testing...'; }
+                else if (status === 'success') { statusClass = 'success'; statusText = '✓ Success'; }
+                else if (status === 'fail') { statusClass = 'fail'; statusText = '✗ Failed'; }
                 const isActive = i === currentIndex ? 'active' : '';
                 const isTried = status === 'fail' ? 'tried-fail' : '';
-                return `
-                    <div class="channel-item ${isActive} ${isTried}" onclick="selectChannel(${i})" title="Click to select">
-                        <span class="ch-name">${escapeHtml(ch.name || 'Unknown')}</span>
-                        <span class="ch-id">#${escapeHtml(String(chId))}</span>
-                        <span class="ch-status ${statusClass}">${statusText}</span>
-                    </div>`;
+                return `<div class="channel-item ${isActive} ${isTried}" onclick="selectChannel(${i})">
+                    <span class="ch-name">${escapeHtml(ch.name || 'Unknown')}</span>
+                    <span class="ch-id">#${escapeHtml(String(chId))}</span>
+                    <span class="ch-status ${statusClass}">${statusText}</span>
+                </div>`;
             }).join('');
         }
 
@@ -879,7 +830,7 @@
             updateUI();
             updateCurrentInfo();
             fillManualFromChannel();
-            log('info', `Selected channel ${index + 1}/${channels.length}: ${channels[index].name}`);
+            log('info', `Selected channel ${index + 1}: ${channels[index].name}`);
         }
 
         function updateCurrentInfo() {
@@ -920,33 +871,24 @@
             const autoToggle = document.getElementById('autoToggle');
             autoToggle.classList.toggle('enabled', isAutoAdvance);
             document.getElementById('autoStatus').textContent = isAutoAdvance ? 'ON' : 'OFF';
-
             updateCurrentInfo();
         }
 
         function toggleAutoAdvance() {
             isAutoAdvance = !isAutoAdvance;
             updateUI();
-            log('info', `Auto-advance on fail: ${isAutoAdvance ? 'ON' : 'OFF'}`);
+            log('info', `Auto-advance: ${isAutoAdvance ? 'ON' : 'OFF'}`);
         }
 
         // =============================================
         // NAVIGATION
         // =============================================
-        function nextChannel() {
-            if (currentIndex < channels.length - 1) {
-                selectChannel(currentIndex + 1);
-            }
-        }
+        function nextChannel() { if (currentIndex < channels.length - 1) selectChannel(currentIndex + 1); }
 
-        function prevChannel() {
-            if (currentIndex > 0) {
-                selectChannel(currentIndex - 1);
-            }
-        }
+        function prevChannel() { if (currentIndex > 0) selectChannel(currentIndex - 1); }
 
         // =============================================
-        // AUTO-FILL MANUAL INPUTS FROM CURRENT CHANNEL
+        // AUTO-FILL MANUAL INPUTS
         // =============================================
         function fillManualFromChannel() {
             if (channels.length > 0 && currentIndex < channels.length) {
@@ -960,6 +902,39 @@
         }
 
         // =============================================
+        // REQUEST FILTER FOR TOKEN PRESERVATION
+        // =============================================
+        function unregisterCurrentFilter() {
+            if (currentRequestFilter && player) {
+                player.getNetworkingEngine().unregisterRequestFilter(currentRequestFilter);
+                currentRequestFilter = null;
+            }
+        }
+
+        function registerTokenPreserver(mpdUrl) {
+            unregisterCurrentFilter(); // remove any old filter
+            if (!mpdUrl.includes('?')) return; // no query string to preserve
+
+            const queryString = mpdUrl.split('?')[1];
+            if (!queryString) return;
+
+            const filter = (type, request) => {
+                // Append query string to all URIs that don't already have one.
+                // This ensures segment requests receive the token.
+                if (request.uris) {
+                    request.uris = request.uris.map(uri => {
+                        if (uri.includes('?')) return uri; // already has query
+                        // Avoid modifying the original MPD request if it's the same URI? It's safe anyway.
+                        return uri + '?' + queryString;
+                    });
+                }
+            };
+            player.getNetworkingEngine().registerRequestFilter(filter);
+            currentRequestFilter = filter;
+            log('info', `Registered request filter to preserve query string: ${queryString.substring(0, 50)}...`);
+        }
+
+        // =============================================
         // DRM CONFIGURATION
         // =============================================
         function buildClearKeyConfig(keyId, key) {
@@ -967,7 +942,7 @@
             const cleanKeyId = keyId.trim().toLowerCase().replace(/^0x/, '').replace(/[^0-9a-f]/g, '');
             const cleanKey = key.trim().toLowerCase().replace(/^0x/, '').replace(/[^0-9a-f]/g, '');
             if (cleanKeyId.length !== 32 || cleanKey.length !== 32) {
-                log('warning', `Key ID (${cleanKeyId.length} chars) or Key (${cleanKey.length} chars) not 32 hex chars.`);
+                log('warning', 'Key ID or Key not 32 hex chars.');
                 return null;
             }
             const config = { drm: { clearKeys: {} } };
@@ -979,24 +954,29 @@
         // CORE LOAD FUNCTION
         // =============================================
         async function loadStreamWithKeys(mpdUrl, keyId, key, sourceLabel) {
-            if (!player) {
-                log('error', 'Shaka Player not initialized.');
-                return false;
-            }
+            if (!player) { log('error', 'Shaka Player not initialized.'); return false; }
             try {
-                try { await player.unload(); } catch (e) {}
-                const drmConfig = buildClearKeyConfig(keyId, key);
-                if (drmConfig) {
-                    player.configure(drmConfig);
-                    log('info', `[${sourceLabel}] Configured ClearKey DRM.`);
-                    log('info', `  Key ID: ${keyId.trim()}`);
-                    log('info', `  Key:    ${key.trim()}`);
-                } else {
-                    player.configure({ drm: { clearKeys: {} } });
-                    log('info', `[${sourceLabel}] Loading without DRM (or invalid keys).`);
-                }
-                document.getElementById('videoPlaceholder').style.display = 'none';
-                log('info', `[${sourceLabel}] Loading MPD: ${mpdUrl}`);
+                await player.unload();
+            } catch (e) {}
+
+            // Register token preserving filter BEFORE loading
+            registerTokenPreserver(mpdUrl);
+
+            const drmConfig = buildClearKeyConfig(keyId, key);
+            if (drmConfig) {
+                player.configure(drmConfig);
+                log('info', `[${sourceLabel}] Configured ClearKey DRM.`);
+                log('info', `  Key ID: ${keyId.trim()}`);
+                log('info', `  Key:    ${key.trim()}`);
+            } else {
+                player.configure({ drm: { clearKeys: {} } });
+                log('info', `[${sourceLabel}] Loading without DRM (or invalid keys).`);
+            }
+
+            document.getElementById('videoPlaceholder').style.display = 'none';
+            log('info', `[${sourceLabel}] Loading MPD: ${mpdUrl}`);
+
+            try {
                 await player.load(mpdUrl);
                 log('success', `[${sourceLabel}] Stream loaded successfully!`);
                 updatePlayerStatus('playing');
@@ -1007,19 +987,14 @@
                 const errMsg = error.message || 'Unknown error';
                 log('error', `[${sourceLabel}] Load failed: ${errMsg}`);
                 if (error.code) {
-                    log('error', `  Error code: ${error.code}`);
-                    if (error.code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) {
-                        log('error', '  → Likely cause: Wrong DRM key or key ID.');
-                    } else if (error.code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID ||
-                               error.code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
-                        log('error', '  → Likely cause: Invalid MPD, token expired, or network error.');
-                    }
+                    if (error.code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) log('error', '→ Wrong DRM key.');
+                    else if (error.code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID || error.code === shaka.util
+                        .Error.Code.BAD_HTTP_STATUS) log('error', '→ Invalid MPD or token expired.');
                 }
                 updatePlayerStatus('error');
                 document.getElementById('videoPlaceholder').style.display = 'flex';
                 document.getElementById('videoPlaceholder').innerHTML =
-                    'Failed to load stream.<br><span style="font-size:11px;color:#f85149;">' +
-                    escapeHtml(errMsg) + '</span>';
+                    'Failed to load stream.<br><span style="font-size:11px;color:#f85149;">' + escapeHtml(errMsg) + '</span>';
                 return false;
             }
         }
@@ -1031,13 +1006,7 @@
             const mpdUrl = document.getElementById('mpdUrl').value.trim();
             const keyId = document.getElementById('keyIdInput').value.trim();
             const key = document.getElementById('keyInput').value.trim();
-            if (!mpdUrl) {
-                log('error', 'Please enter an MPD URL.');
-                return;
-            }
-            if (!keyId || !key) {
-                log('warning', 'No DRM keys provided. Trying without DRM...');
-            }
+            if (!mpdUrl) { log('error', 'Please enter MPD URL.'); return; }
             await loadStreamWithKeys(mpdUrl, keyId, key, 'Manual Entry');
         }
 
@@ -1045,22 +1014,14 @@
         // TRY CURRENT CHANNEL
         // =============================================
         async function tryCurrentChannel() {
-            if (!channels.length || currentIndex >= channels.length) {
-                log('error', 'No channel selected.');
-                return;
-            }
+            if (!channels.length || currentIndex >= channels.length) { log('error', 'No channel selected.'); return; }
             const ch = channels[currentIndex];
-            const chId = ch.id || ch.name || `idx-${currentIndex}`;
             markChannelStatus(currentIndex, 'testing');
             const mpdUrl = document.getElementById('mpdUrl').value.trim() || ch.url;
-            if (!mpdUrl) {
-                log('error', `Channel "${ch.name}" has no URL.`);
-                markChannelStatus(currentIndex, 'fail');
-                return;
-            }
+            if (!mpdUrl) { log('error', `Channel "${ch.name}" has no URL.`); markChannelStatus(currentIndex, 'fail'); return; }
             const keyId = ch.keyId || '';
             const key = ch.key || '';
-            log('info', `--- Trying channel ${currentIndex + 1}/${channels.length}: ${ch.name} ---`);
+            log('info', `--- Trying: ${ch.name} ---`);
             const success = await loadStreamWithKeys(mpdUrl, keyId, key, ch.name);
             if (success) {
                 markChannelStatus(currentIndex, 'success');
@@ -1076,18 +1037,12 @@
         // TRY ALL CHANNELS
         // =============================================
         async function tryAllChannels() {
-            if (!channels.length) {
-                log('error', 'No channels to try.');
-                return;
-            }
+            if (!channels.length) { log('error', 'No channels.'); return; }
             isTryingAll = true;
             tryAllAbort = false;
             updateUI();
-            log('info', `🚀 Starting Try All: ${channels.length} channels.`);
-            channels.forEach((ch, i) => {
-                const chId = ch.id || ch.name || `idx-${i}`;
-                channelStatuses.set(chId, 'pending');
-            });
+            log('info', `🚀 Trying all ${channels.length} channels.`);
+            channels.forEach((ch, i) => channelStatuses.set(ch.id || ch.name, 'pending'));
             currentIndex = 0;
             updateChannelList();
             updateUI();
@@ -1100,13 +1055,11 @@
             if (!isTryingAll || tryAllAbort) return;
             if (currentIndex >= channels.length) {
                 const successCount = Array.from(channelStatuses.values()).filter(s => s === 'success').length;
-                const failCount = Array.from(channelStatuses.values()).filter(s => s === 'fail').length;
-                log('info', `🏁 All channels attempted. ${successCount} success, ${failCount} failed.`);
+                log('info', `🏁 All channels attempted. ${successCount} success.`);
                 stopTryAll();
                 return;
             }
             const ch = channels[currentIndex];
-            const chId = ch.id || ch.name || `idx-${currentIndex}`;
             markChannelStatus(currentIndex, 'testing');
             updateProgress(((currentIndex) / channels.length) * 100);
             const mpdUrl = document.getElementById('mpdUrl').value.trim() || ch.url;
@@ -1131,7 +1084,7 @@
                 return;
             } else {
                 markChannelStatus(currentIndex, 'fail');
-                log('warning', `❌ Failed: "${ch.name}". Moving to next...`);
+                log('warning', `❌ Failed: "${ch.name}". Moving on...`);
                 currentIndex++;
                 updateUI();
                 updateProgress(((currentIndex) / channels.length) * 100);
@@ -1164,6 +1117,7 @@
         // STOP PLAYBACK
         // =============================================
         function stopPlayback() {
+            unregisterCurrentFilter(); // remove token filter
             if (player) {
                 player.unload().then(() => {
                     log('info', 'Playback stopped.');
@@ -1171,7 +1125,7 @@
                     document.getElementById('videoPlaceholder').style.display = 'flex';
                     document.getElementById('videoPlaceholder').innerHTML =
                         'Enter MPD URL and DRM keys to start playback<br>' +
-                        '<span style="font-size:11px;color:#484f58;">Supports DASH MPD with ClearKey DRM</span>';
+                        '<span style="font-size:11px;color:#484f58;">Tokenized MPDs: query string will be preserved for segments</span>';
                 }).catch(err => log('warning', 'Stop error: ' + err.message));
             }
         }
@@ -1208,8 +1162,7 @@
         window.handleFileUpload = handleFileUpload;
 
         updateUI();
-        log('info', 'Ready. Use keyboard shortcuts or buttons.');
-        log('info', 'If MPD URL requires a token (__hdnea__), include the full URL in the JSON.');
+        log('info', 'Ready. Token preserving filter active for MPDs with query strings.');
     </script>
 </body>
                     </html>

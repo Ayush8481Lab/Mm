@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shaka DRM Key Tester</title>
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.0/dist/shaka-player.compiled.js">
+    </script>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface2: #1c2333;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success: #3fb950;
+            --error: #f85149;
+            --warning: #d29922;
+            --radius: 8px;
+            --radius-sm: 4px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+            --font-mono: 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            padding: 16px;
+        }
+
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 16px;
+            min-height: calc(100vh - 32px);
+        }
+
+        @media (max-width: 900px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-title .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .panel-title .dot.active {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+        .panel-title .dot.error {
+            background: var(--error);
+            box-shadow: 0 0 8px var(--error);
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            margin-bottom: 12px;
+            aspect-ratio: 16 / 9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            background: #000;
+        }
+        .video-container .placeholder {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+            pointer-events: none;
+            text-align: center;
+            padding: 20px;
+            background: radial-gradient(ellipse at center, #0d1117 0%, #000 100%);
+        }
+
+        .input-group {
+            margin-bottom: 10px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .input-group input,
+        .input-group textarea {
+            width: 100%;
+            padding: 8px 10px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 12px;
+            transition: border-color 0.2s;
+            outline: none;
+        }
+        .input-group input:focus,
+        .input-group textarea:focus {
+            border-color: var(--accent);
+        }
+        .input-group textarea {
+            min-height: 100px;
+            resize: vertical;
+            line-height: 1.4;
+        }
+        .input-group input::placeholder,
+        .input-group textarea::placeholder {
+            color: #484f58;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .btn {
+            padding: 8px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            font-family: var(--font-sans);
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #000;
+            border-color: var(--accent);
+        }
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+        }
+        .btn-secondary:hover {
+            background: #2a3342;
+            border-color: #4a5568;
+        }
+        .btn-danger {
+            background: #2d1a1a;
+            color: var(--error);
+            border-color: #4a2525;
+        }
+        .btn-danger:hover {
+            background: #3a2020;
+            border-color: #5a3030;
+        }
+        .btn-success {
+            background: #1a2d1a;
+            color: var(--success);
+            border-color: #254a25;
+        }
+        .btn-success:hover {
+            background: #203a20;
+            border-color: #305a30;
+        }
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .btn .icon {
+            font-size: 14px;
+        }
+
+        .channel-list {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            background: var(--surface2);
+            margin-top: 8px;
+        }
+        .channel-item {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            transition: background 0.15s;
+            user-select: none;
+        }
+        .channel-item:last-child {
+            border-bottom: none;
+        }
+        .channel-item:hover {
+            background: #252d3a;
+        }
+        .channel-item.active {
+            background: #1a2d1a;
+            border-left: 3px solid var(--success);
+        }
+        .channel-item.tried-fail {
+            background: #2d1a1a;
+            border-left: 3px solid var(--error);
+        }
+        .channel-item .ch-name {
+            font-weight: 500;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .channel-item .ch-id {
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .channel-item .ch-status {
+            font-size: 10px;
+            flex-shrink: 0;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        .ch-status.pending {
+            background: #252d3a;
+            color: var(--text-secondary);
+        }
+        .ch-status.testing {
+            background: #2a2d1a;
+            color: var(--warning);
+        }
+        .ch-status.success {
+            background: #1a2d1a;
+            color: var(--success);
+        }
+        .ch-status.fail {
+            background: #2d1a1a;
+            color: var(--error);
+        }
+
+        .status-log {
+            background: #0a0c10;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            line-height: 1.6;
+            max-height: 120px;
+            overflow-y: auto;
+            color: var(--text-secondary);
+            margin-top: 8px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .status-log .log-success {
+            color: var(--success);
+        }
+        .status-log .log-error {
+            color: var(--error);
+        }
+        .status-log .log-warning {
+            color: var(--warning);
+        }
+        .status-log .log-info {
+            color: var(--accent);
+        }
+
+        .current-info {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            font-size: 12px;
+            margin-top: 8px;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 4px 12px;
+        }
+        .current-info .ci-label {
+            color: var(--text-secondary);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 600;
+        }
+        .current-info .ci-value {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            word-break: break-all;
+        }
+
+        .progress-bar {
+            height: 3px;
+            background: var(--surface2);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-bar .fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 40px;
+            height: 22px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+            flex-shrink: 0;
+        }
+        .toggle-switch.enabled {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+        .toggle-switch .knob {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #fff;
+            transition: left 0.2s;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+        .toggle-switch.enabled .knob {
+            left: 20px;
+        }
+
+        .auto-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .divider {
+            border-top: 1px solid var(--border);
+            margin: 12px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            background: var(--surface2);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .badge.success {
+            background: #1a2d1a;
+            color: var(--success);
+            border-color: #254a25;
+        }
+        .badge.error {
+            background: #2d1a1a;
+            color: var(--error);
+            border-color: #4a2525;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- LEFT COLUMN: Player -->
+        <div class="panel">
+            <div class="panel-title">
+                <span class="dot" id="playerStatusDot"></span>
+                Shaka Player
+                <span class="badge" id="drmBadge" style="margin-left:auto;">ClearKey</span>
+            </div>
+            <div class="video-container" id="videoContainer">
+                <video id="videoPlayer" controls autoplay playsinline></video>
+                <div class="placeholder" id="videoPlaceholder">
+                    Enter MPD URL and DRM keys to start playback<br>
+                    <span style="font-size:11px;color:#484f58;">Supports DASH MPD with ClearKey DRM</span>
+                </div>
+            </div>
+
+            <!-- Current channel / status -->
+            <div class="current-info" id="currentInfo" style="display:none;">
+                <span class="ci-label">Channel</span>
+                <span class="ci-value" id="ciChannel">-</span>
+                <span class="ci-label">Key ID</span>
+                <span class="ci-value" id="ciKeyId">-</span>
+                <span class="ci-label">Key</span>
+                <span class="ci-value" id="ciKey">-</span>
+                <span class="ci-label">MPD</span>
+                <span class="ci-value" id="ciMpd">-</span>
+            </div>
+
+            <!-- Progress -->
+            <div class="progress-bar" style="display:none;" id="progressBarWrap">
+                <div class="fill" id="progressFill" style="width:0%;"></div>
+            </div>
+
+            <!-- Status log -->
+            <div class="status-log" id="statusLog"></div>
+        </div>
+
+        <!-- RIGHT COLUMN: Controls -->
+        <div class="panel">
+            <div class="panel-title">
+                <span class="dot"></span>
+                DRM Key Manager
+            </div>
+
+            <!-- MPD URL -->
+            <div class="input-group">
+                <label>MPD URL</label>
+                <input type="text" id="mpdUrl" placeholder="https://.../index.mpd" spellcheck="false">
+            </div>
+
+            <!-- Key ID & Key -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div class="input-group">
+                    <label>Key ID (hex)</label>
+                    <input type="text" id="keyIdInput" placeholder="32 hex chars" spellcheck="false">
+                </div>
+                <div class="input-group">
+                    <label>Key (hex)</label>
+                    <input type="text" id="keyInput" placeholder="32 hex chars" spellcheck="false">
+                </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="btn-row">
+                <button class="btn btn-primary" id="btnLoad" onclick="loadManualStream()">
+                    <span class="icon">▶</span> Load Stream
+                </button>
+                <button class="btn btn-secondary" id="btnStop" onclick="stopPlayback()" disabled>
+                    <span class="icon">⏹</span> Stop
+                </button>
+                <button class="btn btn-secondary" id="btnClearLog" onclick="clearLog()">
+                    <span class="icon">🧹</span> Clear Log
+                </button>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Channel List JSON -->
+            <div class="input-group">
+                <label>Channel List (JSON)</label>
+                <textarea id="jsonInput" spellcheck="false" placeholder='[
+    {
+        "name": "Channel Name",
+        "id": "123",
+        "url": "https://.../index.mpd",
+        "keyId": "hexkeyid",
+        "key": "hexkey",
+        "logo": "optional.png"
+    }
+]'></textarea>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-secondary" id="btnParseJson" onclick="parseJson()">
+                    <span class="icon">📋</span> Parse JSON
+                </button>
+                <button class="btn btn-secondary" id="btnLoadSample" onclick="loadSampleJson()">
+                    <span class="icon">📄</span> Load Sample
+                </button>
+                <button class="btn btn-secondary" id="btnClearJson" onclick="clearJson()">
+                    <span class="icon">✕</span> Clear
+                </button>
+            </div>
+
+            <!-- Channel Navigation -->
+            <div style="margin-top:10px;">
+                <div class="btn-row">
+                    <button class="btn btn-secondary" id="btnPrev" onclick="prevChannel()" disabled>
+                        <span class="icon">◀</span> Prev
+                    </button>
+                    <button class="btn btn-primary" id="btnTryCurrent" onclick="tryCurrentChannel()" disabled>
+                        <span class="icon">🔑</span> Try Current
+                    </button>
+                    <button class="btn btn-secondary" id="btnNext" onclick="nextChannel()" disabled>
+                        Next <span class="icon">▶</span>
+                    </button>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-success" id="btnTryAll" onclick="tryAllChannels()" disabled>
+                        <span class="icon">🚀</span> Try All Channels
+                    </button>
+                    <button class="btn btn-danger" id="btnStopAll" onclick="stopTryAll()" disabled>
+                        <span class="icon">⏹</span> Stop Auto
+                    </button>
+                </div>
+                <div class="auto-row">
+                    <span>Auto-advance on fail</span>
+                    <div class="toggle-switch" id="autoToggle" onclick="toggleAutoAdvance()">
+                        <div class="knob"></div>
+                    </div>
+                    <span style="font-size:10px;color:#484f58;" id="autoStatus">OFF</span>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Channel List -->
+            <div class="panel-title" style="margin-bottom:6px;">
+                <span class="dot"></span>
+                Channels (<span id="channelCount">0</span>)
+            </div>
+            <div class="channel-list" id="channelList">
+                <div style="padding:16px;text-align:center;color:#484f58;font-size:12px;">
+                    No channels loaded. Paste JSON and click "Parse JSON".
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================
+        // GLOBAL STATE
+        // =============================================
+        let player = null;
+        let channels = [];
+        let currentIndex = 0;
+        let isAutoAdvance = true;
+        let isTryingAll = false;
+        let tryAllAbort = false;
+        let channelStatuses = new Map(); // key: channel id -> 'pending' | 'testing' | 'success' | 'fail'
+        let logLines = [];
+
+        // =============================================
+        // INITIALIZATION
+        // =============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initShaka();
+            log('info', 'Shaka DRM Key Tester initialized.');
+            log('info', 'Paste channel JSON and click "Parse JSON" to start.');
+            log('info', 'You can also manually enter MPD URL, Key ID, and Key.');
+            updateUI();
+        });
+
+        function initShaka() {
+            if (window.shaka) {
+                shaka.polyfill.installAll();
+                if (shaka.Player.isBrowserSupported()) {
+                    player = new shaka.Player();
+                    const videoEl = document.getElementById('videoPlayer');
+                    player.attach(videoEl).then(() => {
+                        log('success', 'Shaka Player attached to video element.');
+                        // Set up error handler
+                        player.addEventListener('error', onPlayerError);
+                    }).catch(err => {
+                        log('error', 'Failed to attach Shaka Player: ' + err.message);
+                    });
+                } else {
+                    log('error', 'Browser not supported by Shaka Player.');
+                }
+            } else {
+                log('error', 'Shaka Player library not loaded. Check your internet connection.');
+            }
+        }
+
+        // =============================================
+        // LOGGING
+        // =============================================
+        function log(type, message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEl = document.getElementById('statusLog');
+            const line = `[${timestamp}] ${message}`;
+            logLines.push({ type, line });
+            if (logLines.length > 200) logLines.shift();
+            renderLog();
+        }
+
+        function renderLog() {
+            const logEl = document.getElementById('statusLog');
+            logEl.innerHTML = logLines.map(l => {
+                const cls = l.type === 'success' ? 'log-success' :
+                    l.type === 'error' ? 'log-error' :
+                    l.type === 'warning' ? 'log-warning' : 'log-info';
+                return `<span class="${cls}">${escapeHtml(l.line)}</span>`;
+            }).join('\n');
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function clearLog() {
+            logLines = [];
+            renderLog();
+            log('info', 'Log cleared.');
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        // =============================================
+        // PLAYER ERROR HANDLER
+        // =============================================
+        function onPlayerError(event) {
+            const error = event.detail;
+            const code = error.code;
+            const category = error.category;
+            const severity = error.severity;
+
+            let msg = 'Unknown error';
+            if (code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) {
+                msg = 'DRM License / Key error — likely wrong key.';
+            } else if (code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
+                msg = 'HTTP error — check MPD URL or network.';
+            } else if (code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) {
+                msg = 'Invalid manifest — check MPD URL.';
+            } else if (code === shaka.util.Error.Code.MANIFEST_REQUEST_FAILED) {
+                msg = 'Manifest request failed — check URL.';
+            } else if (code === shaka.util.Error.Code.UNSUPPORTED_SCHEME) {
+                msg = 'Unsupported scheme — check URL.';
+            } else if (code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE) {
+                msg = 'Key system config unavailable — DRM not supported.';
+            } else if (error.message) {
+                msg = error.message;
+            }
+
+            log('error', `Player error: ${msg} (code: ${code}, category: ${category})`);
+
+            // If we're in auto-try mode, advance to next channel
+            if (isTryingAll && !tryAllAbort) {
+                // Check if this is a fatal error (wrong key)
+                if (code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED ||
+                    code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE ||
+                    code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) {
+                    // Mark as failed and try next
+                    markChannelStatus(currentIndex, 'fail');
+                    setTimeout(() => {
+                        if (isTryingAll && !tryAllAbort) {
+                            advanceAndTry();
+                        }
+                    }, 800);
+                } else {
+                    // Network or other error — stop auto-try
+                    log('error', 'Non-DRM error encountered. Stopping auto-try.');
+                    stopTryAll();
+                }
+            } else if (isAutoAdvance && isTryingAll && !tryAllAbort) {
+                // Fallback
+                markChannelStatus(currentIndex, 'fail');
+                setTimeout(() => {
+                    if (isTryingAll && !tryAllAbort) {
+                        advanceAndTry();
+                    }
+                }, 800);
+            }
+
+            updateUI();
+            updatePlayerStatus('error');
+        }
+
+        // =============================================
+        // PLAYER STATUS UI
+        // =============================================
+        function updatePlayerStatus(status) {
+            const dot = document.getElementById('playerStatusDot');
+            dot.classList.remove('active', 'error');
+            if (status === 'playing') {
+                dot.classList.add('active');
+            } else if (status === 'error') {
+                dot.classList.add('error');
+            }
+        }
+
+        // =============================================
+        // JSON PARSING
+        // =============================================
+        function parseJson() {
+            const jsonText = document.getElementById('jsonInput').value.trim();
+            if (!jsonText) {
+                log('warning', 'JSON textarea is empty.');
+                return;
+            }
+            try {
+                const parsed = JSON.parse(jsonText);
+                if (Array.isArray(parsed)) {
+                    channels = parsed;
+                    channelStatuses.clear();
+                    channels.forEach(ch => channelStatuses.set(ch.id || ch.name, 'pending'));
+                    currentIndex = 0;
+                    log('success', `Parsed ${channels.length} channels from JSON.`);
+                    updateChannelList();
+                    updateUI();
+                } else {
+                    log('error', 'JSON must be an array of channel objects.');
+                }
+            } catch (e) {
+                log('error', 'Invalid JSON: ' + e.message);
+            }
+        }
+
+        function loadSampleJson() {
+            const sample = [{
+                "name": "Star Gold HD",
+                "id": "156",
+                "category": "STAR",
+                "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_HD_MOB/WDVLive/index.mpd",
+                "keyId": "39b5c756c18355d9978fe6c6311b4891",
+                "key": "3aaa7efc64f9b81b91512d1af2c56e3c",
+                "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_HD.png"
+            }, {
+                "name": "Star Gold Select HD",
+                "id": "1113",
+                "category": "STAR",
+                "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_Select_HD_MOB/WDVLive/index.mpd",
+                "keyId": "8620bd6e911d5c6e88e3bcf4b4ad1f35",
+                "key": "7a8178e013c9af468cc4e2171b6f9857",
+                "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_Select_HD.png"
+            }];
+            document.getElementById('jsonInput').value = JSON.stringify(sample, null, 2);
+            log('info', 'Sample JSON loaded. Click "Parse JSON" to use it.');
+        }
+
+        function clearJson() {
+            document.getElementById('jsonInput').value = '';
+            channels = [];
+            channelStatuses.clear();
+            currentIndex = 0;
+            updateChannelList();
+            updateUI();
+            log('info', 'Channel list cleared.');
+        }
+
+        // =============================================
+        // CHANNEL LIST UI
+        // =============================================
+        function updateChannelList() {
+            const listEl = document.getElementById('channelList');
+            const countEl = document.getElementById('channelCount');
+            countEl.textContent = channels.length;
+
+            if (channels.length === 0) {
+                listEl.innerHTML = `
+                    <div style="padding:16px;text-align:center;color:#484f58;font-size:12px;">
+                        No channels loaded. Paste JSON and click "Parse JSON".
+                    </div>`;
+                return;
+            }
+
+            listEl.innerHTML = channels.map((ch, i) => {
+                const chId = ch.id || ch.name || `idx-${i}`;
+                const status = channelStatuses.get(chId) || 'pending';
+                let statusClass = 'pending';
+                let statusText = 'Pending';
+                if (status === 'testing') { statusClass = 'testing';
+                    statusText = 'Testing...'; } else if (status === 'success') { statusClass = 'success';
+                    statusText = '✓ Success'; } else if (status === 'fail') { statusClass = 'fail';
+                    statusText = '✗ Failed'; }
+                const isActive = i === currentIndex ? 'active' : '';
+                const isTried = status === 'fail' ? 'tried-fail' : '';
+                return `
+                    <div class="channel-item ${isActive} ${isTried}" onclick="selectChannel(${i})" title="Click to select">
+                        <span class="ch-name">${escapeHtml(ch.name || 'Unknown')}</span>
+                        <span class="ch-id">#${escapeHtml(String(chId))}</span>
+                        <span class="ch-status ${statusClass}">${statusText}</span>
+                    </div>`;
+            }).join('');
+        }
+
+        function selectChannel(index) {
+            if (index < 0 || index >= channels.length) return;
+            currentIndex = index;
+            updateChannelList();
+            updateUI();
+            updateCurrentInfo();
+            log('info', `Selected channel ${index + 1}/${channels.length}: ${channels[index].name}`);
+        }
+
+        function updateCurrentInfo() {
+            const infoEl = document.getElementById('currentInfo');
+            if (channels.length > 0 && currentIndex < channels.length) {
+                const ch = channels[currentIndex];
+                infoEl.style.display = 'grid';
+                document.getElementById('ciChannel').textContent = ch.name || 'Unknown';
+                document.getElementById('ciKeyId').textContent = ch.keyId || '-';
+                document.getElementById('ciKey').textContent = ch.key || '-';
+                document.getElementById('ciMpd').textContent = ch.url || '-';
+            } else {
+                infoEl.style.display = 'none';
+            }
+        }
+
+        function markChannelStatus(index, status) {
+            const ch = channels[index];
+            if (!ch) return;
+            const chId = ch.id || ch.name || `idx-${index}`;
+            channelStatuses.set(chId, status);
+            updateChannelList();
+            updateUI();
+        }
+
+        // =============================================
+        // UI STATE
+        // =============================================
+        function updateUI() {
+            const hasChannels = channels.length > 0;
+            document.getElementById('btnPrev').disabled = !hasChannels || currentIndex <= 0;
+            document.getElementById('btnNext').disabled = !hasChannels || currentIndex >= channels.length - 1;
+            document.getElementById('btnTryCurrent').disabled = !hasChannels;
+            document.getElementById('btnTryAll').disabled = !hasChannels || isTryingAll;
+            document.getElementById('btnStopAll').disabled = !isTryingAll;
+            document.getElementById('btnStop').disabled = !player;
+
+            const autoToggle = document.getElementById('autoToggle');
+            autoToggle.classList.toggle('enabled', isAutoAdvance);
+            document.getElementById('autoStatus').textContent = isAutoAdvance ? 'ON' : 'OFF';
+
+            updateCurrentInfo();
+        }
+
+        function toggleAutoAdvance() {
+            isAutoAdvance = !isAutoAdvance;
+            updateUI();
+            log('info', `Auto-advance on fail: ${isAutoAdvance ? 'ON' : 'OFF'}`);
+        }
+
+        // =============================================
+        // NAVIGATION
+        // =============================================
+        function nextChannel() {
+            if (currentIndex < channels.length - 1) {
+                selectChannel(currentIndex + 1);
+            }
+        }
+
+        function prevChannel() {
+            if (currentIndex > 0) {
+                selectChannel(currentIndex - 1);
+            }
+        }
+
+        // =============================================
+        // DRM CONFIGURATION
+        // =============================================
+        function buildClearKeyConfig(keyId, key) {
+            if (!keyId || !key) return null;
+            // Clean up hex strings
+            const cleanKeyId = keyId.trim().toLowerCase().replace(/^0x/, '').replace(/[^0-9a-f]/g, '');
+            const cleanKey = key.trim().toLowerCase().replace(/^0x/, '').replace(/[^0-9a-f]/g, '');
+
+            if (cleanKeyId.length !== 32 || cleanKey.length !== 32) {
+                log('warning', `Key ID (${cleanKeyId.length} chars) or Key (${cleanKey.length} chars) not 32 hex chars.`);
+                return null;
+            }
+
+            const config = {
+                drm: {
+                    clearKeys: {}
+                }
+            };
+            config.drm.clearKeys[cleanKeyId] = cleanKey;
+            return config;
+        }
+
+        // =============================================
+        // LOAD MANUAL STREAM
+        // =============================================
+        async function loadManualStream() {
+            const mpdUrl = document.getElementById('mpdUrl').value.trim();
+            const keyId = document.getElementById('keyIdInput').value.trim();
+            const key = document.getElementById('keyInput').value.trim();
+
+            if (!mpdUrl) {
+                log('error', 'Please enter an MPD URL.');
+                return;
+            }
+            if (!keyId || !key) {
+                log('warning', 'No DRM keys provided. Trying without DRM...');
+            }
+
+            await loadStreamWithKeys(mpdUrl, keyId, key, 'Manual Entry');
+        }
+
+        // =============================================
+        // CORE LOAD FUNCTION
+        // =============================================
+        async function loadStreamWithKeys(mpdUrl, keyId, key, sourceLabel) {
+            if (!player) {
+                log('error', 'Shaka Player not initialized.');
+                return false;
+            }
+
+            try {
+                // Stop any current playback
+                try {
+                    await player.unload();
+                } catch (e) { /* ignore */ }
+
+                // Build DRM config
+                const drmConfig = buildClearKeyConfig(keyId, key);
+
+                if (drmConfig) {
+                    player.configure(drmConfig);
+                    log('info', `[${sourceLabel}] Configured ClearKey DRM.`);
+                    log('info', `  Key ID: ${keyId.trim()}`);
+                    log('info', `  Key:    ${key.trim()}`);
+                } else if (keyId || key) {
+                    log('warning', `[${sourceLabel}] Invalid key format. Attempting without DRM.`);
+                    player.configure({ drm: { clearKeys: {} } });
+                } else {
+                    player.configure({ drm: { clearKeys: {} } });
+                    log('info', `[${sourceLabel}] Loading without DRM.`);
+                }
+
+                // Hide placeholder
+                document.getElementById('videoPlaceholder').style.display = 'none';
+
+                // Load the stream
+                log('info', `[${sourceLabel}] Loading MPD: ${mpdUrl}`);
+                await player.load(mpdUrl);
+
+                log('success', `[${sourceLabel}] Stream loaded successfully!`);
+                updatePlayerStatus('playing');
+
+                // Try to play
+                const videoEl = document.getElementById('videoPlayer');
+                videoEl.play().catch(e => {
+                    log('warning', 'Autoplay blocked. Click play on the video.');
+                });
+
+                return true;
+            } catch (error) {
+                const errMsg = error.message || 'Unknown error';
+                log('error', `[${sourceLabel}] Load failed: ${errMsg}`);
+                if (error.code) {
+                    log('error', `  Error code: ${error.code}`);
+                    if (error.code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) {
+                        log('error', '  → Likely cause: Wrong DRM key or key ID.');
+                    } else if (error.code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) {
+                        log('error', '  → Likely cause: Invalid MPD manifest or URL.');
+                    } else if (error.code === shaka.util.Error.Code.BAD_HTTP_STATUS) {
+                        log('error', '  → Likely cause: Network/HTTP error. Check URL or headers.');
+                    }
+                }
+                updatePlayerStatus('error');
+                document.getElementById('videoPlaceholder').style.display = 'flex';
+                document.getElementById('videoPlaceholder').innerHTML =
+                    'Failed to load stream.<br><span style="font-size:11px;color:#f85149;">' +
+                    escapeHtml(errMsg) + '</span>';
+                return false;
+            }
+        }
+
+        // =============================================
+        // TRY CURRENT CHANNEL
+        // =============================================
+        async function tryCurrentChannel() {
+            if (!channels.length || currentIndex >= channels.length) {
+                log('error', 'No channel selected.');
+                return;
+            }
+
+            const ch = channels[currentIndex];
+            const chId = ch.id || ch.name || `idx-${currentIndex}`;
+            markChannelStatus(currentIndex, 'testing');
+
+            // Use channel's MPD URL if manual URL is empty
+            const mpdUrl = document.getElementById('mpdUrl').value.trim() || ch.url;
+            if (!mpdUrl) {
+                log('error', `Channel "${ch.name}" has no URL and no manual MPD URL provided.`);
+                markChannelStatus(currentIndex, 'fail');
+                return;
+            }
+
+            // Use channel's keyId/key
+            const keyId = ch.keyId || '';
+            const key = ch.key || '';
+
+            log('info', `--- Trying channel ${currentIndex + 1}/${channels.length}: ${ch.name} ---`);
+
+            const success = await loadStreamWithKeys(mpdUrl, keyId, key, ch.name);
+
+            if (success) {
+                markChannelStatus(currentIndex, 'success');
+                log('success', `✅ Channel "${ch.name}" works with these keys!`);
+            } else {
+                markChannelStatus(currentIndex, 'fail');
+                log('warning', `❌ Channel "${ch.name}" failed with these keys.`);
+                if (isAutoAdvance && !isTryingAll) {
+                    log('info', 'Auto-advance is ON but not in Try All mode.');
+                }
+            }
+            updateUI();
+        }
+
+        // =============================================
+        // TRY ALL CHANNELS
+        // =============================================
+        async function tryAllChannels() {
+            if (!channels.length) {
+                log('error', 'No channels to try.');
+                return;
+            }
+
+            isTryingAll = true;
+            tryAllAbort = false;
+            updateUI();
+            log('info', `🚀 Starting Try All: ${channels.length} channels.`);
+
+            // Reset statuses
+            channels.forEach((ch, i) => {
+                const chId = ch.id || ch.name || `idx-${i}`;
+                channelStatuses.set(chId, 'pending');
+            });
+            currentIndex = 0;
+            updateChannelList();
+            updateUI();
+
+            // Show progress bar
+            document.getElementById('progressBarWrap').style.display = 'block';
+            updateProgress(0);
+
+            await attemptNextInSequence();
+        }
+
+        async function attemptNextInSequence() {
+            if (!isTryingAll || tryAllAbort) {
+                return;
+            }
+
+            if (currentIndex >= channels.length) {
+                // All tried
+                log('info', '🏁 All channels attempted.');
+                const successCount = Array.from(channelStatuses.values()).filter(s => s === 'success').length;
+                const failCount = Array.from(channelStatuses.values()).filter(s => s === 'fail').length;
+                log('info', `Results: ${successCount} success, ${failCount} failed, ${channels.length - successCount - failCount} pending.`);
+                stopTryAll();
+                return;
+            }
+
+            const ch = channels[currentIndex];
+            const chId = ch.id || ch.name || `idx-${currentIndex}`;
+            markChannelStatus(currentIndex, 'testing');
+            updateProgress(((currentIndex) / channels.length) * 100);
+
+            const mpdUrl = document.getElementById('mpdUrl').value.trim() || ch.url;
+            if (!mpdUrl) {
+                log('warning', `Channel "${ch.name}" has no URL. Skipping.`);
+                markChannelStatus(currentIndex, 'fail');
+                currentIndex++;
+                updateUI();
+                setTimeout(() => attemptNextInSequence(), 400);
+                return;
+            }
+
+            const keyId = ch.keyId || '';
+            const key = ch.key || '';
+
+            log('info', `--- [${currentIndex + 1}/${channels.length}] Trying: ${ch.name} ---`);
+            const success = await loadStreamWithKeys(mpdUrl, keyId, key, ch.name);
+
+            if (success) {
+                markChannelStatus(currentIndex, 'success');
+                log('success', `✅ SUCCESS! "${ch.name}" works!`);
+                log('info', 'Stopping auto-try on success.');
+                updateProgress(100);
+                stopTryAll();
+                updateUI();
+                return;
+            } else {
+                markChannelStatus(currentIndex, 'fail');
+                log('warning', `❌ Failed: "${ch.name}". Moving to next...`);
+                currentIndex++;
+                updateUI();
+                updateProgress(((currentIndex) / channels.length) * 100);
+                // Small delay before next attempt
+                setTimeout(() => attemptNextInSequence(), 800);
+            }
+        }
+
+        function updateProgress(percent) {
+            document.getElementById('progressFill').style.width = Math.min(percent, 100) + '%';
+        }
+
+        function advanceAndTry() {
+            // Called when player error occurs during auto-try
+            if (!isTryingAll || tryAllAbort) return;
+            currentIndex++;
+            updateUI();
+            updateProgress(((currentIndex) / channels.length) * 100);
+            attemptNextInSequence();
+        }
+
+        function stopTryAll() {
+            isTryingAll = false;
+            tryAllAbort = true;
+            document.getElementById('progressBarWrap').style.display = 'none';
+            updateProgress(0);
+            updateUI();
+            log('info', 'Auto-try stopped.');
+        }
+
+        // =============================================
+        // STOP PLAYBACK
+        // =============================================
+        function stopPlayback() {
+            if (player) {
+                player.unload().then(() => {
+                    log('info', 'Playback stopped.');
+                    updatePlayerStatus('error');
+                    document.getElementById('videoPlaceholder').style.display = 'flex';
+                    document.getElementById('videoPlaceholder').innerHTML =
+                        'Enter MPD URL and DRM keys to start playback<br>' +
+                        '<span style="font-size:11px;color:#484f58;">Supports DASH MPD with ClearKey DRM</span>';
+                }).catch(err => {
+                    log('warning', 'Stop error: ' + err.message);
+                });
+            }
+        }
+
+        // =============================================
+        // AUTO-FILL MANUAL INPUTS FROM CURRENT CHANNEL
+        // =============================================
+        function fillManualFromChannel() {
+            if (channels.length > 0 && currentIndex < channels.length) {
+                const ch = channels[currentIndex];
+                if (ch.keyId) document.getElementById('keyIdInput').value = ch.keyId;
+                if (ch.key) document.getElementById('keyInput').value = ch.key;
+                if (ch.url && !document.getElementById('mpdUrl').value.trim()) {
+                    document.getElementById('mpdUrl').value = ch.url;
+                }
+                log('info', `Filled manual inputs from channel "${ch.name}".`);
+            }
+        }
+
+        // Auto-fill when selecting a channel
+        const originalSelectChannel = selectChannel;
+        selectChannel = function(index) {
+            originalSelectChannel(index);
+            fillManualFromChannel();
+        };
+
+        // Also fill when parsing JSON
+        const originalParseJson = parseJson;
+        parseJson = function() {
+            originalParseJson();
+            if (channels.length > 0 && currentIndex < channels.length) {
+                fillManualFromChannel();
+            }
+        };
+
+        // =============================================
+        // KEYBOARD SHORTCUTS
+        // =============================================
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.key === 'ArrowRight' || e.key === 'n') {
+                e.preventDefault();
+                nextChannel();
+            } else if (e.key === 'ArrowLeft' || e.key === 'p') {
+                e.preventDefault();
+                prevChannel();
+            } else if (e.key === 'Enter' || e.key === 't') {
+                e.preventDefault();
+                tryCurrentChannel();
+            } else if (e.key === 'a' && !e.shiftKey) {
+                e.preventDefault();
+                tryAllChannels();
+            } else if (e.key === 's' && e.shiftKey) {
+                e.preventDefault();
+                stopTryAll();
+            }
+        });
+
+        // =============================================
+        // EXPOSE FUNCTIONS GLOBALLY
+        // =============================================
+        window.loadManualStream = loadManualStream;
+        window.parseJson = parseJson;
+        window.loadSampleJson = loadSampleJson;
+        window.clearJson = clearJson;
+        window.nextChannel = nextChannel;
+        window.prevChannel = prevChannel;
+        window.tryCurrentChannel = tryCurrentChannel;
+        window.tryAllChannels = tryAllChannels;
+        window.stopTryAll = stopTryAll;
+        window.selectChannel = selectChannel;
+        window.clearLog = clearLog;
+        window.stopPlayback = stopPlayback;
+        window.toggleAutoAdvance = toggleAutoAdvance;
+
+        // Initial UI update
+        updateUI();
+        log('info', 'Ready. Use keyboard shortcuts: →/n = next, ←/p = prev, Enter/t = try, a = try all, S = stop.');
+    </script>
+</body>
+</html>

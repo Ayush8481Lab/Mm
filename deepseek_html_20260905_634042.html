@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shaka DRM Key Tester (Multi-DRM + Token)</title>
-    <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.0/dist/shaka-player.compiled.js">
-    </script>
+    <title>Shaka DRM Key Tester (Token‑Preserving)</title>
+    <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.7.0/dist/shaka-player.compiled.js"></script>
     <style>
         :root {
             --bg: #0d1117;
@@ -15,263 +14,568 @@
             --text: #e6edf3;
             --text-secondary: #8b949e;
             --accent: #58a6ff;
-            --accent-hover: #79c0ff;
             --success: #3fb950;
             --error: #f85149;
             --warning: #d29922;
             --radius: 8px;
             --radius-sm: 4px;
-            --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-            --font-mono: 'SF Mono', 'Fira Code', 'Consolas', 'Monaco', monospace;
+            --shadow: 0 4px 24px rgba(0,0,0,0.4);
+            --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
             --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: var(--bg); color: var(--text); font-family: var(--font-sans); min-height: 100vh; padding: 16px; }
-        .app-container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 380px; gap: 16px; min-height: calc(100vh - 32px); }
-        @media (max-width: 900px) { .app-container { grid-template-columns: 1fr; } }
-        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); }
-        .panel-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
-        .panel-title .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); flex-shrink: 0; }
-        .panel-title .dot.active { background: var(--success); box-shadow: 0 0 8px var(--success); }
-        .panel-title .dot.error { background: var(--error); box-shadow: 0 0 8px var(--error); }
-        .video-container { position: relative; background: #000; border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 12px; aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
-        .video-container video { width: 100%; height: 100%; object-fit: contain; display: block; background: #000; }
-        .video-container .placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); font-size: 14px; pointer-events: none; text-align: center; padding: 20px; background: radial-gradient(ellipse at center, #0d1117 0%, #000 100%); }
-        .input-group { margin-bottom: 10px; }
-        .input-group label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-secondary); margin-bottom: 4px; }
-        .input-group input, .input-group textarea { width: 100%; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-family: var(--font-mono); font-size: 12px; transition: border-color 0.2s; outline: none; }
-        .input-group input:focus, .input-group textarea:focus { border-color: var(--accent); }
-        .input-group textarea { min-height: 100px; resize: vertical; line-height: 1.4; }
-        .input-group input::placeholder, .input-group textarea::placeholder { color: #484f58; }
-        .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-        .btn { padding: 8px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: 12px; font-weight: 500; font-family: var(--font-sans); transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; user-select: none; }
-        .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); }
-        .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
-        .btn-secondary { background: var(--surface2); color: var(--text); }
-        .btn-secondary:hover { background: #2a3342; border-color: #4a5568; }
-        .btn-danger { background: #2d1a1a; color: var(--error); border-color: #4a2525; }
-        .btn-danger:hover { background: #3a2020; border-color: #5a3030; }
-        .btn-success { background: #1a2d1a; color: var(--success); border-color: #254a25; }
-        .btn-success:hover { background: #203a20; border-color: #305a30; }
-        .btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
-        .btn .icon { font-size: 14px; }
-        .channel-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface2); margin-top: 8px; }
-        .channel-item { padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 12px; transition: background 0.15s; user-select: none; }
-        .channel-item:last-child { border-bottom: none; }
-        .channel-item:hover { background: #252d3a; }
-        .channel-item.active { background: #1a2d1a; border-left: 3px solid var(--success); }
-        .channel-item.tried-fail { background: #2d1a1a; border-left: 3px solid var(--error); }
-        .channel-item .ch-name { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .channel-item .ch-id { font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary); flex-shrink: 0; }
-        .channel-item .ch-status { font-size: 10px; flex-shrink: 0; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
-        .ch-status.pending { background: #252d3a; color: var(--text-secondary); }
-        .ch-status.testing { background: #2a2d1a; color: var(--warning); }
-        .ch-status.success { background: #1a2d1a; color: var(--success); }
-        .ch-status.fail { background: #2d1a1a; color: var(--error); }
-        .status-log { background: #0a0c10; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; font-family: var(--font-mono); font-size: 11px; line-height: 1.6; max-height: 120px; overflow-y: auto; color: var(--text-secondary); margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
-        .status-log .log-success { color: var(--success); }
-        .status-log .log-error { color: var(--error); }
-        .status-log .log-warning { color: var(--warning); }
-        .status-log .log-info { color: var(--accent); }
-        .current-info { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 12px; margin-top: 8px; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
-        .current-info .ci-label { color: var(--text-secondary); font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; font-weight: 600; }
-        .current-info .ci-value { font-family: var(--font-mono); font-size: 11px; word-break: break-all; }
-        .progress-bar { height: 3px; background: var(--surface2); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-        .progress-bar .fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
-        .toggle-switch { position: relative; width: 40px; height: 22px; background: var(--surface2); border: 1px solid var(--border); border-radius: 11px; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
-        .toggle-switch.enabled { background: var(--accent); border-color: var(--accent); }
-        .toggle-switch .knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: left 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-        .toggle-switch.enabled .knob { left: 20px; }
-        .auto-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12px; color: var(--text-secondary); }
-        .divider { border-top: 1px solid var(--border); margin: 12px 0; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; background: var(--surface2); color: var(--text-secondary); border: 1px solid var(--border); }
-        .badge.success { background: #1a2d1a; color: var(--success); border-color: #254a25; }
-        .badge.error { background: #2d1a1a; color: var(--error); border-color: #4a2525; }
-        .file-upload { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
-        .file-upload input[type="file"] { display: none; }
-        .file-upload label.btn { cursor: pointer; }
-        .file-name { font-size: 11px; color: var(--text-secondary); font-family: var(--font-mono); }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background:var(--bg); color:var(--text); font-family:var(--font-sans); padding:16px; min-height:100vh; }
+        .app-container { max-width:1400px; margin:0 auto; display:grid; grid-template-columns:1fr 380px; gap:16px; min-height:calc(100vh - 32px); }
+        @media (max-width:900px) { .app-container { grid-template-columns:1fr; } }
+        .panel { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+        .panel-title { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-secondary); margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+        .panel-title .dot { width:8px; height:8px; border-radius:50%; background:var(--text-secondary); }
+        .panel-title .dot.active { background:var(--success); box-shadow:0 0 8px var(--success); }
+        .panel-title .dot.error { background:var(--error); box-shadow:0 0 8px var(--error); }
+        .video-container { position:relative; background:#000; border-radius:var(--radius-sm); overflow:hidden; margin-bottom:12px; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; }
+        .video-container video { width:100%; height:100%; object-fit:contain; background:#000; }
+        .video-container .placeholder { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:14px; text-align:center; padding:20px; background:radial-gradient(ellipse at center, #0d1117 0%, #000 100%); pointer-events:none; }
+        .input-group { margin-bottom:10px; }
+        .input-group label { display:block; font-size:11px; font-weight:600; text-transform:uppercase; color:var(--text-secondary); margin-bottom:4px; }
+        .input-group input, .input-group textarea { width:100%; padding:8px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); color:var(--text); font-family:var(--font-mono); font-size:12px; outline:none; transition:border-color 0.2s; }
+        .input-group input:focus, .input-group textarea:focus { border-color:var(--accent); }
+        .input-group textarea { min-height:100px; resize:vertical; }
+        .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+        .btn { padding:8px 14px; border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; font-size:12px; font-weight:500; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s; user-select:none; }
+        .btn-primary { background:var(--accent); color:#000; border-color:var(--accent); }
+        .btn-primary:hover { background:#79c0ff; }
+        .btn-secondary { background:var(--surface2); color:var(--text); }
+        .btn-secondary:hover { background:#2a3342; }
+        .btn-danger { background:#2d1a1a; color:var(--error); border-color:#4a2525; }
+        .btn-danger:hover { background:#3a2020; }
+        .btn-success { background:#1a2d1a; color:var(--success); border-color:#254a25; }
+        .btn-success:hover { background:#203a20; }
+        .btn:disabled { opacity:0.45; cursor:not-allowed; }
+        .channel-list { max-height:220px; overflow-y:auto; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--surface2); margin-top:8px; }
+        .channel-item { padding:8px 12px; border-bottom:1px solid var(--border); cursor:pointer; display:flex; align-items:center; gap:10px; font-size:12px; transition:background 0.15s; user-select:none; }
+        .channel-item:last-child { border-bottom:none; }
+        .channel-item:hover { background:#252d3a; }
+        .channel-item.active { background:#1a2d1a; border-left:3px solid var(--success); }
+        .channel-item.tried-fail { background:#2d1a1a; border-left:3px solid var(--error); }
+        .ch-name { font-weight:500; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .ch-id { font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); flex-shrink:0; }
+        .ch-status { font-size:10px; flex-shrink:0; padding:2px 6px; border-radius:10px; font-weight:600; }
+        .ch-status.pending { background:#252d3a; color:var(--text-secondary); }
+        .ch-status.testing { background:#2a2d1a; color:var(--warning); }
+        .ch-status.success { background:#1a2d1a; color:var(--success); }
+        .ch-status.fail { background:#2d1a1a; color:var(--error); }
+        .status-log { background:#0a0c10; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-family:var(--font-mono); font-size:11px; line-height:1.6; max-height:120px; overflow-y:auto; color:var(--text-secondary); margin-top:8px; white-space:pre-wrap; word-break:break-all; }
+        .log-success { color:var(--success); }
+        .log-error { color:var(--error); }
+        .log-warning { color:var(--warning); }
+        .log-info { color:var(--accent); }
+        .current-info { background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; margin-top:8px; display:grid; grid-template-columns:auto 1fr; gap:4px 12px; }
+        .ci-label { color:var(--text-secondary); font-size:10px; text-transform:uppercase; font-weight:600; }
+        .ci-value { font-family:var(--font-mono); font-size:11px; word-break:break-all; }
+        .progress-bar { height:3px; background:var(--surface2); border-radius:2px; overflow:hidden; margin-top:8px; }
+        .progress-bar .fill { height:100%; background:var(--accent); border-radius:2px; transition:width 0.3s; }
+        .toggle-switch { position:relative; width:40px; height:22px; background:var(--surface2); border:1px solid var(--border); border-radius:11px; cursor:pointer; transition:background 0.2s; }
+        .toggle-switch.enabled { background:var(--accent); border-color:var(--accent); }
+        .toggle-switch .knob { position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:left 0.2s; }
+        .toggle-switch.enabled .knob { left:20px; }
+        .auto-row { display:flex; align-items:center; gap:10px; margin-top:8px; font-size:12px; color:var(--text-secondary); }
+        .divider { border-top:1px solid var(--border); margin:12px 0; }
+        .badge { display:inline-block; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:var(--surface2); color:var(--text-secondary); border:1px solid var(--border); }
+        .badge.success { background:#1a2d1a; color:var(--success); border-color:#254a25; }
+        .badge.error { background:#2d1a1a; color:var(--error); border-color:#4a2525; }
+        .file-upload { display:flex; gap:8px; align-items:center; margin-top:4px; flex-wrap:wrap; }
+        .file-upload input[type="file"] { display:none; }
+        .file-upload label.btn { cursor:pointer; }
+        .file-name { font-size:11px; color:var(--text-secondary); font-family:var(--font-mono); }
     </style>
 </head>
 <body>
-    <div class="app-container">
-        <!-- LEFT COLUMN: Player -->
-        <div class="panel">
-            <div class="panel-title">
-                <span class="dot" id="playerStatusDot"></span>
-                Shaka Player
-                <span class="badge" id="drmBadge" style="margin-left:auto;">ClearKey</span>
-            </div>
-            <div class="video-container" id="videoContainer">
-                <video id="videoPlayer" controls autoplay playsinline></video>
-                <div class="placeholder" id="videoPlaceholder">
-                    Enter MPD URL and DRM keys to start playback<br>
-                    <span style="font-size:11px;color:#484f58;">Token is preserved for segments & license requests</span>
-                </div>
-            </div>
-            <div class="current-info" id="currentInfo" style="display:none;">
-                <span class="ci-label">Channel</span><span class="ci-value" id="ciChannel">-</span>
-                <span class="ci-label">Key ID</span><span class="ci-value" id="ciKeyId">-</span>
-                <span class="ci-label">Key</span><span class="ci-value" id="ciKey">-</span>
-                <span class="ci-label">MPD</span><span class="ci-value" id="ciMpd">-</span>
-            </div>
-            <div class="progress-bar" style="display:none;" id="progressBarWrap"><div class="fill" id="progressFill" style="width:0%;"></div></div>
-            <div class="status-log" id="statusLog"></div>
+<div class="app-container">
+    <!-- Player Panel -->
+    <div class="panel">
+        <div class="panel-title">
+            <span class="dot" id="playerStatusDot"></span>
+            Shaka Player
+            <span class="badge" id="drmBadge" style="margin-left:auto;">ClearKey</span>
         </div>
-        <!-- RIGHT COLUMN: Controls -->
-        <div class="panel">
-            <div class="panel-title"><span class="dot"></span> DRM Key Manager</div>
-            <div class="input-group">
-                <label>MPD URL (include token)</label>
-                <input type="text" id="mpdUrl" placeholder="https://.../index.mpd?__hdnea__=...">
+        <div class="video-container" id="videoContainer">
+            <video id="videoPlayer" controls autoplay playsinline></video>
+            <div class="placeholder" id="videoPlaceholder">
+                Enter MPD URL and DRM keys<br>
+                <span style="font-size:11px;color:#484f58;">Token will be preserved for segment requests</span>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-                <div class="input-group"><label>Key ID (hex)</label><input type="text" id="keyIdInput" placeholder="32 hex chars"></div>
-                <div class="input-group"><label>Key (hex)</label><input type="text" id="keyInput" placeholder="32 hex chars"></div>
-            </div>
-            <div class="btn-row">
-                <button class="btn btn-primary" id="btnLoad" onclick="loadManualStream()">▶ Load Stream</button>
-                <button class="btn btn-secondary" id="btnStop" onclick="stopPlayback()" disabled>⏹ Stop</button>
-                <button class="btn btn-secondary" id="btnClearLog" onclick="clearLog()">🧹 Clear Log</button>
-            </div>
-            <div class="divider"></div>
-            <div class="input-group">
-                <label>Channel List (JSON)</label>
-                <textarea id="jsonInput" spellcheck="false" placeholder='[ { "name": "Channel", "url": "...", "keyId": "...", "key": "...", "drmType": "clearkey", "licenseUrl": "..." } ]'></textarea>
-            </div>
-            <div class="file-upload">
-                <input type="file" id="jsonFileInput" accept=".json,application/json" onchange="handleFileUpload(event)">
-                <label for="jsonFileInput" class="btn btn-secondary">📂 Upload JSON File</label>
-                <span class="file-name" id="fileNameDisplay">No file selected</span>
-            </div>
-            <div class="btn-row">
-                <button class="btn btn-secondary" id="btnParseJson" onclick="parseJson()">📋 Parse JSON</button>
-                <button class="btn btn-secondary" id="btnLoadSample" onclick="loadSampleJson()">📄 Load Sample</button>
-                <button class="btn btn-secondary" id="btnClearJson" onclick="clearJson()">✕ Clear</button>
-            </div>
-            <div style="margin-top:10px;">
-                <div class="btn-row">
-                    <button class="btn btn-secondary" id="btnPrev" onclick="prevChannel()" disabled>◀ Prev</button>
-                    <button class="btn btn-primary" id="btnTryCurrent" onclick="tryCurrentChannel()" disabled>🔑 Try Current</button>
-                    <button class="btn btn-secondary" id="btnNext" onclick="nextChannel()" disabled>Next ▶</button>
-                </div>
-                <div class="btn-row">
-                    <button class="btn btn-success" id="btnTryAll" onclick="tryAllChannels()" disabled>🚀 Try All</button>
-                    <button class="btn btn-danger" id="btnStopAll" onclick="stopTryAll()" disabled>⏹ Stop Auto</button>
-                </div>
-                <div class="auto-row">
-                    <span>Auto-advance</span>
-                    <div class="toggle-switch" id="autoToggle" onclick="toggleAutoAdvance()"><div class="knob"></div></div>
-                    <span id="autoStatus">OFF</span>
-                </div>
-            </div>
-            <div class="divider"></div>
-            <div class="panel-title" style="margin-bottom:6px;">Channels (<span id="channelCount">0</span>)</div>
-            <div class="channel-list" id="channelList"><div style="padding:16px;text-align:center;color:#484f58;">No channels loaded.</div></div>
         </div>
+        <div class="current-info" id="currentInfo" style="display:none;">
+            <span class="ci-label">Channel</span><span class="ci-value" id="ciChannel">-</span>
+            <span class="ci-label">Key ID</span><span class="ci-value" id="ciKeyId">-</span>
+            <span class="ci-label">Key</span><span class="ci-value" id="ciKey">-</span>
+            <span class="ci-label">MPD</span><span class="ci-value" id="ciMpd">-</span>
+        </div>
+        <div class="progress-bar" style="display:none;" id="progressBarWrap">
+            <div class="fill" id="progressFill" style="width:0%;"></div>
+        </div>
+        <div class="status-log" id="statusLog"></div>
     </div>
-    <script>
-        let player = null, channels = [], currentIndex = 0, isAutoAdvance = true, isTryingAll = false, tryAllAbort = false, channelStatuses = new Map(), logLines = [], currentRequestFilter = null;
 
-        document.addEventListener('DOMContentLoaded', () => {
-            initShaka();
-            log('info', 'Shaka DRM Key Tester (Token Preserving) ready.');
+    <!-- Controls Panel -->
+    <div class="panel">
+        <div class="panel-title"><span class="dot"></span>DRM Key Manager</div>
+        <div class="input-group">
+            <label>MPD URL (include token if needed)</label>
+            <input type="text" id="mpdUrl" placeholder="https://.../index.mpd?__hdnea__=...">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div class="input-group"><label>Key ID (hex)</label><input type="text" id="keyIdInput" placeholder="32 hex chars"></div>
+            <div class="input-group"><label>Key (hex)</label><input type="text" id="keyInput" placeholder="32 hex chars"></div>
+        </div>
+        <div class="btn-row">
+            <button class="btn btn-primary" onclick="loadManualStream()">▶ Load Stream</button>
+            <button class="btn btn-secondary" onclick="stopPlayback()" id="btnStop" disabled>⏹ Stop</button>
+            <button class="btn btn-secondary" onclick="clearLog()">🧹 Clear Log</button>
+        </div>
+        <div class="divider"></div>
+        <div class="input-group">
+            <label>Channel List (JSON)</label>
+            <textarea id="jsonInput" spellcheck="false" placeholder='[{"name":"Channel","url":"...","keyId":"...","key":"..."}]'></textarea>
+        </div>
+        <div class="file-upload">
+            <input type="file" id="jsonFileInput" accept=".json,application/json" onchange="handleFileUpload(event)">
+            <label for="jsonFileInput" class="btn btn-secondary">📂 Upload JSON File</label>
+            <span class="file-name" id="fileNameDisplay">No file selected</span>
+        </div>
+        <div class="btn-row">
+            <button class="btn btn-secondary" onclick="parseJson()">📋 Parse JSON</button>
+            <button class="btn btn-secondary" onclick="loadSampleJson()">📄 Load Sample</button>
+            <button class="btn btn-secondary" onclick="clearJson()">✕ Clear</button>
+        </div>
+        <div style="margin-top:10px;">
+            <div class="btn-row">
+                <button class="btn btn-secondary" onclick="prevChannel()" id="btnPrev" disabled>◀ Prev</button>
+                <button class="btn btn-primary" onclick="tryCurrentChannel()" id="btnTryCurrent" disabled>🔑 Try Current</button>
+                <button class="btn btn-secondary" onclick="nextChannel()" id="btnNext" disabled>Next ▶</button>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-success" onclick="tryAllChannels()" id="btnTryAll" disabled>🚀 Try All</button>
+                <button class="btn btn-danger" onclick="stopTryAll()" id="btnStopAll" disabled>⏹ Stop Auto</button>
+            </div>
+            <div class="auto-row">
+                <span>Auto-advance</span>
+                <div class="toggle-switch" id="autoToggle" onclick="toggleAutoAdvance()"><div class="knob"></div></div>
+                <span id="autoStatus">OFF</span>
+            </div>
+        </div>
+        <div class="divider"></div>
+        <div class="panel-title" style="margin-bottom:6px;">Channels (<span id="channelCount">0</span>)</div>
+        <div class="channel-list" id="channelList"><div style="padding:16px;text-align:center;color:#484f58;">No channels loaded.</div></div>
+    </div>
+</div>
+
+<script>
+    let player = null;
+    let channels = [];
+    let currentIndex = 0;
+    let isAutoAdvance = true;
+    let isTryingAll = false;
+    let tryAllAbort = false;
+    let channelStatuses = new Map();
+    let logLines = [];
+    let tokenFilter = null;
+
+    // ---------- Initialization ----------
+    document.addEventListener('DOMContentLoaded', () => {
+        initShaka();
+        log('info', 'Shaka DRM Key Tester ready. Token preservation active.');
+        updateUI();
+    });
+
+    function initShaka() {
+        if (!window.shaka) {
+            log('error', 'Shaka Player library not loaded.');
+            return;
+        }
+        shaka.polyfill.installAll();
+        if (!shaka.Player.isBrowserSupported()) {
+            log('error', 'Browser not supported.');
+            return;
+        }
+        player = new shaka.Player();
+        player.attach(document.getElementById('videoPlayer')).then(() => {
+            log('success', 'Shaka Player attached.');
+            player.addEventListener('error', onPlayerError);
+        }).catch(err => log('error', 'Attach failed: ' + err.message));
+    }
+
+    // ---------- Logging ----------
+    function log(type, msg) {
+        const time = new Date().toLocaleTimeString();
+        logLines.push({ type, line: `[${time}] ${msg}` });
+        if (logLines.length > 200) logLines.shift();
+        renderLog();
+    }
+    function renderLog() {
+        const el = document.getElementById('statusLog');
+        el.innerHTML = logLines.map(l => 
+            `<span class="${l.type === 'success' ? 'log-success' : l.type === 'error' ? 'log-error' : l.type === 'warning' ? 'log-warning' : 'log-info'}">${escapeHtml(l.line)}</span>`
+        ).join('\n');
+        el.scrollTop = el.scrollHeight;
+    }
+    function clearLog() { logLines = []; renderLog(); log('info', 'Log cleared.'); }
+    function escapeHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // ---------- Player Error ----------
+    function onPlayerError(event) {
+        const err = event.detail;
+        let msg = 'Unknown error';
+        if (err.code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) msg = 'DRM license/key error';
+        else if (err.code === shaka.util.Error.Code.BAD_HTTP_STATUS) msg = 'HTTP error (check URL/token)';
+        else if (err.code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) msg = 'Invalid manifest (check token)';
+        else if (err.code === shaka.util.Error.Code.MANIFEST_REQUEST_FAILED) msg = 'Manifest request failed';
+        else if (err.code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE) msg = 'Key system unavailable';
+        else if (err.message) msg = err.message;
+        log('error', `Player error: ${msg} (code ${err.code})`);
+
+        if (isTryingAll && !tryAllAbort) {
+            if ([shaka.util.Error.Code.LICENSE_REQUEST_FAILED, shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE,
+                 shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID, shaka.util.Error.Code.BAD_HTTP_STATUS].includes(err.code)) {
+                markChannelStatus(currentIndex, 'fail');
+                setTimeout(() => { if (isTryingAll && !tryAllAbort) advanceAndTry(); }, 800);
+            } else {
+                stopTryAll();
+            }
+        } else if (isAutoAdvance && isTryingAll && !tryAllAbort) {
+            markChannelStatus(currentIndex, 'fail');
+            setTimeout(() => { if (isTryingAll && !tryAllAbort) advanceAndTry(); }, 800);
+        }
+        updateUI();
+        updatePlayerStatus('error');
+    }
+    function updatePlayerStatus(status) {
+        const dot = document.getElementById('playerStatusDot');
+        dot.classList.remove('active', 'error');
+        if (status === 'playing') dot.classList.add('active');
+        else if (status === 'error') dot.classList.add('error');
+    }
+
+    // ---------- Token Preservation (EXACT match with React logic) ----------
+    function unregisterTokenFilter() {
+        if (tokenFilter && player) {
+            player.getNetworkingEngine().unregisterRequestFilter(tokenFilter);
+            tokenFilter = null;
+        }
+    }
+    function registerTokenPreserver(mpdUrl) {
+        unregisterTokenFilter();
+        if (!mpdUrl.includes('?')) return;
+        // Extract only __hdnea__ parameter (similar to React code)
+        const match = mpdUrl.match(/(__hdnea__=[^&]+)/);
+        if (!match) return;
+        const tokenParam = match[1];
+        const filter = (type, request) => {
+            if (request.uris && request.uris.length) {
+                request.uris = request.uris.map(uri => {
+                    if (uri.includes('__hdnea__=')) return uri; // already has token
+                    return uri + (uri.includes('?') ? '&' : '?') + tokenParam;
+                });
+            }
+        };
+        player.getNetworkingEngine().registerRequestFilter(filter);
+        tokenFilter = filter;
+        log('info', `Token filter registered: ${tokenParam}`);
+    }
+
+    // ---------- DRM Config ----------
+    function buildClearKeyConfig(keyId, key) {
+        if (!keyId || !key) return { drm: { clearKeys: {} } };
+        const cleanId = keyId.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        const cleanKey = key.trim().toLowerCase().replace(/[^0-9a-f]/g, '');
+        if (cleanId.length !== 32 || cleanKey.length !== 32) {
+            log('warning', 'Invalid ClearKey format (must be 32 hex chars).');
+            return { drm: { clearKeys: {} } };
+        }
+        const config = { drm: { clearKeys: {} } };
+        config.drm.clearKeys[cleanId] = cleanKey;
+        return config;
+    }
+
+    // ---------- Core Load ----------
+    async function loadStreamWithKeys(mpdUrl, keyId, key, label) {
+        if (!player) { log('error', 'Player not initialised.'); return false; }
+        try { await player.unload(); } catch(e) {}
+        
+        registerTokenPreserver(mpdUrl);
+        
+        const drmConfig = buildClearKeyConfig(keyId, key);
+        player.configure(drmConfig);
+        log('info', `[${label}] DRM: ${keyId ? 'ClearKey configured' : 'No DRM'}`);
+        document.getElementById('videoPlaceholder').style.display = 'none';
+        log('info', `[${label}] Loading: ${mpdUrl}`);
+        try {
+            await player.load(mpdUrl);
+            log('success', `[${label}] Stream loaded successfully!`);
+            updatePlayerStatus('playing');
+            document.getElementById('videoPlayer').play().catch(()=>{});
+            return true;
+        } catch (error) {
+            log('error', `[${label}] Load failed: ${error.message || error}`);
+            if (error.code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) 
+                log('error', '→ Possibly wrong DRM key/ID.');
+            updatePlayerStatus('error');
+            document.getElementById('videoPlaceholder').style.display = 'flex';
+            document.getElementById('videoPlaceholder').innerHTML = 'Failed: ' + escapeHtml(error.message || error);
+            return false;
+        }
+    }
+
+    // ---------- Manual Load ----------
+    async function loadManualStream() {
+        const mpdUrl = document.getElementById('mpdUrl').value.trim();
+        const keyId = document.getElementById('keyIdInput').value.trim();
+        const key = document.getElementById('keyInput').value.trim();
+        if (!mpdUrl) { log('error', 'Enter MPD URL.'); return; }
+        await loadStreamWithKeys(mpdUrl, keyId, key, 'Manual');
+    }
+
+    // ---------- Channel Management ----------
+    function parseJson() {
+        const text = document.getElementById('jsonInput').value.trim();
+        if (!text) { log('warning', 'JSON empty.'); return; }
+        try {
+            const parsed = JSON.parse(text);
+            if (!Array.isArray(parsed)) { log('error', 'JSON must be an array.'); return; }
+            channels = parsed;
+            channelStatuses.clear();
+            channels.forEach(ch => channelStatuses.set(ch.id || ch.name, 'pending'));
+            currentIndex = 0;
+            log('success', `Parsed ${channels.length} channels.`);
+            updateChannelList();
             updateUI();
-        });
-
-        function initShaka() {
-            if (window.shaka) {
-                shaka.polyfill.installAll();
-                if (shaka.Player.isBrowserSupported()) {
-                    player = new shaka.Player();
-                    player.attach(document.getElementById('videoPlayer')).then(() => {
-                        log('success', 'Shaka Player attached.');
-                        player.addEventListener('error', onPlayerError);
-                    }).catch(err => log('error', 'Attach failed: ' + err.message));
-                } else log('error', 'Browser not supported.');
-            } else log('error', 'Shaka library not loaded.');
+            fillManualFromChannel();
+        } catch(e) { log('error', 'Invalid JSON: ' + e.message); }
+    }
+    function loadSampleJson() {
+        const sample = [
+            { "name": "Star Gold HD", "id": "156", "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_HD_MOB/WDVLive/index.mpd", "keyId": "39b5c756c18355d9978fe6c6311b4891", "key": "3aaa7efc64f9b81b91512d1af2c56e3c" },
+            { "name": "Colors HD (token)", "id": "COLORSHD", "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/ColorsHD_MOB/WDVLive/index.mpd?__hdnea__=st=1788584410~exp=1788606010~acl=/*~hmac=d7497bd3fa57f9dfeba55602a2a9b2df0959f59f6ada07c82c88bc658dcdcd7e", "keyId": "00000000000000000000000000000000", "key": "00000000000000000000000000000000" }
+        ];
+        document.getElementById('jsonInput').value = JSON.stringify(sample, null, 2);
+        log('info', 'Sample JSON loaded.');
+    }
+    function clearJson() {
+        document.getElementById('jsonInput').value = '';
+        channels = [];
+        channelStatuses.clear();
+        currentIndex = 0;
+        updateChannelList();
+        updateUI();
+        log('info', 'Channel list cleared.');
+    }
+    function fillManualFromChannel() {
+        if (channels.length && currentIndex < channels.length) {
+            const ch = channels[currentIndex];
+            if (ch.keyId) document.getElementById('keyIdInput').value = ch.keyId;
+            if (ch.key) document.getElementById('keyInput').value = ch.key;
+            if (ch.url && !document.getElementById('mpdUrl').value.trim()) document.getElementById('mpdUrl').value = ch.url;
         }
-
-        function log(type, msg) { const t = new Date().toLocaleTimeString(); logLines.push({type, line:`[${t}] ${msg}`}); if(logLines.length>200)logLines.shift(); renderLog(); }
-        function renderLog(){ const el=document.getElementById('statusLog'); el.innerHTML=logLines.map(l=>`<span class="${l.type==='success'?'log-success':l.type==='error'?'log-error':l.type==='warning'?'log-warning':'log-info'}">${escapeHtml(l.line)}</span>`).join('\n'); el.scrollTop=el.scrollHeight; }
-        function clearLog(){ logLines=[]; renderLog(); log('info','Log cleared.'); }
-        function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-
-        function onPlayerError(event) {
-            const err = event.detail;
-            let msg = 'Unknown error';
-            if (err.code === shaka.util.Error.Code.LICENSE_REQUEST_FAILED) msg = 'DRM license/key error';
-            else if (err.code === shaka.util.Error.Code.BAD_HTTP_STATUS) msg = 'HTTP error (check URL/token)';
-            else if (err.code === shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID) msg = 'Invalid manifest';
-            else if (err.code === shaka.util.Error.Code.MANIFEST_REQUEST_FAILED) msg = 'Manifest request failed';
-            else if (err.code === shaka.util.Error.Code.UNSUPPORTED_SCHEME) msg = 'Unsupported scheme';
-            else if (err.code === shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE) msg = 'Key system unavailable';
-            else if (err.message) msg = err.message;
-            log('error', `Player error: ${msg} (code ${err.code})`);
-            if (isTryingAll && !tryAllAbort) {
-                if ([shaka.util.Error.Code.LICENSE_REQUEST_FAILED, shaka.util.Error.Code.REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE, shaka.util.Error.Code.MANIFEST_RESPONSE_INVALID, shaka.util.Error.Code.BAD_HTTP_STATUS].includes(err.code)) {
-                    markChannelStatus(currentIndex, 'fail');
-                    setTimeout(() => { if (isTryingAll && !tryAllAbort) advanceAndTry(); }, 800);
-                } else stopTryAll();
-            } else if (isAutoAdvance && isTryingAll && !tryAllAbort) { markChannelStatus(currentIndex, 'fail'); setTimeout(()=>{if(isTryingAll&&!tryAllAbort)advanceAndTry();},800); }
-            updateUI(); updatePlayerStatus('error');
+    }
+    function updateChannelList() {
+        const el = document.getElementById('channelList');
+        document.getElementById('channelCount').textContent = channels.length;
+        if (!channels.length) {
+            el.innerHTML = '<div style="padding:16px;text-align:center;color:#484f58;">No channels.</div>';
+            return;
         }
+        el.innerHTML = channels.map((ch, i) => {
+            const id = ch.id || ch.name || `idx-${i}`;
+            const status = channelStatuses.get(id) || 'pending';
+            let cls = 'pending', txt = 'Pending';
+            if (status === 'testing') { cls='testing'; txt='Testing...'; }
+            else if (status === 'success') { cls='success'; txt='✓ Success'; }
+            else if (status === 'fail') { cls='fail'; txt='✗ Failed'; }
+            const active = i === currentIndex ? 'active' : '';
+            const tried = status === 'fail' ? 'tried-fail' : '';
+            return `<div class="channel-item ${active} ${tried}" onclick="selectChannel(${i})">
+                <span class="ch-name">${escapeHtml(ch.name || 'Unknown')}</span>
+                <span class="ch-id">#${escapeHtml(String(id))}</span>
+                <span class="ch-status ${cls}">${txt}</span>
+            </div>`;
+        }).join('');
+    }
+    function selectChannel(i) {
+        if (i < 0 || i >= channels.length) return;
+        currentIndex = i;
+        updateChannelList();
+        updateUI();
+        updateCurrentInfo();
+        fillManualFromChannel();
+        log('info', `Selected: ${channels[i].name}`);
+    }
+    function updateCurrentInfo() {
+        const el = document.getElementById('currentInfo');
+        if (channels.length && currentIndex < channels.length) {
+            const ch = channels[currentIndex];
+            el.style.display = 'grid';
+            document.getElementById('ciChannel').textContent = ch.name || 'Unknown';
+            document.getElementById('ciKeyId').textContent = ch.keyId || '-';
+            document.getElementById('ciKey').textContent = ch.key || '-';
+            document.getElementById('ciMpd').textContent = ch.url || '-';
+        } else el.style.display = 'none';
+    }
+    function markChannelStatus(i, status) {
+        const ch = channels[i];
+        if (!ch) return;
+        const id = ch.id || ch.name || `idx-${i}`;
+        channelStatuses.set(id, status);
+        updateChannelList();
+        updateUI();
+    }
+    function updateUI() {
+        const has = channels.length > 0;
+        document.getElementById('btnPrev').disabled = !has || currentIndex <= 0;
+        document.getElementById('btnNext').disabled = !has || currentIndex >= channels.length - 1;
+        document.getElementById('btnTryCurrent').disabled = !has;
+        document.getElementById('btnTryAll').disabled = !has || isTryingAll;
+        document.getElementById('btnStopAll').disabled = !isTryingAll;
+        document.getElementById('btnStop').disabled = !player;
+        const togg = document.getElementById('autoToggle');
+        togg.classList.toggle('enabled', isAutoAdvance);
+        document.getElementById('autoStatus').textContent = isAutoAdvance ? 'ON' : 'OFF';
+        updateCurrentInfo();
+    }
+    function toggleAutoAdvance() {
+        isAutoAdvance = !isAutoAdvance;
+        updateUI();
+        log('info', `Auto-advance ${isAutoAdvance ? 'ON' : 'OFF'}`);
+    }
+    function nextChannel() { if (currentIndex < channels.length - 1) selectChannel(currentIndex + 1); }
+    function prevChannel() { if (currentIndex > 0) selectChannel(currentIndex - 1); }
 
-        function updatePlayerStatus(status){ const dot=document.getElementById('playerStatusDot'); dot.classList.remove('active','error'); if(status==='playing')dot.classList.add('active'); else if(status==='error')dot.classList.add('error'); }
+    // ---------- Try Current & Try All ----------
+    async function tryCurrentChannel() {
+        if (!channels.length || currentIndex >= channels.length) return;
+        const ch = channels[currentIndex];
+        markChannelStatus(currentIndex, 'testing');
+        const mpdUrl = document.getElementById('mpdUrl').value.trim() || ch.url;
+        if (!mpdUrl) { log('error', `No URL for ${ch.name}`); markChannelStatus(currentIndex, 'fail'); return; }
+        const success = await loadStreamWithKeys(mpdUrl, ch.keyId, ch.key, ch.name);
+        markChannelStatus(currentIndex, success ? 'success' : 'fail');
+        log(success ? 'success' : 'warning', `Channel ${ch.name} ${success ? 'works' : 'failed'}`);
+        updateUI();
+    }
+    async function tryAllChannels() {
+        if (!channels.length) return;
+        isTryingAll = true;
+        tryAllAbort = false;
+        updateUI();
+        channels.forEach((ch,i) => channelStatuses.set(ch.id || ch.name, 'pending'));
+        currentIndex = 0;
+        updateChannelList();
+        updateUI();
+        document.getElementById('progressBarWrap').style.display = 'block';
+        updateProgress(0);
+        await attemptNextInSequence();
+    }
+    async function attemptNextInSequence() {
+        if (!isTryingAll || tryAllAbort) return;
+        if (currentIndex >= channels.length) {
+            log('info', 'All channels attempted.');
+            stopTryAll();
+            return;
+        }
+        const ch = channels[currentIndex];
+        markChannelStatus(currentIndex, 'testing');
+        updateProgress(((currentIndex) / channels.length) * 100);
+        const mpdUrl = document.getElementById('mpdUrl').value.trim() || ch.url;
+        if (!mpdUrl) {
+            log('warning', `No URL for ${ch.name}`);
+            markChannelStatus(currentIndex, 'fail');
+            currentIndex++;
+            updateUI();
+            setTimeout(() => attemptNextInSequence(), 400);
+            return;
+        }
+        const success = await loadStreamWithKeys(mpdUrl, ch.keyId, ch.key, ch.name);
+        if (success) {
+            markChannelStatus(currentIndex, 'success');
+            log('success', `✅ ${ch.name} works!`);
+            updateProgress(100);
+            stopTryAll();
+            return;
+        } else {
+            markChannelStatus(currentIndex, 'fail');
+            log('warning', `❌ ${ch.name} failed.`);
+            currentIndex++;
+            updateUI();
+            updateProgress(((currentIndex) / channels.length) * 100);
+            setTimeout(() => attemptNextInSequence(), 800);
+        }
+    }
+    function updateProgress(p) { document.getElementById('progressFill').style.width = Math.min(p, 100) + '%'; }
+    function advanceAndTry() {
+        if (!isTryingAll || tryAllAbort) return;
+        currentIndex++;
+        updateUI();
+        updateProgress(((currentIndex) / channels.length) * 100);
+        attemptNextInSequence();
+    }
+    function stopTryAll() {
+        isTryingAll = false;
+        tryAllAbort = true;
+        document.getElementById('progressBarWrap').style.display = 'none';
+        updateProgress(0);
+        updateUI();
+        log('info', 'Auto-try stopped.');
+    }
+    function stopPlayback() {
+        unregisterTokenFilter();
+        if (player) player.unload().then(() => {
+            log('info', 'Playback stopped.');
+            updatePlayerStatus('error');
+            document.getElementById('videoPlaceholder').style.display = 'flex';
+        }).catch(()=>{});
+    }
 
-        function parseJson(){ const text=document.getElementById('jsonInput').value.trim(); if(!text){log('warning','JSON empty.');return;} try{ const parsed=JSON.parse(text); if(Array.isArray(parsed)){ channels=parsed; channelStatuses.clear(); channels.forEach(ch=>channelStatuses.set(ch.id||ch.name,'pending')); currentIndex=0; log('success',`Parsed ${channels.length} channels.`); updateChannelList(); updateUI(); fillManualFromChannel(); } else log('error','JSON must be array.'); } catch(e){ log('error','Invalid JSON: '+e.message); } }
-        function loadSampleJson(){ const sample=[{"name":"Star Gold HD","id":"156","url":"https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_HD_MOB/WDVLive/index.mpd","keyId":"39b5c756c18355d9978fe6c6311b4891","key":"3aaa7efc64f9b81b91512d1af2c56e3c"},{"name":"Colors HD (token)","id":"COLORSHD","url":"https://jiotvmblive.cdn.jio.com/bpk-tv/ColorsHD_MOB/WDVLive/index.mpd?__hdnea__=st=1788584410~exp=1788606010~acl=/*~hmac=d7497bd3fa57f9dfeba55602a2a9b2df0959f59f6ada07c82c88bc658dcdcd7e","keyId":"00000000000000000000000000000000","key":"00000000000000000000000000000000"}]; document.getElementById('jsonInput').value=JSON.stringify(sample,null,2); log('info','Sample JSON loaded.'); }
-        function clearJson(){ document.getElementById('jsonInput').value=''; channels=[]; channelStatuses.clear(); currentIndex=0; updateChannelList(); updateUI(); log('info','Channels cleared.'); }
+    // ---------- File Upload ----------
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        document.getElementById('fileNameDisplay').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById('jsonInput').value = e.target.result;
+            log('info', `File ${file.name} loaded. Click Parse JSON.`);
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
 
-        function updateChannelList(){ const el=document.getElementById('channelList'); const cnt=document.getElementById('channelCount'); cnt.textContent=channels.length; if(channels.length===0){el.innerHTML='<div style="padding:16px;text-align:center;color:#484f58;">No channels.</div>';return;} el.innerHTML=channels.map((ch,i)=>{ const id=ch.id||ch.name||`idx-${i}`; const st=channelStatuses.get(id)||'pending'; let cls='pending',txt='Pending'; if(st==='testing'){cls='testing';txt='Testing...';} else if(st==='success'){cls='success';txt='✓ Success';} else if(st==='fail'){cls='fail';txt='✗ Failed';} const act=i===currentIndex?'active':''; const tried=st==='fail'?'tried-fail':''; return `<div class="channel-item ${act} ${tried}" onclick="selectChannel(${i})"><span class="ch-name">${escapeHtml(ch.name||'Unknown')}</span><span class="ch-id">#${escapeHtml(String(id))}</span><span class="ch-status ${cls}">${txt}</span></div>`; }).join(''); }
-        function selectChannel(i){ if(i<0||i>=channels.length)return; currentIndex=i; updateChannelList(); updateUI(); updateCurrentInfo(); fillManualFromChannel(); log('info',`Selected: ${channels[i].name}`); }
-        function updateCurrentInfo(){ const el=document.getElementById('currentInfo'); if(channels.length>0&&currentIndex<channels.length){ const ch=channels[currentIndex]; el.style.display='grid'; document.getElementById('ciChannel').textContent=ch.name||'Unknown'; document.getElementById('ciKeyId').textContent=ch.keyId||'-'; document.getElementById('ciKey').textContent=ch.key||'-'; document.getElementById('ciMpd').textContent=ch.url||'-'; } else el.style.display='none'; }
-        function markChannelStatus(i,st){ const ch=channels[i]; if(!ch)return; const id=ch.id||ch.name||`idx-${i}`; channelStatuses.set(id,st); updateChannelList(); updateUI(); }
-        function updateUI(){ const has=channels.length>0; document.getElementById('btnPrev').disabled=!has||currentIndex<=0; document.getElementById('btnNext').disabled=!has||currentIndex>=channels.length-1; document.getElementById('btnTryCurrent').disabled=!has; document.getElementById('btnTryAll').disabled=!has||isTryingAll; document.getElementById('btnStopAll').disabled=!isTryingAll; document.getElementById('btnStop').disabled=!player; const togg=document.getElementById('autoToggle'); togg.classList.toggle('enabled',isAutoAdvance); document.getElementById('autoStatus').textContent=isAutoAdvance?'ON':'OFF'; updateCurrentInfo(); }
-        function toggleAutoAdvance(){ isAutoAdvance=!isAutoAdvance; updateUI(); log('info',`Auto-advance ${isAutoAdvance?'ON':'OFF'}`); }
-        function nextChannel(){ if(currentIndex<channels.length-1)selectChannel(currentIndex+1); }
-        function prevChannel(){ if(currentIndex>0)selectChannel(currentIndex-1); }
+    // ---------- Keyboard Shortcuts ----------
+    document.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowRight' || e.key === 'n') { e.preventDefault(); nextChannel(); }
+        else if (e.key === 'ArrowLeft' || e.key === 'p') { e.preventDefault(); prevChannel(); }
+        else if (e.key === 'Enter' || e.key === 't') { e.preventDefault(); tryCurrentChannel(); }
+        else if (e.key === 'a' && !e.shiftKey) { e.preventDefault(); tryAllChannels(); }
+        else if (e.key === 's' && e.shiftKey) { e.preventDefault(); stopTryAll(); }
+    });
 
-        function fillManualFromChannel(){ if(channels.length&&currentIndex<channels.length){ const ch=channels[currentIndex]; if(ch.keyId)document.getElementById('keyIdInput').value=ch.keyId; if(ch.key)document.getElementById('keyInput').value=ch.key; if(ch.url&&!document.getElementById('mpdUrl').value.trim())document.getElementById('mpdUrl').value=ch.url; } }
+    // Expose functions
+    window.loadManualStream = loadManualStream;
+    window.parseJson = parseJson;
+    window.loadSampleJson = loadSampleJson;
+    window.clearJson = clearJson;
+    window.nextChannel = nextChannel;
+    window.prevChannel = prevChannel;
+    window.tryCurrentChannel = tryCurrentChannel;
+    window.tryAllChannels = tryAllChannels;
+    window.stopTryAll = stopTryAll;
+    window.selectChannel = selectChannel;
+    window.clearLog = clearLog;
+    window.stopPlayback = stopPlayback;
+    window.toggleAutoAdvance = toggleAutoAdvance;
+    window.handleFileUpload = handleFileUpload;
 
-        // Token preserving request filter
-        function unregisterCurrentFilter(){ if(currentRequestFilter&&player){ player.getNetworkingEngine().unregisterRequestFilter(currentRequestFilter); currentRequestFilter=null; } }
-        function registerTokenPreserver(mpdUrl){ unregisterCurrentFilter(); if(!mpdUrl.includes('?'))return; const qs=mpdUrl.split('?')[1]; if(!qs)return; const filter=(type,request)=>{ if(request.uris){ request.uris=request.uris.map(uri=>uri.includes('?')?uri:uri+'?'+qs); } }; player.getNetworkingEngine().registerRequestFilter(filter); currentRequestFilter=filter; log('info','Registered token filter.'); }
-
-        // DRM configuration builder
-        function buildDrmConfig(channel){ const keyId=channel.keyId?.trim()||''; const key=channel.key?.trim()||''; const type=channel.drmType||'clearkey'; // default clearkey
-            if(type==='clearkey'){ if(!keyId||!key) return {drm:{clearKeys:{}}}; const cleanId=keyId.toLowerCase().replace(/[^0-9a-f]/g,''); const cleanKey=key.toLowerCase().replace(/[^0-9a-f]/g,''); if(cleanId.length!==32||cleanKey.length!==32){ log('warning','ClearKey ID/Key not 32 hex chars, ignoring.'); return {drm:{clearKeys:{}}}; } const config={drm:{clearKeys:{}}}; config.drm.clearKeys[cleanId]=cleanKey; return config; } else if(type==='widevine'||type==='playready'){ const licenseUrl=channel.licenseUrl||''; if(!licenseUrl){ log('warning',`${type} specified but no licenseUrl provided.`); return {drm:{}}; } const config={drm:{servers:{}}}; config.drm.servers['com.widevine.alpha']=licenseUrl; // adjust for PlayReady if needed
-                return config; } else { log('warning',`Unknown drmType "${type}", defaulting to ClearKey.`); return {drm:{clearKeys:{}}}; } }
-
-        async function loadStreamWithKeys(mpdUrl, channel, label){ if(!player){log('error','No player.');return false;} try{await player.unload();}catch(e){}
-            registerTokenPreserver(mpdUrl);
-            const drmConfig=buildDrmConfig(channel||{}); if(!drmConfig) drmConfig={drm:{clearKeys:{}}};
-            player.configure(drmConfig);
-            log('info',`[${label}] DRM config applied.`);
-            document.getElementById('videoPlaceholder').style.display='none';
-            log('info',`[${label}] Loading: ${mpdUrl}`);
-            try{ await player.load(mpdUrl); log('success',`[${label}] Loaded successfully!`); updatePlayerStatus('playing'); document.getElementById('videoPlayer').play().catch(()=>{}); return true; }
-            catch(err){ log('error',`[${label}] Load failed: ${err.message||err}`); if(err.code===shaka.util.Error.Code.LICENSE_REQUEST_FAILED) log('error','→ Possible wrong DRM key/ID or unsupported DRM type.'); updatePlayerStatus('error'); document.getElementById('videoPlaceholder').style.display='flex'; document.getElementById('videoPlaceholder').innerHTML='Failed: '+escapeHtml(err.message||err); return false; } }
-
-        async function loadManualStream(){ const mpdUrl=document.getElementById('mpdUrl').value.trim(); const keyId=document.getElementById('keyIdInput').value.trim(); const key=document.getElementById('keyInput').value.trim(); const channel={keyId,key,drmType:'clearkey'}; await loadStreamWithKeys(mpdUrl,channel,'Manual'); }
-
-        async function tryCurrentChannel(){ if(!channels.length||currentIndex>=channels.length)return; const ch=channels[currentIndex]; markChannelStatus(currentIndex,'testing'); const mpdUrl=document.getElementById('mpdUrl').value.trim()||ch.url; if(!mpdUrl){log('error',`No URL for ${ch.name}`);markChannelStatus(currentIndex,'fail');return;} const success=await loadStreamWithKeys(mpdUrl,ch,ch.name); markChannelStatus(currentIndex,success?'success':'fail'); log(success?'success':'warning',`Channel ${ch.name} ${success?'works':'failed'}`); updateUI(); }
-
-        async function tryAllChannels(){ if(!channels.length)return; isTryingAll=true; tryAllAbort=false; updateUI(); channels.forEach((ch,i)=>channelStatuses.set(ch.id||ch.name,'pending')); currentIndex=0; updateChannelList(); updateUI(); document.getElementById('progressBarWrap').style.display='block'; updateProgress(0); await attemptNextInSequence(); }
-        async function attemptNextInSequence(){ if(!isTryingAll||tryAllAbort)return; if(currentIndex>=channels.length){ log('info','All channels attempted.'); stopTryAll(); return; } const ch=channels[currentIndex]; markChannelStatus(currentIndex,'testing'); updateProgress(((currentIndex)/channels.length)*100); const mpdUrl=document.getElementById('mpdUrl').value.trim()||ch.url; if(!mpdUrl){ log('warning',`No URL for ${ch.name}`); markChannelStatus(currentIndex,'fail'); currentIndex++; updateUI(); setTimeout(()=>attemptNextInSequence(),400); return; } const success=await loadStreamWithKeys(mpdUrl,ch,ch.name); if(success){ markChannelStatus(currentIndex,'success'); log('success',`✅ ${ch.name} works!`); updateProgress(100); stopTryAll(); return; } else { markChannelStatus(currentIndex,'fail'); log('warning',`❌ ${ch.name} failed.`); currentIndex++; updateUI(); updateProgress(((currentIndex)/channels.length)*100); setTimeout(()=>attemptNextInSequence(),800); } }
-        function updateProgress(p){ document.getElementById('progressFill').style.width=Math.min(p,100)+'%'; }
-        function advanceAndTry(){ if(!isTryingAll||tryAllAbort)return; currentIndex++; updateUI(); updateProgress(((currentIndex)/channels.length)*100); attemptNextInSequence(); }
-        function stopTryAll(){ isTryingAll=false; tryAllAbort=true; document.getElementById('progressBarWrap').style.display='none'; updateProgress(0); updateUI(); log('info','Auto-try stopped.'); }
-
-        function stopPlayback(){ unregisterCurrentFilter(); if(player) player.unload().then(()=>{ log('info','Playback stopped.'); updatePlayerStatus('error'); document.getElementById('videoPlaceholder').style.display='flex'; }).catch(()=>{}); }
-
-        function handleFileUpload(event){ const file=event.target.files[0]; if(!file)return; document.getElementById('fileNameDisplay').textContent=file.name; const reader=new FileReader(); reader.onload=e=>{document.getElementById('jsonInput').value=e.target.result; log('info',`File ${file.name} loaded. Click Parse JSON.`);}; reader.readAsText(file); event.target.value=''; }
-
-        document.addEventListener('keydown',(e)=>{ if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return; if(e.key==='ArrowRight'||e.key==='n'){e.preventDefault();nextChannel();} else if(e.key==='ArrowLeft'||e.key==='p'){e.preventDefault();prevChannel();} else if(e.key==='Enter'||e.key==='t'){e.preventDefault();tryCurrentChannel();} else if(e.key==='a'&&!e.shiftKey){e.preventDefault();tryAllChannels();} else if(e.key==='s'&&e.shiftKey){e.preventDefault();stopTryAll();} });
-
-        window.loadManualStream=loadManualStream; window.parseJson=parseJson; window.loadSampleJson=loadSampleJson; window.clearJson=clearJson; window.nextChannel=nextChannel; window.prevChannel=prevChannel; window.tryCurrentChannel=tryCurrentChannel; window.tryAllChannels=tryAllChannels; window.stopTryAll=stopTryAll; window.selectChannel=selectChannel; window.clearLog=clearLog; window.stopPlayback=stopPlayback; window.toggleAutoAdvance=toggleAutoAdvance; window.handleFileUpload=handleFileUpload;
-        updateUI(); log('info','Ready. Supports ClearKey, Widevine, PlayReady via JSON fields.');
-    </script>
+    updateUI();
+    log('info', 'Ready. Supports ClearKey, token preservation, and batch testing.');
+</script>
 </body>
-    </html>
+</html>

@@ -1,4 +1,9 @@
 [
+  {
+        "name": "SET",
+        "id": 1396,
+        "baseUrl": "https://jiotvcod.cdn.jio.com/bpk-tv/Sony_SD_MOB/WDVCatchup/index.mpd"
+  },
     {
         "name": "CNBC TV18 Prime",
         "id": 143,

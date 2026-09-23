@@ -562,6 +562,15 @@
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IBN_7.png"
   },
   {
+    "name": "Amar Ujala",
+    "id": "3483",
+    "category": "News",
+    "url": "http://jiotvmblive.cdn.jio.com/bpk-tv/amarujala_MOB/WDVLive/index.mpd",
+    "keyId": "a640733351845aeea5931e691e94ecc0",
+    "key": "10e5c2809b907cf450660ea0865f9cfc",
+    "logo": "https://img.media.jio.com/tvpimages/72/20/304109_1769181242264_l_medium.jpg"
+  },
+  {
     "name": "India TV",
     "id": "235",
     "category": "News",

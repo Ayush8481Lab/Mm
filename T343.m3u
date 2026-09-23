@@ -1,6 +1,0 @@
-#EXTM3U x-tvg-url="http://localhost:5350/epg.xml.gz"
-#EXTINF:-1 tvg-id="291" tvg-logo="https://img.media.jio.com/imagespublic/40/88/300266_1666878589057_p_medium.jpg" group-title="Entertainment" tvg-language="Hindi",Sony Entertainment Television HD
-#KODIPROP:inputstream.adaptive.manifest_type=mpd
-#KODIPROP:inputstream.adaptive.license_type=clearkey
-#KODIPROP:inputstream.adaptive.license_key=a640733351845aeea5931e691e94ecc0:10e5c2809b907cf450660ea0865f9cfc
-http://jiotvmblive.cdn.jio.com/bpk-tv/amarujala_MOB/WDVLive/index.mpd?__hdnea__=st=1790168404~exp=1790190004~acl=/*~hmac=d2ae5b9db03fbd80769b8d47cd7d0a7d284a884cdb53062337137ca30361804d

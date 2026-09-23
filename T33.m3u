@@ -1,6 +1,6 @@
 #EXTM3U x-tvg-url="http://localhost:5350/epg.xml.gz"
 #EXTINF:-1 tvg-id="291" tvg-logo="https://img.media.jio.com/imagespublic/40/88/300266_1666878589057_p_medium.jpg" group-title="Entertainment" tvg-language="Hindi",Sony Entertainment Television HD
 #KODIPROP:inputstream.adaptive.manifest_type=mpd
-#KODIPROP:inputstream.adaptive.license_type=clearkey
+#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
 #KODIPROP:inputstream.adaptive.license_key=https://streamflexsmm.in/license/300266
 https://jiotvcod.cdn.jio.com/bpk-tv/Sony_HD_MOB/WDVCatchup/index.mpd?begin=20260923T092000&end=20260923T101000&__hdnea__=st=1790092870~exp=1790179270~acl=/*~hmac=05492d242532cdcbcf1947697d75a0d025d2107de15a77948cb670ac7a797cc3

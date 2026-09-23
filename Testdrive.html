@@ -83,14 +83,14 @@
                 drm: {
                     servers: {
                         // This is the License Server URL. It verifies the encryption key.
-                        'com.widevine.alpha': 'https://cwip-shaka-proxy.appspot.com/no_auth'
+                        'com.widevine.alpha': 'https://wv-sony.service.expressplay.com/hms/wv/rights/?ExpressPlayToken=CAA2T1gfKdcAJDFhZWU2MmNiLTA2YzQtNDFmZC1iZjdkLWRhZDg2NWFlNWNmYwAAAIAV71quPN1jWsGK2NuEP0PyaA5dfmPQfAvO_FKIjL0kgI5-Jnzuj9-Mj-sAfsuxfiSoUXXW5jVP35uWFZ6rln3gwopl3lRUSJvOuIC-0ADbNKimoU0wjnRDbk3yOPkkX22jJpMxEbuBtsZXGJbiTdhGBg9Y4_VTLPUW2cEkP8yTXjoAsJAbb7tJwP135aIfOqtIaBDv&id=71f87a44f87c6febaf4dd26f43fd397290847798'
                     }
                 }
             });
 
             // 3. LOAD THE ENCRYPTED VIDEO
             // This is a special encrypted streaming format (.mpd), NOT a standard .mp4
-            const videoUrl = 'https://storage.googleapis.com/shaka-demo-assets/sintel-widevine/dash.mpd';
+            const videoUrl = 'https://hello-amh.pages.dev/Proxy?url=https://dishdrm.sonyliv.com/DASH/200b72a9ad444bbca6cb31510fee28d3/1790084781/baseline-std-v4/1090543528_22092026_eng_baseline-800300010.mpd?hdnea=exp=1790143696~acl=/DASH/200b72a9ad444bbca6cb31510fee28d3/1790084781/baseline-std-v4/1090543528_22092026_eng_baseline-800300010.mpd*~id=42a09f4f7b0f4f73914149ae63830e25-1785054766750~hmac=19bac2516de46d7ca1c66b5ec075c468b326e1c09d9fbdda21287b2aa657342b';
 
             try {
                 await player.load(videoUrl);

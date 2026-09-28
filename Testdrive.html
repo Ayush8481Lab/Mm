@@ -1,125 +1,556 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DRM Protected Secure Video</title>
-    
-    <!-- Load Google's Shaka Player library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
-    
-    <style>
-        body {
-            background-color: #121212;
-            color: white;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        
-        #video-container {
-            width: 100%;
-            max-width: 800px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            border-radius: 8px;
-            overflow: hidden;
-            background: black;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRM Protected HLS Video + Audio</title>
 
-        video {
-            width: 100%;
-            display: block;
-        }
+<!-- Shaka Player (supports HLS + EME/Widevine/PlayReady/FairPlay) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
 
-        .warning {
-            margin-bottom: 20px;
-            text-align: center;
-            color: #ff4757;
-        }
-        
-        .note {
-            font-size: 0.85em;
-            color: #aaaaaa;
-        }
-    </style>
+<style>
+    :root { --accent: #4f8cff; --bg: #121212; --panel: #1c1c1c; }
+
+    * { box-sizing: border-box; }
+
+    body {
+        background: var(--bg);
+        color: #fff;
+        font-family: system-ui, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 16px;
+    }
+
+    .header {
+        text-align: center;
+        margin-bottom: 18px;
+    }
+
+    .header h2 { margin: 0 0 6px; font-size: 1.25rem; }
+
+    .note { font-size: 0.82em; color: #9a9a9a; margin: 0; }
+
+    #video-container {
+        width: 100%;
+        max-width: 860px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        border-radius: 10px;
+        overflow: hidden;
+        background: #000;
+        position: relative;
+    }
+
+    video { width: 100%; display: block; background: #000; }
+
+    /* ---- Controls panel ---- */
+    #controls {
+        width: 100%;
+        max-width: 860px;
+        margin-top: 14px;
+        background: var(--panel);
+        border: 1px solid #2a2a2a;
+        border-radius: 10px;
+        padding: 14px 16px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 14px;
+    }
+
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+
+    label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #8f8f8f;
+    }
+
+    select {
+        background: #262626;
+        color: #fff;
+        border: 1px solid #3a3a3a;
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-size: 0.9rem;
+        outline: none;
+        cursor: pointer;
+    }
+
+    select:focus { border-color: var(--accent); }
+
+    select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ---- Status / error ---- */
+    #status {
+        max-width: 860px;
+        width: 100%;
+        margin-top: 12px;
+        font-size: 0.85rem;
+        color: #9a9a9a;
+        min-height: 1.2em;
+        word-break: break-word;
+    }
+
+    #status.error { color: #ff4757; }
+    #status.ok { color: #2ed573; }
+
+    /* ---- Autoplay unblock overlay ---- */
+    #play-overlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.65);
+        cursor: pointer;
+        z-index: 10;
+    }
+
+    #play-overlay.show { display: flex; }
+
+    #play-overlay button {
+        background: var(--accent);
+        border: 0;
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 600;
+        padding: 14px 28px;
+        border-radius: 50px;
+        cursor: pointer;
+    }
+</style>
 </head>
 <body>
 
-    <div class="warning">
-        <h2>🔒 DRM Protected Video (Widevine L3)</h2>
-        <p class="note">Note: L3 uses Software-level protection.</p>
+    <div class="header">
+        <h2>🔒 DRM Protected HLS Stream (Widevine L3)</h2>
+        <p class="note">Adaptive HLS (m3u8) · Widevine / PlayReady / FairPlay · Multi-audio</p>
     </div>
 
-    <!-- The Video Player -->
     <div id="video-container">
-        <video id="secure-video" controls autoplay></video>
+        <video id="secure-video" controls autoplay playsinline></video>
+        <div id="play-overlay"><button type="button">▶ Tap to Play</button></div>
     </div>
 
-    <script>
-        // 1. Wait for the page to load
-        document.addEventListener('DOMContentLoaded', initApp);
+    <div id="controls">
+        <div class="control-group">
+            <label for="audio-select">Audio Track</label>
+            <select id="audio-select" disabled>
+                <option>Waiting for manifest…</option>
+            </select>
+        </div>
 
-        function initApp() {
-            // Check if the browser supports Shaka Player (EME support)
-            shaka.polyfill.installAll();
-            if (shaka.Player.isBrowserSupported()) {
-                initPlayer();
-            } else {
-                alert('Browser not supported for secure video playback.');
-            }
+        <div class="control-group">
+            <label for="quality-select">Video Quality</label>
+            <select id="quality-select" disabled>
+                <option>Auto</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="text-select">Subtitles</label>
+            <select id="text-select" disabled>
+                <option>Off</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="status">Initializing…</div>
+
+<script>
+/* =========================================================================
+ *  1. CONFIGURATION  —  put your own URLs here
+ * ========================================================================= */
+const CONFIG = {
+    // HLS manifest (.m3u8)
+    manifestUri: 'https://audio-ak.spotifycdn.com/audio/4186efdfd77766dcf526be93b2500dfd762e2ab4?__token__=exp=1790661005~hmac=a04497a3ad31efe58b0e46080d4b2a6503c1bc72b59cc75f564770a0276ef33b',
+
+    drm: {
+        // Widevine license server (often a proxy that appends your token)
+        widevine: 'https://jiotvegp.vercel.app/api/Spotify?url=https%3A%2F%2Fgae2-spclient.spotify.com%2Fwidevine-license%2Fv1%2Faudio%2Flicense',
+
+        // PlayReady (Edge / IE / Xbox / some smart TVs)
+        playready: 'https://your-license-proxy.example.com/api/playready?token=YOUR_TOKEN',
+
+        // FairPlay (Safari / iOS) — needs BOTH the license URL and the app certificate
+        fairplay: 'https://your-license-proxy.example.com/api/fairplay',
+        fairplayCertificate: 'https://your-license-proxy.example.com/api/fairplay/cert'
+    },
+
+    // Preferred audio language. Shaka will auto-pick this on load if present.
+    preferredAudioLanguage: 'en',
+
+    // Preferred audio channel count (e.g. 2 = stereo, 6 = 5.1). null = any.
+    preferredAudioChannelCount: null,
+
+    // Set to true to force Widevine L3 (software decryption only)
+    forceL3: true,
+
+    // Optional custom header sent with every LICENSE request
+    licenseHeader: null   // e.g. { name: 'X-Auth-Token', value: 'abc123' }
+};
+
+/* =========================================================================
+ *  2. BOOTSTRAP
+ * ========================================================================= */
+const videoElement = document.getElementById('secure-video');
+const audioSelect  = document.getElementById('audio-select');
+const qualitySelect= document.getElementById('quality-select');
+const textSelect   = document.getElementById('text-select');
+const statusEl     = document.getElementById('status');
+const playOverlay  = document.getElementById('play-overlay');
+
+let player = null;
+
+function setStatus(msg, kind = '') {
+    statusEl.textContent = msg;
+    statusEl.className = kind;
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+function initApp() {
+    // Install polyfills BEFORE anything else (Promise, EME, MSE, etc.)
+    shaka.polyfill.installAll();
+
+    if (!shaka.Player.isBrowserSupported()) {
+        setStatus('This browser does not support the required media APIs (MSE/EME).', 'error');
+        return;
+    }
+    initPlayer();
+}
+
+/* =========================================================================
+ *  3. PLAYER SETUP
+ * ========================================================================= */
+async function initPlayer() {
+    player = new shaka.Player(videoElement);
+
+    // Expose for debugging in the console
+    window.player = player;
+
+    /* ---------- Error handling ---------- */
+    player.addEventListener('error', onPlayerError);
+    videoElement.addEventListener('error', () => {
+        setStatus('Video element error: ' + (videoElement.error && videoElement.error.message), 'error');
+    });
+
+    /* ---------- Track / variant events ---------- */
+    player.addEventListener('trackschanged', refreshTrackMenus);
+    player.addEventListener('variantchanged', syncSelectedQuality);
+
+    /* ---------- Optional: custom auth header on license requests ---------- */
+    player.getNetworkingEngine().registerRequestFilter((type, request) => {
+        if (type === shaka.net.NetworkingEngine.RequestType.LICENSE && CONFIG.licenseHeader) {
+            request.headers[CONFIG.licenseHeader.name] = CONFIG.licenseHeader.value;
         }
+    });
 
-        async function initPlayer() {
-            const videoElement = document.getElementById('secure-video');
-            const player = new shaka.Player(videoElement);
+    /* ---------- Build DRM server map ---------- */
+    const servers = {};
+    const advanced = {};
 
-            // Listen for errors and log detailed information to console
-            player.addEventListener('error', (event) => {
-                console.error('Shaka Player Error:', event.detail.code, event.detail);
-            });
+    if (CONFIG.drm.widevine) {
+        servers['com.widevine.alpha'] = CONFIG.drm.widevine;
 
-            // Optional: If ExpressPlay or your backend requires custom HTTP Headers for the license request
-            /*
-            player.getNetworkingEngine().registerRequestFilter((type, request) => {
-                if (type == shaka.net.NetworkingEngine.RequestType.LICENSE) {
-                    // request.headers['Custom-Auth-Header'] = 'your-token-here';
-                }
-            });
-            */
-
-            // 2. CONFIGURE DRM (WIDEVINE L3)
-            player.configure({
-                drm: {
-                    servers: {
-                        // Ensure your ExpressPlay URL includes the ExpressPlayToken parameter
-                        'com.widevine.alpha': 'https://jiotvegp.vercel.app/api/Spotify?url=https%3A%2F%2Fgae2-spclient.spotify.com%2Fwidevine-license%2Fv1%2Faudio%2Flicense'
-                    },
-                    advanced: {
-                        'com.widevine.alpha': {
-                            // This explicitly forces Widevine L3 (Software Decryption)
-                            videoRobustness: 'SW_SECURE_CRYPTO',
-                            audioRobustness: 'SW_SECURE_CRYPTO'
-                        }
-                    }
-                }
-            });
-
-            // 3. LOAD THE ENCRYPTED VIDEO
-            const videoUrl = 'https://audio-ak.spotifycdn.com/audio/4186efdfd77766dcf526be93b2500dfd762e2ab4?__token__=exp=1790661005~hmac=a04497a3ad31efe58b0e46080d4b2a6503c1bc72b59cc75f564770a0276ef33b'
-            try {
-                await player.load(videoUrl);
-                console.log('The Widevine L3 encrypted video has successfully loaded!');
-            } catch (e) {
-                console.error('Error loading video', e);
-            }
+        if (CONFIG.forceL3) {
+            // Force software (L3) decryption — required by many desktop browsers.
+            advanced['com.widevine.alpha'] = {
+                videoRobustness: 'SW_SECURE_CRYPTO',
+                audioRobustness: 'SW_SECURE_CRYPTO'
+            };
         }
-        
-        // Basic right-click protection for the web page
-        document.addEventListener('contextmenu', e => e.preventDefault());
-    </script>
+    }
+
+    if (CONFIG.drm.playready) {
+        servers['com.microsoft.playready'] = CONFIG.drm.playready;
+    }
+
+    if (CONFIG.drm.fairplay) {
+        servers['com.apple.fps'] = CONFIG.drm.fairplay;
+        if (CONFIG.drm.fairplayCertificate) {
+            advanced['com.apple.fps'] = {
+                serverCertificateUri: CONFIG.drm.fairplayCertificate
+            };
+        }
+    }
+
+    /* ---------- Configure the player ---------- */
+    player.configure({
+        drm: {
+            servers: servers,
+            advanced: advanced,
+            // How long to wait for a license before giving up (seconds)
+            retryParameters: { maxAttempts: 3, baseDelay: 500, timeout: 15000 }
+        },
+
+        // --- Audio preferences ---
+        preferredAudioLanguage: CONFIG.preferredAudioLanguage,
+        preferredAudioChannelCount: CONFIG.preferredAudioChannelCount,
+
+        // --- Streaming / ABR ---
+        streaming: {
+            bufferingGoal: 30,
+            rebufferingGoal: 2,
+            lowLatencyMode: false,
+            // HLS specific: prefer the manifest's declared codecs & durations
+            hls: {
+                ignoreManifestProgramDateTime: false,
+                useFullSegmentsForStartTime: false
+            }
+        },
+
+        abr: {
+            enabled: true,
+            defaultBandwidthEstimate: 1_000_000
+        },
+
+        // Allow Shaka to auto-select text tracks if the manifest says so
+        textDisplayFactory: undefined
+    });
+
+    /* ---------- Force LOWEST latency/L3-friendly HLS playback on Safari? ----
+     *  On Safari, Shaka uses native HLS playback which does NOT support
+     *  Widevine. Use FairPlay on Safari. Nothing to do here — just a note.
+     * ---------------------------------------------------------------------- */
+
+    /* ---------- Load the manifest ---------- */
+    setStatus('Loading manifest…');
+
+    try {
+        await player.load(CONFIG.manifestUri);
+        setStatus('Stream loaded successfully. DRM session active.', 'ok');
+        onLoaded();
+    } catch (e) {
+        onPlayerError({ detail: e });
+    }
+}
+
+/* =========================================================================
+ *  4. POST-LOAD SETUP
+ * ========================================================================= */
+function onLoaded() {
+    refreshTrackMenus();
+
+    // Autoplay may be blocked when the video is NOT muted.
+    videoElement.play().catch(() => {
+        playOverlay.classList.add('show');
+    });
+
+    playOverlay.addEventListener('click', () => {
+        playOverlay.classList.remove('show');
+        videoElement.play().catch(() => {});
+    });
+
+    // Unmute once the user interacts, so audio actually plays
+    const unmute = () => {
+        videoElement.muted = false;
+        videoElement.volume = 1;
+        document.removeEventListener('click', unmute);
+    };
+    document.addEventListener('click', unmute);
+}
+
+/* =========================================================================
+ *  5. AUDIO / VIDEO / TEXT TRACK MENUS
+ * ========================================================================= */
+function refreshTrackMenus() {
+    if (!player) return;
+
+    /* ---------------- AUDIO ---------------- */
+    const audioTracks = player.getAudioTracks();
+    const activeAudio = player.getVariantTracks().find(t => t.active);
+
+    audioSelect.innerHTML = '';
+
+    if (audioTracks.length === 0) {
+        audioSelect.disabled = true;
+        audioSelect.innerHTML = '<option>No audio tracks</option>';
+    } else {
+        audioSelect.disabled = false;
+        audioTracks.forEach((track, i) => {
+            const opt = document.createElement('option');
+            opt.value = String(i);
+            opt.textContent = describeAudio(track);
+
+            // Mark the currently active one
+            if (activeAudio && activeAudio.audioBandwidth !== undefined &&
+                track.language === activeAudio.language &&
+                track.channelsCount === activeAudio.channelsCount &&
+                track.roles.join() === activeAudio.roles.join()) {
+                opt.selected = true;
+            }
+            audioSelect.appendChild(opt);
+        });
+
+        // Fallback: mark the active variant's language
+        if (activeAudio) {
+            const idx = audioTracks.findIndex(t =>
+                t.language === activeAudio.language &&
+                t.roles.join() === activeAudio.roles.join());
+            if (idx >= 0) audioSelect.value = String(idx);
+        }
+    }
+
+    audioSelect.onchange = () => {
+        const idx = Number(audioSelect.value);
+        const track = player.getAudioTracks()[idx];
+        if (!track) return;
+        player.selectAudioTrack(track);
+        setStatus(`Audio switched → ${describeAudio(track)}`, 'ok');
+    };
+
+    /* ---------------- VIDEO QUALITY ---------------- */
+    const variants = player.getVariantTracks()
+        .filter(t => t.videoBandwidth || t.bandwidth)
+        .sort((a, b) => (b.bandwidth || 0) - (a.bandwidth || 0));
+
+    // De-duplicate by height so we get a clean quality list
+    const seenHeights = new Set();
+    const qualityOptions = [];
+    variants.forEach(v => {
+        const key = `${v.height || 0}`;
+        if (!seenHeights.has(key)) {
+            seenHeights.add(key);
+            qualityOptions.push(v);
+        }
+    });
+
+    qualitySelect.innerHTML = '<option value="-1">Auto (ABR)</option>';
+    qualityOptions.forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = v.height
+            ? `${v.height}p${v.frameRate ? ' @' + Math.round(v.frameRate) + 'fps' : ''}`
+            : `${Math.round((v.bandwidth || 0) / 1000)} kbps`;
+        qualitySelect.appendChild(opt);
+    });
+    qualitySelect.disabled = qualityOptions.length === 0;
+
+    qualitySelect.onchange = () => {
+        const id = Number(qualitySelect.value);
+        if (id === -1) {
+            player.configure({ abr: { enabled: true } });
+            setStatus('Quality → Auto (ABR)', 'ok');
+            return;
+        }
+        player.configure({ abr: { enabled: false } });
+        const track = player.getVariantTracks().find(t => t.id === id);
+        if (track) {
+            player.selectVariantTrack(track, /* clearBuffer */ true);
+            setStatus(`Quality locked → ${qualitySelect.options[qualitySelect.selectedIndex].text}`, 'ok');
+        }
+    };
+
+    syncSelectedQuality();
+
+    /* ---------------- TEXT / SUBTITLES ---------------- */
+    const textTracks = player.getTextTracks();
+    textSelect.innerHTML = '<option value="-1">Off</option>';
+    textTracks.forEach((t, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = t.label || t.language || `Track ${i + 1}`;
+        textSelect.appendChild(opt);
+    });
+    textSelect.disabled = textTracks.length === 0;
+
+    textSelect.onchange = () => {
+        const idx = Number(textSelect.value);
+        if (idx === -1) {
+            player.setTextTrackVisibility(false);
+        } else {
+            const track = player.getTextTracks()[idx];
+            player.selectTextTrack(track);
+            player.setTextTrackVisibility(true);
+        }
+    };
+}
+
+function syncSelectedQuality() {
+    const active = player.getVariantTracks().find(t => t.active);
+    if (!active || !qualitySelect.options.length) return;
+
+    const isAuto = player.getConfiguration().abr.enabled;
+    if (isAuto) {
+        qualitySelect.value = '-1';
+    } else {
+        qualitySelect.value = String(active.id);
+        // If the exact variant isn't listed, fall back to the matching height
+        if (qualitySelect.selectedIndex === -1) {
+            const match = [...qualitySelect.options].find(o =>
+                o.text.startsWith(`${active.height}p`));
+            if (match) qualitySelect.value = match.value;
+        }
+    }
+}
+
+function describeAudio(track) {
+    const parts = [];
+    parts.push(track.label || (track.language ? track.language.toUpperCase() : 'Unknown'));
+
+    if (track.channelsCount) {
+        const map = { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' };
+        parts.push(map[track.channelsCount] || `${track.channelsCount}ch`);
+    }
+    if (track.roles && track.roles.length) {
+        // Filter out noisy generic roles
+        const roles = track.roles.filter(r => !['main', 'alternative'].includes(r));
+        if (roles.length) parts.push(`(${roles.join(', ')})`);
+    }
+    if (track.audioBandwidth) {
+        parts.push(`· ${Math.round(track.audioBandwidth / 1000)} kbps`);
+    }
+    return parts.join(' ');
+}
+
+/* =========================================================================
+ *  6. ERROR HANDLING
+ * ========================================================================= */
+function onPlayerError(event) {
+    const detail = event.detail || event;
+    const code = detail.code;
+    const data = detail.data || [];
+
+    console.error('Shaka Player Error:', code, detail);
+
+    let hint = '';
+
+    switch (code) {
+        case 1000: hint = 'Network request failed (check CORS / proxy).'; break;
+        case 1001: hint = 'Manifest could not be parsed or was not found.'; break;
+        case 1002: hint = 'Manifest is invalid or unsupported.'; break;
+        case 1003: hint = 'Streaming protocol not supported by this browser.'; break;
+        case 1004: hint = 'Media is not supported by this browser (codec issue).'; break;
+        case 1005: hint = 'Media key / license acquisition failed.'; break;
+        case 1006: hint = 'DRM system is not supported on this browser.'; break;
+        case 3016: hint = 'License request failed — check your DRM token / proxy.'; break;
+        case 6001: hint = 'Failed to fetch DRM license.'; break;
+        case 6007: hint = 'License server rejected the request (expired token?).'; break;
+        default:   hint = 'See console for full details.';
+    }
+
+    // Append raw error data for debugging
+    const extra = data.map(d => (d && d.message) ? d.message : String(d)).join(' | ');
+
+    setStatus(`Error ${code}: ${hint}${extra ? ' — ' + extra : ''}`, 'error');
+}
+
+/* =========================================================================
+ *  7. MISC
+ * ========================================================================= */
+// Basic right-click protection
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// Clean shutdown
+window.addEventListener('beforeunload', () => {
+    if (player) player.destroy();
+});
+</script>
 </body>
-</html>
+    </html>

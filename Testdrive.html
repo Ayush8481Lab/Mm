@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DRM Protected HLS Audio</title>
 
-<!-- Shaka Player (supports HLS + EME/Widevine/PlayReady/FairPlay) -->
+<!-- Shaka Player (HLS + EME/Widevine/PlayReady/FairPlay) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
 
 <style>
@@ -50,7 +50,6 @@
         gap: 12px;
     }
 
-    /* Audio icon / placeholder */
     .audio-icon {
         font-size: 3.5rem;
         opacity: 0.35;
@@ -88,7 +87,7 @@
         color: #8f8f8f;
     }
 
-    select {
+    select, input[type="text"] {
         background: #262626;
         color: #fff;
         border: 1px solid #3a3a3a;
@@ -96,12 +95,36 @@
         padding: 8px 10px;
         font-size: 0.9rem;
         outline: none;
-        cursor: pointer;
     }
 
-    select:focus { border-color: var(--accent); }
-
+    select:focus, input[type="text"]:focus { border-color: var(--accent); }
     select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .manifest-input-group {
+        display: flex;
+        gap: 8px;
+        width: 100%;
+    }
+
+    .manifest-input-group input {
+        flex: 1;
+    }
+
+    .manifest-input-group button {
+        background: var(--accent);
+        border: 0;
+        color: #fff;
+        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .manifest-input-group button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
 
     /* ---- Status / error ---- */
     #status {
@@ -158,6 +181,14 @@
     </div>
 
     <div id="controls">
+        <div class="control-group" style="grid-column: 1 / -1;">
+            <label for="manifest-input">HLS Manifest URL (.m3u8)</label>
+            <div class="manifest-input-group">
+                <input type="text" id="manifest-input" placeholder="https://example.com/secure/audio/master.m3u8" />
+                <button id="load-btn" type="button">Load</button>
+            </div>
+        </div>
+
         <div class="control-group">
             <label for="audio-select">Audio Track</label>
             <select id="audio-select" disabled>
@@ -177,57 +208,60 @@
 
 <script>
 /* =========================================================================
- *  1. CONFIGURATION  —  put your own URLs here
+ *  1. CONFIGURATION  —  edit these values
  * ========================================================================= */
 const CONFIG = {
-    // HLS audio-only manifest (.m3u8)
-    manifestUri: 'https://audio-ak.spotifycdn.com/audio/4186efdfd77766dcf526be93b2500dfd762e2ab4?__token__=exp=1790661005~hmac=a04497a3ad31efe58b0e46080d4b2a6503c1bc72b59cc75f564770a0276ef33b',
+    // ⚠️ You MUST supply a real HLS .m3u8 manifest that contains DRM info.
+    //    The Spotify audio URL is NOT a manifest.
+    manifestUri: 'https://audio-ak.spotifycdn.com/audio/4186efdfd77766dcf526be93b2500dfd762e2ab4?__token__=exp=1790661005~hmac=a04497a3ad31efe58b0e46080d4b2a6503c1bc72b59cc75f564770a0276ef33b',   // leave empty; user will paste it
 
     drm: {
-        // Widevine license server (often a proxy that appends your token)
+        // Your JioTV proxy that forwards to Spotify's Widevine license endpoint
         widevine: 'https://jiotvegp.vercel.app/api/Spotify?url=https%3A%2F%2Fgae2-spclient.spotify.com%2Fwidevine-license%2Fv1%2Faudio%2Flicense',
-
-        // PlayReady (Edge / IE / Xbox / some smart TVs)
-        playready: 'https://your-license-proxy.example.com/api/playready?token=YOUR_TOKEN',
-
-        // FairPlay (Safari / iOS) — needs BOTH the license URL and the app certificate
-        fairplay: 'https://your-license-proxy.example.com/api/fairplay',
-        fairplayCertificate: 'https://your-license-proxy.example.com/api/fairplay/cert'
+        // PlayReady and FairPlay are optional for audio-only Widevine
+        playready: null,
+        fairplay: null,
+        fairplayCertificate: null
     },
 
-    // Preferred audio language. Shaka will auto-pick this on load if present.
     preferredAudioLanguage: 'en',
-
-    // Preferred audio channel count (e.g. 2 = stereo, 6 = 5.1). null = any.
     preferredAudioChannelCount: null,
-
-    // Set to true to force Widevine L3 (software decryption only)
     forceL3: true,
-
-    // Optional custom header sent with every LICENSE request
     licenseHeader: null   // e.g. { name: 'X-Auth-Token', value: 'abc123' }
 };
 
 /* =========================================================================
- *  2. BOOTSTRAP
+ *  2. DOM REFERENCES
  * ========================================================================= */
-const audioElement = document.getElementById('secure-audio');
-const audioSelect  = document.getElementById('audio-select');
-const textSelect   = document.getElementById('text-select');
-const statusEl     = document.getElementById('status');
-const playOverlay  = document.getElementById('play-overlay');
+const audioElement   = document.getElementById('secure-audio');
+const audioSelect    = document.getElementById('audio-select');
+const textSelect     = document.getElementById('text-select');
+const statusEl       = document.getElementById('status');
+const playOverlay    = document.getElementById('play-overlay');
+const manifestInput  = document.getElementById('manifest-input');
+const loadBtn        = document.getElementById('load-btn');
 
 let player = null;
 
+/* =========================================================================
+ *  3. UTILITIES
+ * ========================================================================= */
 function setStatus(msg, kind = '') {
     statusEl.textContent = msg;
     statusEl.className = kind;
 }
 
+function log(...args) {
+    console.log('[DRM-Audio]', ...args);
+}
+
+/* =========================================================================
+ *  4. BOOTSTRAP
+ * ========================================================================= */
 document.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
-    // Install polyfills BEFORE anything else (Promise, EME, MSE, etc.)
+    // Install polyfills
     shaka.polyfill.installAll();
 
     if (!shaka.Player.isBrowserSupported()) {
@@ -235,111 +269,122 @@ function initApp() {
         return;
     }
     initPlayer();
+
+    // Wire up the manifest loader
+    loadBtn.addEventListener('click', () => {
+        const url = manifestInput.value.trim();
+        if (!url) {
+            setStatus('Please enter a valid HLS manifest URL.', 'error');
+            return;
+        }
+        loadManifest(url);
+    });
+
+    // If a manifest is pre-filled in CONFIG, load it
+    if (CONFIG.manifestUri) {
+        manifestInput.value = CONFIG.manifestUri;
+        loadManifest(CONFIG.manifestUri);
+    } else {
+        setStatus('Ready. Paste your HLS .m3u8 manifest URL above and click "Load".');
+    }
 }
 
 /* =========================================================================
- *  3. PLAYER SETUP
+ *  5. PLAYER SETUP
  * ========================================================================= */
 async function initPlayer() {
     player = new shaka.Player(audioElement);
+    window.player = player; // for debugging
 
-    // Expose for debugging in the console
-    window.player = player;
-
-    /* ---------- Error handling ---------- */
+    // Error handling
     player.addEventListener('error', onPlayerError);
     audioElement.addEventListener('error', () => {
         setStatus('Audio element error: ' + (audioElement.error && audioElement.error.message), 'error');
     });
 
-    /* ---------- Track / variant events ---------- */
+    // Track changes
     player.addEventListener('trackschanged', refreshTrackMenus);
 
-    /* ---------- Optional: custom auth header on license requests ---------- */
+    // Optional license request filter (custom header)
     player.getNetworkingEngine().registerRequestFilter((type, request) => {
         if (type === shaka.net.NetworkingEngine.RequestType.LICENSE && CONFIG.licenseHeader) {
             request.headers[CONFIG.licenseHeader.name] = CONFIG.licenseHeader.value;
         }
     });
 
-    /* ---------- Build DRM server map ---------- */
+    // Build DRM server map
     const servers = {};
     const advanced = {};
 
     if (CONFIG.drm.widevine) {
         servers['com.widevine.alpha'] = CONFIG.drm.widevine;
-
         if (CONFIG.forceL3) {
-            // For audio-only, only audio robustness matters. Keep video as SW too.
             advanced['com.widevine.alpha'] = {
                 videoRobustness: 'SW_SECURE_CRYPTO',
                 audioRobustness: 'SW_SECURE_CRYPTO'
             };
         }
     }
-
     if (CONFIG.drm.playready) {
         servers['com.microsoft.playready'] = CONFIG.drm.playready;
     }
-
     if (CONFIG.drm.fairplay) {
         servers['com.apple.fps'] = CONFIG.drm.fairplay;
         if (CONFIG.drm.fairplayCertificate) {
-            advanced['com.apple.fps'] = {
-                serverCertificateUri: CONFIG.drm.fairplayCertificate
-            };
+            advanced['com.apple.fps'] = { serverCertificateUri: CONFIG.drm.fairplayCertificate };
         }
     }
 
-    /* ---------- Configure the player ---------- */
+    // Configure the player
     player.configure({
         drm: {
             servers: servers,
             advanced: advanced,
-            // How long to wait for a license before giving up (seconds)
             retryParameters: { maxAttempts: 3, baseDelay: 500, timeout: 15000 }
         },
-
-        // --- Audio preferences ---
         preferredAudioLanguage: CONFIG.preferredAudioLanguage,
         preferredAudioChannelCount: CONFIG.preferredAudioChannelCount,
-
-        // --- Streaming / ABR (still applies to audio bitrate) ---
         streaming: {
             bufferingGoal: 30,
             rebufferingGoal: 2,
-            lowLatencyMode: false,
-            hls: {
-                ignoreManifestProgramDateTime: false,
-                useFullSegmentsForStartTime: false
-            }
+            lowLatencyMode: false
         },
-
         abr: {
             enabled: true,
-            defaultBandwidthEstimate: 128_000   // audio‑friendly default
+            defaultBandwidthEstimate: 128000
         }
     });
 
-    /* ---------- Load the manifest ---------- */
-    setStatus('Loading audio manifest…');
+    log('Player initialized and configured');
+}
+
+/* =========================================================================
+ *  6. LOAD A MANIFEST
+ * ========================================================================= */
+async function loadManifest(url) {
+    if (!player) {
+        setStatus('Player not ready yet.', 'error');
+        return;
+    }
+
+    setStatus('Loading manifest…');
+    loadBtn.disabled = true;
 
     try {
-        await player.load(CONFIG.manifestUri);
+        await player.load(url);
         setStatus('Audio stream loaded successfully. DRM session active.', 'ok');
         onLoaded();
     } catch (e) {
         onPlayerError({ detail: e });
+    } finally {
+        loadBtn.disabled = false;
     }
 }
 
-/* =========================================================================
- *  4. POST-LOAD SETUP
- * ========================================================================= */
 function onLoaded() {
     refreshTrackMenus();
 
-    // Autoplay may be blocked when the audio is NOT muted.
+    // Autoplay may be blocked
     audioElement.play().catch(() => {
         playOverlay.classList.add('show');
     });
@@ -349,7 +394,7 @@ function onLoaded() {
         audioElement.play().catch(() => {});
     });
 
-    // Unmute once the user interacts, so audio actually plays
+    // Unmute on first user interaction
     const unmute = () => {
         audioElement.muted = false;
         audioElement.volume = 1;
@@ -359,12 +404,12 @@ function onLoaded() {
 }
 
 /* =========================================================================
- *  5. AUDIO / TEXT TRACK MENUS
+ *  7. TRACK MENUS
  * ========================================================================= */
 function refreshTrackMenus() {
     if (!player) return;
 
-    /* ---------------- AUDIO ---------------- */
+    /* ----- AUDIO ----- */
     const audioTracks = player.getAudioTracks();
     const activeAudio = player.getVariantTracks().find(t => t.active);
 
@@ -379,24 +424,13 @@ function refreshTrackMenus() {
             const opt = document.createElement('option');
             opt.value = String(i);
             opt.textContent = describeAudio(track);
-
-            // Mark the currently active one
-            if (activeAudio && activeAudio.audioBandwidth !== undefined &&
-                track.language === activeAudio.language &&
+            if (activeAudio && track.language === activeAudio.language &&
                 track.channelsCount === activeAudio.channelsCount &&
                 track.roles.join() === activeAudio.roles.join()) {
                 opt.selected = true;
             }
             audioSelect.appendChild(opt);
         });
-
-        // Fallback: mark the active variant's language
-        if (activeAudio) {
-            const idx = audioTracks.findIndex(t =>
-                t.language === activeAudio.language &&
-                t.roles.join() === activeAudio.roles.join());
-            if (idx >= 0) audioSelect.value = String(idx);
-        }
     }
 
     audioSelect.onchange = () => {
@@ -407,7 +441,7 @@ function refreshTrackMenus() {
         setStatus(`Audio switched → ${describeAudio(track)}`, 'ok');
     };
 
-    /* ---------------- TEXT / SUBTITLES ---------------- */
+    /* ----- TEXT ----- */
     const textTracks = player.getTextTracks();
     textSelect.innerHTML = '<option value="-1">Off</option>';
     textTracks.forEach((t, i) => {
@@ -433,7 +467,6 @@ function refreshTrackMenus() {
 function describeAudio(track) {
     const parts = [];
     parts.push(track.label || (track.language ? track.language.toUpperCase() : 'Unknown'));
-
     if (track.channelsCount) {
         const map = { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' };
         parts.push(map[track.channelsCount] || `${track.channelsCount}ch`);
@@ -449,7 +482,7 @@ function describeAudio(track) {
 }
 
 /* =========================================================================
- *  6. ERROR HANDLING
+ *  8. ERROR HANDLING
  * ========================================================================= */
 function onPlayerError(event) {
     const detail = event.detail || event;
@@ -459,7 +492,6 @@ function onPlayerError(event) {
     console.error('Shaka Player Error:', code, detail);
 
     let hint = '';
-
     switch (code) {
         case 1000: hint = 'Network request failed (check CORS / proxy).'; break;
         case 1001: hint = 'Manifest could not be parsed or was not found.'; break;
@@ -468,28 +500,25 @@ function onPlayerError(event) {
         case 1004: hint = 'Media is not supported by this browser (codec issue).'; break;
         case 1005: hint = 'Media key / license acquisition failed.'; break;
         case 1006: hint = 'DRM system is not supported on this browser.'; break;
-        case 3016: hint = 'License request failed — check your DRM token / proxy.'; break;
+        case 3016: hint = 'License request failed — check your DRM token / proxy. ' +
+                         'Make sure the manifest contains #EXT-X-KEY with Widevine info.'; break;
         case 6001: hint = 'Failed to fetch DRM license.'; break;
         case 6007: hint = 'License server rejected the request (expired token?).'; break;
         default:   hint = 'See console for full details.';
     }
 
-    // Append raw error data for debugging
     const extra = data.map(d => (d && d.message) ? d.message : String(d)).join(' | ');
-
     setStatus(`Error ${code}: ${hint}${extra ? ' — ' + extra : ''}`, 'error');
 }
 
 /* =========================================================================
- *  7. MISC
+ *  9. MISC
  * ========================================================================= */
-// Basic right-click protection
 document.addEventListener('contextmenu', e => e.preventDefault());
 
-// Clean shutdown
 window.addEventListener('beforeunload', () => {
     if (player) player.destroy();
 });
 </script>
 </body>
-</html>
+    </html>

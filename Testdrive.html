@@ -3,205 +3,126 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DRM HLS Audio Player</title>
-
-<!-- Shaka Player -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
-
+<title>Spotify DRM Audio (EME + MSE)</title>
 <style>
     :root {
-        --bg: #0f0f10;
-        --panel: #1a1a1c;
-        --input: #232326;
-        --border: #34343a;
-        --accent: #4f8cff;
-        --accent-hover: #6ba0ff;
-        --ok: #2ed573;
-        --err: #ff4757;
-        --info: #6cb6ff;
-        --dim: #9a9a9a;
+        --bg:#0f0f10; --panel:#1a1a1c; --input:#232326; --border:#34343a;
+        --accent:#1DB954; --accent-hover:#1ed760;
+        --ok:#2ed573; --err:#ff4757; --info:#6cb6ff; --dim:#9a9a9a;
     }
-    * { box-sizing: border-box; }
+    * { box-sizing:border-box; }
     body {
-        background: var(--bg);
-        color: #fff;
-        font-family: system-ui, -apple-system, Segoe UI, Arial, sans-serif;
-        min-height: 100vh;
-        margin: 0;
-        padding: 24px 16px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+        background:var(--bg); color:#fff;
+        font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;
+        min-height:100vh; margin:0; padding:24px 16px;
+        display:flex; flex-direction:column; align-items:center;
     }
-    h1 { font-size: 1.25rem; margin: 0 0 6px; text-align: center; }
+    h1 { font-size:1.25rem; margin:0 0 6px; text-align:center; }
     .sub {
-        font-size: 0.82rem;
-        color: var(--dim);
-        max-width: 700px;
-        text-align: center;
-        margin: 0 0 20px;
-        line-height: 1.5;
+        font-size:0.82rem; color:var(--dim); max-width:700px;
+        text-align:center; margin:0 0 20px; line-height:1.5;
     }
-    .sub code { background: #232326; padding: 1px 5px; border-radius: 4px; }
+    .sub code { background:#232326; padding:1px 5px; border-radius:4px; }
 
     #panel {
-        width: 100%;
-        max-width: 720px;
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 18px;
-        display: flex;
-        flex-direction: column;
-        gap: 14px;
+        width:100%; max-width:720px; background:var(--panel);
+        border:1px solid var(--border); border-radius:12px;
+        padding:18px; display:flex; flex-direction:column; gap:14px;
     }
-
-    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
     label {
-        font-size: 0.72rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: var(--dim);
+        font-size:0.72rem; text-transform:uppercase;
+        letter-spacing:0.06em; color:var(--dim);
     }
-    input, select {
-        background: var(--input);
-        color: #fff;
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        padding: 10px 12px;
-        font-size: 0.9rem;
-        outline: none;
-        font-family: inherit;
-        width: 100%;
+    input {
+        background:var(--input); color:#fff; border:1px solid var(--border);
+        border-radius:6px; padding:10px 12px; font-size:0.9rem;
+        outline:none; font-family:inherit; width:100%;
     }
-    input:focus, select:focus { border-color: var(--accent); }
-    select:disabled { opacity: 0.5; cursor: not-allowed; }
+    input:focus { border-color:var(--accent); }
 
-    .row {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 8px;
-        align-items: end;
-    }
-
-    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
-
+    .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
     button {
-        background: var(--accent);
-        border: 0;
-        color: #fff;
-        font-weight: 600;
-        padding: 11px 18px;
-        border-radius: 6px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        transition: background 0.15s, opacity 0.15s;
+        background:var(--accent); border:0; color:#000; font-weight:700;
+        padding:11px 20px; border-radius:6px; cursor:pointer;
+        font-size:0.92rem; transition:background 0.15s, opacity 0.15s;
     }
-    button:hover:not(:disabled) { background: var(--accent-hover); }
-    button:disabled { background: #3a3a3f; color: #888; cursor: not-allowed; }
-    button.secondary { background: #2a2a2f; }
-    button.secondary:hover:not(:disabled) { background: #3a3a3f; }
+    button:hover:not(:disabled) { background:var(--accent-hover); }
+    button:disabled { background:#3a3a3f; color:#888; cursor:not-allowed; }
+    button.secondary { background:#2a2a2f; color:#fff; }
+    button.secondary:hover:not(:disabled) { background:#3a3a3f; }
 
     #audio-box {
-        width: 100%;
-        max-width: 720px;
-        margin-top: 18px;
-        background: linear-gradient(145deg, #1c1c1f, #0c0c0e);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 22px;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 14px;
+        width:100%; max-width:720px; margin-top:18px;
+        background:linear-gradient(145deg,#1c1c1f,#0c0c0e);
+        border:1px solid var(--border); border-radius:12px;
+        padding:22px; display:flex; flex-direction:column;
+        align-items:center; gap:14px;
     }
-    .icon { font-size: 3rem; opacity: 0.35; user-select: none; }
-    audio { width: 100%; border-radius: 8px; outline: none; }
+    .icon { font-size:3rem; opacity:0.35; user-select:none; }
+    audio { width:100%; border-radius:8px; outline:none; }
 
     #status {
-        width: 100%;
-        max-width: 720px;
-        margin-top: 14px;
-        padding: 12px 14px;
-        background: #17171a;
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        font-family: ui-monospace, Menlo, Consolas, monospace;
-        font-size: 0.82rem;
-        line-height: 1.5;
-        color: var(--dim);
-        min-height: 48px;
-        white-space: pre-wrap;
-        word-break: break-word;
+        width:100%; max-width:720px; margin-top:14px;
+        padding:12px 14px; background:#17171a;
+        border:1px solid var(--border); border-radius:8px;
+        font-family:ui-monospace,Menlo,Consolas,monospace;
+        font-size:0.82rem; line-height:1.5; color:var(--dim);
+        min-height:52px; white-space:pre-wrap; word-break:break-word;
     }
-    #status.ok { color: var(--ok); border-color: #1f4a2c; background: #101d16; }
-    #status.err { color: var(--err); border-color: #4a1f23; background: #1f1214; }
-    #status.info { color: var(--info); border-color: #1f3a4a; background: #101a20; }
-
-    #controls-grid {
-        width: 100%;
-        max-width: 720px;
-        margin-top: 14px;
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 14px 16px;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 14px;
-    }
+    #status.ok  { color:var(--ok);  border-color:#1f4a2c; background:#101d16; }
+    #status.err { color:var(--err); border-color:#4a1f23; background:#1f1214; }
+    #status.info{ color:var(--info);border-color:#1f3a4a; background:#101a20; }
 
     details {
-        width: 100%;
-        max-width: 720px;
-        margin-top: 14px;
-        background: var(--panel);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 10px 14px;
-        font-size: 0.83rem;
+        width:100%; max-width:720px; margin-top:14px;
+        background:var(--panel); border:1px solid var(--border);
+        border-radius:8px; padding:10px 14px; font-size:0.83rem;
     }
-    details summary { cursor: pointer; color: var(--dim); }
+    details summary { cursor:pointer; color:var(--dim); }
     details pre {
-        background: #0a0a0c;
-        padding: 10px;
-        border-radius: 6px;
-        overflow-x: auto;
-        font-size: 0.78rem;
-        color: #c8c8c8;
+        background:#0a0a0c; padding:10px; border-radius:6px;
+        overflow-x:auto; font-size:0.78rem; color:#c8c8c8;
+        max-height:260px;
     }
 </style>
 </head>
 <body>
 
-<h1>🔒 DRM HLS Audio Player</h1>
+<h1>🎵 Spotify DRM Audio (EME + MSE)</h1>
 <p class="sub">
-    Audio‑only HLS with Widevine / PlayReady / FairPlay. Requires a real <code>.m3u8</code> manifest.
-    <br>Spotify music is <b>not</b> HLS — this player will not work with a raw Spotify CDN URL.
+    Raw encrypted fMP4 (CMAF) — <b>not</b> HLS. Uses Widevine through
+    <code>EncryptedMediaExtensions</code> + <code>MediaSource</code>.
+    Requires a valid Spotify access token and a CORS proxy for the license call.
 </p>
 
 <div id="panel">
     <div class="field">
-        <label for="manifestUrl">HLS Manifest URL (.m3u8)</label>
-        <div class="row">
-            <input type="text" id="manifestUrl" placeholder="https://example.com/audio/master.m3u8" spellcheck="false" autocomplete="off">
-            <button id="testBtn" class="secondary" type="button">Test Fetch</button>
-        </div>
+        <label for="audioUrl">Encrypted Audio URL (CDN)</label>
+        <input type="text" id="audioUrl" spellcheck="false" autocomplete="off"
+               placeholder="https://audio-ak.spotifycdn.com/audio/...?__token__=exp=...~hmac=...">
     </div>
 
     <div class="field">
-        <label for="licenseUrl">Widevine License Server URL</label>
-        <input type="text" id="licenseUrl" spellcheck="false" autocomplete="off"
-               value="https://jiotvegp.vercel.app/api/Spotify?url=https%3A%2F%2Fgae2-spclient.spotify.com%2Fwidevine-license%2Fv1%2Faudio%2Flicense">
+        <label for="accessToken">Spotify Access Token (tok)</label>
+        <input type="text" id="accessToken" spellcheck="false" autocomplete="off"
+               placeholder="BQD... (from Authorization: Bearer ...)">
     </div>
 
     <div class="field">
-        <label for="licenseHeader">Optional License Header (name:value)</label>
-        <input type="text" id="licenseHeader" placeholder="Authorization: Bearer xyz" spellcheck="false" autocomplete="off">
+        <label for="spDc">sp_dc cookie (optional)</label>
+        <input type="text" id="spDc" spellcheck="false" autocomplete="off"
+               placeholder="AQ... (only needed if the CDN requires it)">
+    </div>
+
+    <div class="field">
+        <label for="licenseProxy">CORS proxy base (license endpoint)</label>
+        <input type="text" id="licenseProxy" spellcheck="false" autocomplete="off"
+               value="https://YOUR_CORS_PROXY/?url=">
     </div>
 
     <div class="btn-row">
-        <button id="loadBtn" type="button" disabled>Load &amp; Play</button>
+        <button id="playBtn" type="button" disabled>Load &amp; Play</button>
         <button id="stopBtn" class="secondary" type="button" disabled>Stop</button>
     </div>
 </div>
@@ -211,18 +132,7 @@
     <audio id="audioEl" controls playsinline></audio>
 </div>
 
-<div id="controls-grid">
-    <div class="field">
-        <label for="audioSelect">Audio Track</label>
-        <select id="audioSelect" disabled><option>— no tracks —</option></select>
-    </div>
-    <div class="field">
-        <label for="textSelect">Subtitles</label>
-        <select id="textSelect" disabled><option>Off</option></select>
-    </div>
-</div>
-
-<div id="status">Ready. Paste an HLS manifest URL above.</div>
+<div id="status">Ready. Fill in the fields above.</div>
 
 <details>
     <summary>Debug log</summary>
@@ -233,32 +143,36 @@
 /* =========================================================================
  *  CONFIG
  * ========================================================================= */
-const DEFAULT_DRM = {
-    widevine: 'https://jiotvegp.vercel.app/api/Spotify?url=https%3A%2F%2Fgae2-spclient.spotify.com%2Fwidevine-license%2Fv1%2Faudio%2Flicense',
-    playready: null,
-    fairplay: null,
-    fairplayCertificate: null
-};
-const PREFERRED_AUDIO_LANG = 'en';
-const FORCE_WIDEVINE_L3 = true;
+const SPOTIFY_LICENSE_ENDPOINT =
+    'https://api.spotify.com/v1/widevine-license/v1/audio/license';
+
+const AUDIO_MIME_CODEC = 'audio/mp4; codecs="mp4a.40.2"'; // AAC-LC in fMP4
+
+const INIT_CHUNK_SIZE   = 1024 * 1024; // 1 MB — enough for ftyp+moov+pssh
+const STREAM_CHUNK_SIZE = 512  * 1024; // 512 KB per media segment read
 
 /* =========================================================================
  *  DOM
  * ========================================================================= */
-const audioEl       = document.getElementById('audioEl');
-const manifestInput = document.getElementById('manifestUrl');
-const licenseInput  = document.getElementById('licenseUrl');
-const headerInput   = document.getElementById('licenseHeader');
-const loadBtn       = document.getElementById('loadBtn');
-const stopBtn       = document.getElementById('stopBtn');
-const testBtn       = document.getElementById('testBtn');
-const audioSelect   = document.getElementById('audioSelect');
-const textSelect    = document.getElementById('textSelect');
-const statusEl      = document.getElementById('status');
-const debugLogEl    = document.getElementById('debugLog');
+const audioEl     = document.getElementById('audioEl');
+const audioUrlEl  = document.getElementById('audioUrl');
+const tokenEl     = document.getElementById('accessToken');
+const spDcEl      = document.getElementById('spDc');
+const proxyEl     = document.getElementById('licenseProxy');
+const playBtn     = document.getElementById('playBtn');
+const stopBtn     = document.getElementById('stopBtn');
+const statusEl    = document.getElementById('status');
+const debugLogEl  = document.getElementById('debugLog');
 
-let player = null;
-let debugLines = [];
+/* =========================================================================
+ *  STATE
+ * ========================================================================= */
+let mediaKeys       = null;
+let mediaKeySession = null;
+let mediaSource     = null;
+let sourceBuffer    = null;
+let running         = false;
+let debugLines      = [];
 
 /* =========================================================================
  *  HELPERS
@@ -266,331 +180,365 @@ let debugLines = [];
 function setStatus(msg, kind = '') {
     statusEl.textContent = msg;
     statusEl.className = kind;
+    console.log(`[SpotifyDRM][${kind || 'log'}]`, msg);
 }
 function dlog(msg) {
     const line = `[${new Date().toISOString().split('T')[1].slice(0, 8)}] ${msg}`;
     debugLines.push(line);
     if (debugLines.length > 200) debugLines.shift();
     debugLogEl.textContent = debugLines.join('\n');
-    console.log('[HLS-Audio]', msg);
 }
-function enableLoad() {
-    loadBtn.disabled = !(manifestInput.value.trim() && licenseInput.value.trim());
+function enablePlay() {
+    playBtn.disabled =
+        running ||
+        !audioUrlEl.value.trim() ||
+        !tokenEl.value.trim() ||
+        proxyEl.value.includes('YOUR_CORS_PROXY');
 }
-manifestInput.addEventListener('input', enableLoad);
-licenseInput.addEventListener('input', enableLoad);
+[audioUrlEl, tokenEl, spDcEl, proxyEl].forEach(el => el.addEventListener('input', enablePlay));
 
 /* =========================================================================
  *  BOOTSTRAP
  * ========================================================================= */
-document.addEventListener('DOMContentLoaded', init);
-
-function init() {
-    shaka.polyfill.installAll();
-
+(function init() {
+    enablePlay();
     if (!window.isSecureContext) {
-        setStatus('Error: HTTPS (or localhost) is required for DRM playback.', 'err');
+        setStatus('Error: HTTPS (or localhost) is required for EME.', 'err');
         return;
     }
-    if (!shaka.Player.isBrowserSupported()) {
-        setStatus('Error: Browser does not support MSE/EME.', 'err');
+    if (!('requestMediaKeySystemAccess' in navigator)) {
+        setStatus('Error: This browser does not support EME.', 'err');
+        return;
+    }
+    if (!('MediaSource' in window)) {
+        setStatus('Error: This browser does not support MSE.', 'err');
+        return;
+    }
+    setStatus('Ready. Fill in the fields above.');
+})();
+
+/* =========================================================================
+ *  MAIN FLOW
+ * ========================================================================= */
+playBtn.addEventListener('click', async () => {
+    if (running) return;
+    const audioUrl   = audioUrlEl.value.trim();
+    const accessToken= tokenEl.value.trim();
+    const spDc       = spDcEl.value.trim();
+    const proxy      = proxyEl.value.trim();
+
+    if (!audioUrl || !accessToken) {
+        setStatus('Error: URL and access token are required.', 'err');
+        return;
+    }
+    if (proxy.includes('YOUR_CORS_PROXY')) {
+        setStatus('Error: Replace the CORS proxy with a working one.', 'err');
         return;
     }
 
-    initPlayer();
-    enableLoad();
-    setStatus('Ready. Paste an HLS manifest URL above.');
-}
-
-/* =========================================================================
- *  PLAYER SETUP
- * ========================================================================= */
-function initPlayer() {
-    player = new shaka.Player(audioEl);
-    window.player = player;
-
-    player.addEventListener('error', onPlayerError);
-    player.addEventListener('trackschanged', refreshTrackMenus);
-
-    // Optional custom auth header on license requests
-    player.getNetworkingEngine().registerRequestFilter((type, request) => {
-        if (type !== shaka.net.NetworkingEngine.RequestType.LICENSE) return;
-        const raw = headerInput.value.trim();
-        if (!raw) return;
-        const idx = raw.indexOf(':');
-        if (idx < 0) return;
-        const name = raw.slice(0, idx).trim();
-        const value = raw.slice(idx + 1).trim();
-        request.headers[name] = value;
-        dlog(`Added license header: ${name}`);
-    });
-
-    dlog('Shaka Player initialized');
-}
-
-function buildDrmConfig() {
-    const servers = {};
-    const advanced = {};
-    const wv = licenseInput.value.trim() || DEFAULT_DRM.widevine;
-
-    if (wv) {
-        servers['com.widevine.alpha'] = wv;
-        if (FORCE_WIDEVINE_L3) {
-            advanced['com.widevine.alpha'] = {
-                videoRobustness: 'SW_SECURE_CRYPTO',
-                audioRobustness: 'SW_SECURE_CRYPTO'
-            };
-        }
-    }
-    if (DEFAULT_DRM.playready) {
-        servers['com.microsoft.playready'] = DEFAULT_DRM.playready;
-    }
-    if (DEFAULT_DRM.fairplay) {
-        servers['com.apple.fps'] = DEFAULT_DRM.fairplay;
-        if (DEFAULT_DRM.fairplayCertificate) {
-            advanced['com.apple.fps'] = { serverCertificateUri: DEFAULT_DRM.fairplayCertificate };
-        }
-    }
-    return { servers, advanced };
-}
-
-/* =========================================================================
- *  TEST FETCH — tells you exactly why a manifest fails
- * ========================================================================= */
-testBtn.addEventListener('click', async () => {
-    const url = manifestInput.value.trim();
-    if (!url) { setStatus('Enter a manifest URL first.', 'err'); return; }
-
-    setStatus('Testing manifest URL…', 'info');
-    dlog(`GET ${url}`);
-
-    try {
-        const res = await fetch(url, { method: 'GET', mode: 'cors' });
-        const ct = res.headers.get('content-type') || '(none)';
-        const len = res.headers.get('content-length') || '?';
-        dlog(`HTTP ${res.status} ${res.statusText} | type=${ct} | len=${len}`);
-
-        if (!res.ok) {
-            setStatus(
-                `Manifest fetch failed: HTTP ${res.status} ${res.statusText}\n` +
-                `Content-Type: ${ct}\n` +
-                `Hint: ${explainHttpStatus(res.status)}`,
-                'err'
-            );
-            return;
-        }
-
-        const text = await res.text();
-        const preview = text.slice(0, 400);
-        dlog(`First 400 chars:\n${preview}`);
-
-        if (!text.includes('#EXTM3U')) {
-            setStatus(
-                `URL responded OK but is NOT an HLS manifest.\n` +
-                `The response does not contain "#EXTM3U".\n\n` +
-                `First 400 chars of the response:\n${preview}`,
-                'err'
-            );
-            return;
-        }
-
-        const hasKey = /#EXT-X-KEY/i.test(text);
-        const drmTypes = [];
-        if (/#EXT-X-KEY.*com\.widevine\.alpha/i.test(text)) drmTypes.push('Widevine');
-        if (/#EXT-X-KEY.*com\.microsoft\.playready/i.test(text)) drmTypes.push('PlayReady');
-        if (/#EXT-X-KEY.*com\.apple\.fps/i.test(text)) drmTypes.push('FairPlay');
-        if (/#EXT-X-SESSION-KEY/i.test(text)) drmTypes.push('SESSION-KEY present');
-
-        setStatus(
-            `✅ Manifest looks valid.\n` +
-            `#EXT-X-KEY present: ${hasKey ? 'yes' : 'NO (not DRM-protected)'}\n` +
-            `DRM systems detected: ${drmTypes.length ? drmTypes.join(', ') : 'none in KEY tags'}\n` +
-            `Preview:\n${preview}`,
-            'ok'
-        );
-    } catch (err) {
-        dlog(`Fetch threw: ${err.message}`);
-        setStatus(
-            `Fetch threw: ${err.message}\n` +
-            `Hint: This is usually CORS. The manifest host must send ` +
-            `Access-Control-Allow-Origin.`,
-            'err'
-        );
-    }
-});
-
-function explainHttpStatus(code) {
-    switch (code) {
-        case 401: return 'Unauthorized — missing/expired token or cookie.';
-        case 403: return 'Forbidden — CDN rejected the request (expired URL/token, geo-block).';
-        case 404: return 'Not found — wrong URL.';
-        case 429: return 'Rate limited.';
-        default:  return 'Check the URL and the server logs.';
-    }
-}
-
-/* =========================================================================
- *  LOAD & PLAY
- * ========================================================================= */
-loadBtn.addEventListener('click', async () => {
-    const url = manifestInput.value.trim();
-    if (!url) return;
-
-    loadBtn.disabled = true;
+    running = true;
+    enablePlay();
     stopBtn.disabled = false;
-    setStatus('Loading manifest…', 'info');
-    dlog(`player.load(${url})`);
-
-    // Reconfigure DRM in case the license URL changed
-    const { servers, advanced } = buildDrmConfig();
-    player.configure({
-        drm: {
-            servers,
-            advanced,
-            retryParameters: { maxAttempts: 3, baseDelay: 500, timeout: 15000 }
-        },
-        preferredAudioLanguage: PREFERRED_AUDIO_LANG,
-        streaming: {
-            bufferingGoal: 30,
-            rebufferingGoal: 2,
-            lowLatencyMode: false
-        },
-        abr: { enabled: true, defaultBandwidthEstimate: 128000 }
-    });
 
     try {
-        await player.load(url);
-        setStatus('Stream loaded successfully.', 'ok');
-        dlog('player.load() resolved');
-        refreshTrackMenus();
-
-        audioEl.play().catch(() => {
-            setStatus('Autoplay blocked — press play on the audio element.', 'info');
-        });
+        await run(audioUrl, accessToken, spDc, proxy);
     } catch (err) {
-        onPlayerError({ detail: err });
-    } finally {
-        loadBtn.disabled = false;
+        console.error(err);
+        setStatus(`Playback failed: ${err.message}`, 'err');
+        dlog(`FATAL: ${err.stack || err.message}`);
+        running = false;
+        enablePlay();
+        stopBtn.disabled = true;
     }
 });
 
-stopBtn.addEventListener('click', async () => {
-    try {
-        await player.unload();
-        setStatus('Stopped.', '');
-        dlog('player.unload()');
-        refreshTrackMenus();
-    } catch (err) {
-        dlog(`unload error: ${err.message}`);
-    }
+stopBtn.addEventListener('click', () => {
+    teardown();
+    setStatus('Stopped.');
+    dlog('Stopped by user');
+    running = false;
+    enablePlay();
     stopBtn.disabled = true;
 });
 
-/* =========================================================================
- *  TRACK MENUS
- * ========================================================================= */
-function refreshTrackMenus() {
-    if (!player) return;
+async function run(audioUrl, accessToken, spDc, proxyBase) {
+    /* ---- Step 1: fetch init segment ---- */
+    setStatus('Step 1/6 — Fetching init segment…', 'info');
+    dlog(`GET (Range 0-${INIT_CHUNK_SIZE - 1}) ${audioUrl}`);
+    const initBuf = await fetchRange(audioUrl, 0, INIT_CHUNK_SIZE - 1, accessToken, spDc);
+    dlog(`Received ${initBuf.byteLength} bytes`);
 
-    /* ---- Audio ---- */
-    const audioTracks = player.getAudioTracks();
-    const activeVariant = player.getVariantTracks().find(t => t.active);
+    if (initBuf.byteLength < 8) throw new Error('Init segment too small.');
 
-    audioSelect.innerHTML = '';
-    if (audioTracks.length === 0) {
-        audioSelect.disabled = true;
-        audioSelect.innerHTML = '<option>— no tracks —</option>';
-    } else {
-        audioSelect.disabled = false;
-        audioTracks.forEach((track, i) => {
-            const opt = document.createElement('option');
-            opt.value = String(i);
-            opt.textContent = describeAudio(track);
-            if (activeVariant &&
-                track.language === activeVariant.language &&
-                track.roles.join() === activeVariant.roles.join()) {
-                opt.selected = true;
-            }
-            audioSelect.appendChild(opt);
+    /* ---- Step 2: locate PSSH ---- */
+    setStatus('Step 2/6 — Locating Widevine PSSH box…', 'info');
+    const psshBox = findWidevinePssh(initBuf);
+    if (!psshBox) {
+        throw new Error(
+            'No Widevine PSSH box found in init segment.\n' +
+            'The file may be unencrypted or use a non-Widevine DRM.'
+        );
+    }
+    dlog(`PSSH found: ${psshBox.byteLength} bytes`);
+
+    /* ---- Step 3: request CDM access ---- */
+    setStatus('Step 3/6 — Requesting Widevine CDM access…', 'info');
+    const config = [{
+        initDataTypes: ['cenc'],
+        audioCapabilities: [{
+            contentType: AUDIO_MIME_CODEC,
+            robustness: 'SW_SECURE_CRYPTO'
+        }]
+    }];
+    const access = await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
+    mediaKeys = await access.createMediaKeys();
+    dlog('Widevine CDM ready');
+
+    /* ---- Step 4: create session, wire events ---- */
+    setStatus('Step 4/6 — Creating MediaKeySession…', 'info');
+    mediaKeySession = mediaKeys.createSession();
+
+    mediaKeySession.addEventListener('message', (event) => {
+        handleLicense(event.message, accessToken, proxyBase).catch(err => {
+            setStatus(`License error: ${err.message}`, 'err');
+            dlog(`License error: ${err.message}`);
         });
-    }
-
-    audioSelect.onchange = () => {
-        const track = player.getAudioTracks()[Number(audioSelect.value)];
-        if (!track) return;
-        player.selectAudioTrack(track);
-        setStatus(`Audio → ${describeAudio(track)}`, 'ok');
-    };
-
-    /* ---- Text ---- */
-    const textTracks = player.getTextTracks();
-    textSelect.innerHTML = '<option value="-1">Off</option>';
-    textTracks.forEach((t, i) => {
-        const opt = document.createElement('option');
-        opt.value = String(i);
-        opt.textContent = t.label || t.language || `Track ${i + 1}`;
-        textSelect.appendChild(opt);
     });
-    textSelect.disabled = textTracks.length === 0;
 
-    textSelect.onchange = () => {
-        const idx = Number(textSelect.value);
-        if (idx === -1) {
-            player.setTextTrackVisibility(false);
-        } else {
-            player.selectTextTrack(player.getTextTracks()[idx]);
-            player.setTextTrackVisibility(true);
+    mediaKeySession.addEventListener('keystatuseschange', () => {
+        const statuses = [...mediaKeySession.keyStatuses.values()];
+        dlog(`keystatuseschange → ${JSON.stringify(statuses)}`);
+        if (statuses.includes('usable') && !mediaSource) {
+            setStatus('Step 6/6 — Keys usable. Starting MSE stream…', 'ok');
+            startMse(audioUrl, accessToken, spDc, initBuf);
         }
-    };
-}
+    });
 
-function describeAudio(track) {
-    const parts = [];
-    parts.push(track.label || (track.language ? track.language.toUpperCase() : 'Unknown'));
-    if (track.channelsCount) {
-        const map = { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' };
-        parts.push(map[track.channelsCount] || `${track.channelsCount}ch`);
-    }
-    if (track.audioBandwidth) {
-        parts.push(`· ${Math.round(track.audioBandwidth / 1000)} kbps`);
-    }
-    return parts.join(' ');
+    /* ---- Step 5: generate license challenge ---- */
+    setStatus('Step 5/6 — Generating license challenge…', 'info');
+    await mediaKeySession.generateRequest('cenc', psshBox);
 }
 
 /* =========================================================================
- *  ERROR HANDLING
+ *  LICENSE
  * ========================================================================= */
-function onPlayerError(event) {
-    const detail = event.detail || event;
-    const code = detail.code;
-    const data = detail.data || [];
-    const extra = data.map(d => (d && d.message) ? d.message : String(d)).join(' | ');
+async function handleLicense(challenge, accessToken, proxyBase) {
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const target = `${SPOTIFY_LICENSE_ENDPOINT}?exp=${exp}&cp=&tok=${encodeURIComponent(accessToken)}`;
+    const proxied = proxyBase + encodeURIComponent(target);
 
-    dlog(`Shaka error ${code}: ${extra}`);
+    dlog(`POST license → ${proxied.slice(0, 120)}…`);
 
-    let hint = '';
-    switch (code) {
-        case 1000: hint = 'Network error (CORS / proxy / DNS).'; break;
-        case 1001: hint = 'Manifest could not be parsed or was not found.'; break;
-        case 1002: hint = 'Manifest is invalid or unsupported (wrong MIME, bad XML).'; break;
-        case 1003: hint = 'Streaming protocol not supported by this browser.'; break;
-        case 1004: hint = 'Codec not supported by this browser.'; break;
-        case 1005: hint = 'License acquisition failed.'; break;
-        case 1006: hint = 'DRM system not supported by this browser.'; break;
-        case 3016: hint = 'License request failed — check token/proxy. Manifest must include #EXT-X-KEY with Widevine info.'; break;
-        case 6001: hint = 'Failed to fetch DRM license.'; break;
-        case 6007: hint = 'License server rejected the request (expired token?).'; break;
-        default:   hint = 'See debug log for details.';
+    const res = await fetch(proxied, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: challenge
+    });
+
+    dlog(`License response: HTTP ${res.status}`);
+
+    if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`HTTP ${res.status} ${res.statusText}${txt ? ' — ' + txt.slice(0, 200) : ''}`);
     }
 
-    setStatus(`Error ${code}: ${hint}${extra ? '\n' + extra : ''}`, 'err');
+    const license = await res.arrayBuffer();
+    if (license.byteLength === 0) throw new Error('Empty license response.');
+
+    await mediaKeySession.update(license);
+    setStatus('License accepted by CDM.', 'ok');
+    dlog(`License bytes: ${license.byteLength}`);
 }
 
 /* =========================================================================
- *  MISC
+ *  MSE STREAMING
  * ========================================================================= */
+function startMse(audioUrl, accessToken, spDc, initBuf) {
+    mediaSource = new MediaSource();
+    audioEl.src = URL.createObjectURL(mediaSource);
+
+    mediaSource.addEventListener('sourceopen', async () => {
+        try {
+            sourceBuffer = mediaSource.addSourceBuffer(AUDIO_MIME_CODEC);
+            await audioEl.setMediaKeys(mediaKeys);
+            dlog('MediaKeys set on audio element');
+
+            // Append init segment
+            await appendBuffer(initBuf);
+            dlog('Init segment appended');
+
+            audioEl.play().catch(() => {
+                setStatus('Autoplay blocked — press play on the audio control.', 'info');
+            });
+
+            await streamRemaining(audioUrl, accessToken, spDc, initBuf.byteLength);
+
+        } catch (err) {
+            setStatus(`MSE error: ${err.message}`, 'err');
+            dlog(`MSE error: ${err.stack || err.message}`);
+        }
+    });
+
+    mediaSource.addEventListener('sourceended', () => {
+        setStatus('Playback complete.', 'ok');
+        running = false;
+        enablePlay();
+        stopBtn.disabled = true;
+    });
+}
+
+function appendBuffer(buf) {
+    return new Promise((resolve, reject) => {
+        if (!sourceBuffer) return reject(new Error('No SourceBuffer'));
+        if (sourceBuffer.updating) {
+            sourceBuffer.addEventListener('updateend', () => appendBuffer(buf).then(resolve, reject), { once: true });
+            return;
+        }
+        const onEnd = () => {
+            sourceBuffer.removeEventListener('updateend', onEnd);
+            sourceBuffer.removeEventListener('error', onErr);
+            resolve();
+        };
+        const onErr = () => {
+            sourceBuffer.removeEventListener('updateend', onEnd);
+            sourceBuffer.removeEventListener('error', onErr);
+            reject(new Error('SourceBuffer append failed'));
+        };
+        sourceBuffer.addEventListener('updateend', onEnd);
+        sourceBuffer.addEventListener('error', onErr);
+        try {
+            sourceBuffer.appendBuffer(buf);
+        } catch (err) {
+            onErr();
+        }
+    });
+}
+
+async function streamRemaining(url, accessToken, spDc, startOffset) {
+    let offset = startOffset;
+    let total = 0;
+
+    // Try HEAD for total size (optional — some CDNs block it)
+    try {
+        const head = await fetch(url, {
+            method: 'HEAD',
+            headers: buildHeaders(accessToken, spDc)
+        });
+        const len = head.headers.get('Content-Length');
+        if (len) total = parseInt(len, 10);
+        dlog(`HEAD: total=${total}`);
+    } catch (_) { /* ignore */ }
+
+    setStatus(`Streaming encrypted audio…${total ? ' (total ' + (total/1024/1024).toFixed(2) + ' MB)' : ''}`, 'info');
+
+    while (running) {
+        if (total && offset >= total) break;
+
+        let chunk;
+        try {
+            chunk = await fetchRange(url, offset, offset + STREAM_CHUNK_SIZE - 1, accessToken, spDc);
+        } catch (err) {
+            setStatus(`Stream stopped: ${err.message}`, 'err');
+            dlog(`Stream error: ${err.message}`);
+            break;
+        }
+        if (!chunk || chunk.byteLength === 0) break;
+
+        try {
+            await appendBuffer(chunk);
+        } catch (err) {
+            setStatus(`Append error: ${err.message}`, 'err');
+            dlog(`Append error: ${err.message}`);
+            break;
+        }
+
+        offset += chunk.byteLength;
+
+        if (total) {
+            const pct = ((offset / total) * 100).toFixed(1);
+            setStatus(`Streaming… ${pct}% (${(offset/1024/1024).toFixed(2)} MB)`, 'info');
+        } else {
+            setStatus(`Streaming… ${(offset/1024/1024).toFixed(2)} MB`, 'info');
+        }
+    }
+
+    if (mediaSource && mediaSource.readyState === 'open') {
+        try { mediaSource.endOfStream(); } catch (_) {}
+    }
+}
+
+/* =========================================================================
+ *  FETCH HELPERS
+ * ========================================================================= */
+function buildHeaders(accessToken, spDc) {
+    const h = {};
+    if (accessToken) h['Authorization'] = `Bearer ${accessToken}`;
+    if (spDc)        h['Cookie']        = `sp_dc=${spDc}`;
+    return h;
+}
+
+async function fetchRange(url, start, end, accessToken, spDc) {
+    const headers = buildHeaders(accessToken, spDc);
+    headers['Range'] = `bytes=${start}-${end}`;
+
+    const res = await fetch(url, { headers });
+    if (!res.ok && res.status !== 206) {
+        throw new Error(`CDN HTTP ${res.status} ${res.statusText}`);
+    }
+    return await res.arrayBuffer();
+}
+
+/* =========================================================================
+ *  PSSH EXTRACTION
+ *  Scans the init segment byte-by-byte for a 'pssh' box whose system ID
+ *  matches Widevine (edef8ba9-79d6-4ace-a3c8-27dcd51d21ed).
+ * ========================================================================= */
+const WIDEVINE_SYSTEM_ID = [
+    0xed, 0xef, 0x8b, 0xa9, 0x79, 0xd6, 0x4a, 0xce,
+    0xa3, 0xc8, 0x27, 0xdc, 0xd5, 0x1d, 0x21, 0xed
+];
+
+function findWidevinePssh(buffer) {
+    const u8 = new Uint8Array(buffer);
+    const len = u8.length;
+
+    // 'pssh' = 0x70 0x73 0x73 0x68
+    for (let i = 4; i + 32 <= len; i++) {
+        if (u8[i]     !== 0x70 || u8[i + 1] !== 0x73 ||
+            u8[i + 2] !== 0x73 || u8[i + 3] !== 0x68) continue;
+
+        const sizeOffset = i - 4;
+        const size = (u8[sizeOffset] << 24) | (u8[sizeOffset + 1] << 16) |
+                     (u8[sizeOffset + 2] << 8) | u8[sizeOffset + 3];
+        if (size < 32 || sizeOffset + size > len) continue;
+
+        // FullBox: version(1)+flags(3) = 4 bytes, then 16-byte system ID.
+        const sysIdOffset = i + 4 + 4;
+        let match = true;
+        for (let j = 0; j < 16; j++) {
+            if (u8[sysIdOffset + j] !== WIDEVINE_SYSTEM_ID[j]) { match = false; break; }
+        }
+        if (!match) continue;
+
+        return buffer.slice(sizeOffset, sizeOffset + size);
+    }
+    return null;
+}
+
+/* =========================================================================
+ *  CLEANUP
+ * ========================================================================= */
+function teardown() {
+    try {
+        if (mediaKeySession) { mediaKeySession.close(); mediaKeySession = null; }
+        if (mediaSource && mediaSource.readyState === 'open') mediaSource.endOfStream();
+        if (audioEl.src) { audioEl.pause(); audioEl.removeAttribute('src'); audioEl.load(); }
+    } catch (_) {}
+    mediaSource = sourceBuffer = mediaKeys = null;
+}
+window.addEventListener('beforeunload', teardown);
+
 document.addEventListener('contextmenu', e => e.preventDefault());
-window.addEventListener('beforeunload', () => { if (player) player.destroy(); });
 </script>
 </body>
     </html>

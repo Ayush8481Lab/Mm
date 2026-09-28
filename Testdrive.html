@@ -1,524 +1,313 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DRM Protected HLS Audio</title>
-
-<!-- Shaka Player (HLS + EME/Widevine/PlayReady/FairPlay) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.7/shaka-player.compiled.js"></script>
-
-<style>
-    :root { --accent: #4f8cff; --bg: #121212; --panel: #1c1c1c; }
-
-    * { box-sizing: border-box; }
-
-    body {
-        background: var(--bg);
-        color: #fff;
-        font-family: system-ui, Arial, sans-serif;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        margin: 0;
-        padding: 16px;
-    }
-
-    .header {
-        text-align: center;
-        margin-bottom: 18px;
-    }
-
-    .header h2 { margin: 0 0 6px; font-size: 1.25rem; }
-
-    .note { font-size: 0.82em; color: #9a9a9a; margin: 0; }
-
-    #audio-container {
-        width: 100%;
-        max-width: 860px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-        border-radius: 10px;
-        overflow: hidden;
-        background: linear-gradient(145deg, #1e1e1e, #0e0e0e);
-        padding: 24px 20px;
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-    }
-
-    .audio-icon {
-        font-size: 3.5rem;
-        opacity: 0.35;
-        margin-bottom: 4px;
-        user-select: none;
-    }
-
-    audio {
-        width: 100%;
-        display: block;
-        border-radius: 6px;
-        outline: none;
-    }
-
-    /* ---- Controls panel ---- */
-    #controls {
-        width: 100%;
-        max-width: 860px;
-        margin-top: 14px;
-        background: var(--panel);
-        border: 1px solid #2a2a2a;
-        border-radius: 10px;
-        padding: 14px 16px;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 14px;
-    }
-
-    .control-group { display: flex; flex-direction: column; gap: 6px; }
-
-    label {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.06em;
-        color: #8f8f8f;
-    }
-
-    select, input[type="text"] {
-        background: #262626;
-        color: #fff;
-        border: 1px solid #3a3a3a;
-        border-radius: 6px;
-        padding: 8px 10px;
-        font-size: 0.9rem;
-        outline: none;
-    }
-
-    select:focus, input[type="text"]:focus { border-color: var(--accent); }
-    select:disabled { opacity: 0.5; cursor: not-allowed; }
-
-    .manifest-input-group {
-        display: flex;
-        gap: 8px;
-        width: 100%;
-    }
-
-    .manifest-input-group input {
-        flex: 1;
-    }
-
-    .manifest-input-group button {
-        background: var(--accent);
-        border: 0;
-        color: #fff;
-        font-weight: 600;
-        padding: 8px 16px;
-        border-radius: 6px;
-        cursor: pointer;
-        white-space: nowrap;
-    }
-
-    .manifest-input-group button:disabled {
-        opacity: 0.5;
-        cursor: not-allowed;
-    }
-
-    /* ---- Status / error ---- */
-    #status {
-        max-width: 860px;
-        width: 100%;
-        margin-top: 12px;
-        font-size: 0.85rem;
-        color: #9a9a9a;
-        min-height: 1.2em;
-        word-break: break-word;
-    }
-
-    #status.error { color: #ff4757; }
-    #status.ok { color: #2ed573; }
-
-    /* ---- Autoplay unblock overlay ---- */
-    #play-overlay {
-        position: absolute;
-        inset: 0;
-        display: none;
-        align-items: center;
-        justify-content: center;
-        background: rgba(0,0,0,0.65);
-        cursor: pointer;
-        z-index: 10;
-        border-radius: 10px;
-    }
-
-    #play-overlay.show { display: flex; }
-
-    #play-overlay button {
-        background: var(--accent);
-        border: 0;
-        color: #fff;
-        font-size: 1rem;
-        font-weight: 600;
-        padding: 14px 28px;
-        border-radius: 50px;
-        cursor: pointer;
-    }
-</style>
+    <meta charset="UTF-8">
+    <title>Custom Spotify DRM Audio Player (EME + MSE)</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
+        #controls { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 600px; margin-bottom: 20px; }
+        input, button { padding: 10px; border-radius: 5px; border: 1px solid #333; background: #222; color: #fff; }
+        button { background: #1DB954; border: none; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #status { margin-top: 10px; font-size: 0.9em; color: #aaa; max-width: 600px; word-break: break-all; }
+        #audio-container { width: 100%; max-width: 600px; margin-top: 20px; }
+        audio { width: 100%; }
+    </style>
 </head>
 <body>
-
-    <div class="header">
-        <h2>🔒 DRM Protected HLS Audio Stream (Widevine L3)</h2>
-        <p class="note">Audio‑only HLS (m3u8) · Widevine / PlayReady / FairPlay · Multi‑language audio</p>
-    </div>
-
-    <div id="audio-container">
-        <div class="audio-icon">🎵</div>
-        <audio id="secure-audio" controls autoplay playsinline></audio>
-        <div id="play-overlay"><button type="button">▶ Tap to Play</button></div>
-    </div>
-
+    <h1>Custom Spotify DRM Player</h1>
     <div id="controls">
-        <div class="control-group" style="grid-column: 1 / -1;">
-            <label for="manifest-input">HLS Manifest URL (.m3u8)</label>
-            <div class="manifest-input-group">
-                <input type="text" id="manifest-input" placeholder="https://example.com/secure/audio/master.m3u8" />
-                <button id="load-btn" type="button">Load</button>
-            </div>
-        </div>
-
-        <div class="control-group">
-            <label for="audio-select">Audio Track</label>
-            <select id="audio-select" disabled>
-                <option>Waiting for manifest…</option>
-            </select>
-        </div>
-
-        <div class="control-group">
-            <label for="text-select">Subtitles</label>
-            <select id="text-select" disabled>
-                <option>Off</option>
-            </select>
-        </div>
+        <label>Spotify Access Token (tok):</label>
+        <input type="text" id="accessToken" placeholder="Paste your Spotify access token here">
+        <label>Spotify sp_dc Cookie:</label>
+        <input type="text" id="spDcCookie" placeholder="Paste your sp_dc cookie value here">
+        <label>Encrypted Audio URL (from CDN):</label>
+        <input type="text" id="audioUrl" placeholder="https://audio-ak.spotifycdn.com/audio/..." style="width: 100%;">
+        <button id="playBtn" disabled>Load & Play</button>
+    </div>
+    <div id="status">Initializing...</div>
+    <div id="audio-container">
+        <audio id="audioPlayer" controls></audio>
     </div>
 
-    <div id="status">Initializing…</div>
+    <script>
+        // --- CONFIGURATION ---
+        // Replace with your own CORS proxy that forwards requests to the Spotify license server.
+        // Example: https://your-proxy.workers.dev/?url=
+        const LICENSE_PROXY_URL = 'https://jiotvegp.vercel.app/api/Spotify?url=';
+        
+        // Spotify's Widevine license endpoint.
+        const SPOTIFY_LICENSE_ENDPOINT = 'https://api.spotify.com/v1/widevine-license/v1/audio/license';
 
-<script>
-/* =========================================================================
- *  1. CONFIGURATION  —  edit these values
- * ========================================================================= */
-const CONFIG = {
-    // ⚠️ You MUST supply a real HLS .m3u8 manifest that contains DRM info.
-    //    The Spotify audio URL is NOT a manifest.
-    manifestUri: 'https://audio-ak.spotifycdn.com/audio/4186efdfd77766dcf526be93b2500dfd762e2ab4?__token__=exp=1790661005~hmac=a04497a3ad31efe58b0e46080d4b2a6503c1bc72b59cc75f564770a0276ef33b',   // leave empty; user will paste it
+        // The audio player element.
+        const audioElement = document.getElementById('audioPlayer');
+        const statusElement = document.getElementById('status');
+        const playBtn = document.getElementById('playBtn');
 
-    drm: {
-        // Your JioTV proxy that forwards to Spotify's Widevine license endpoint
-        widevine: 'https://jiotvegp.vercel.app/api/Spotify?url=https%3A%2F%2Fgae2-spclient.spotify.com%2Fwidevine-license%2Fv1%2Faudio%2Flicense',
-        // PlayReady and FairPlay are optional for audio-only Widevine
-        playready: null,
-        fairplay: null,
-        fairplayCertificate: null
-    },
+        // Global variables for the EME session.
+        let mediaKeys = null;
+        let mediaKeySession = null;
+        let mediaSource = null;
+        let sourceBuffer = null;
 
-    preferredAudioLanguage: 'en',
-    preferredAudioChannelCount: null,
-    forceL3: true,
-    licenseHeader: null   // e.g. { name: 'X-Auth-Token', value: 'abc123' }
-};
-
-/* =========================================================================
- *  2. DOM REFERENCES
- * ========================================================================= */
-const audioElement   = document.getElementById('secure-audio');
-const audioSelect    = document.getElementById('audio-select');
-const textSelect     = document.getElementById('text-select');
-const statusEl       = document.getElementById('status');
-const playOverlay    = document.getElementById('play-overlay');
-const manifestInput  = document.getElementById('manifest-input');
-const loadBtn        = document.getElementById('load-btn');
-
-let player = null;
-
-/* =========================================================================
- *  3. UTILITIES
- * ========================================================================= */
-function setStatus(msg, kind = '') {
-    statusEl.textContent = msg;
-    statusEl.className = kind;
-}
-
-function log(...args) {
-    console.log('[DRM-Audio]', ...args);
-}
-
-/* =========================================================================
- *  4. BOOTSTRAP
- * ========================================================================= */
-document.addEventListener('DOMContentLoaded', initApp);
-
-function initApp() {
-    // Install polyfills
-    shaka.polyfill.installAll();
-
-    if (!shaka.Player.isBrowserSupported()) {
-        setStatus('This browser does not support the required media APIs (MSE/EME).', 'error');
-        return;
-    }
-    initPlayer();
-
-    // Wire up the manifest loader
-    loadBtn.addEventListener('click', () => {
-        const url = manifestInput.value.trim();
-        if (!url) {
-            setStatus('Please enter a valid HLS manifest URL.', 'error');
-            return;
+        // --- UI HELPER ---
+        function setStatus(message, isError = false) {
+            console.log(`[Status] ${message}`);
+            statusElement.textContent = message;
+            statusElement.style.color = isError ? '#ff4757' : '#2ed573';
         }
-        loadManifest(url);
-    });
 
-    // If a manifest is pre-filled in CONFIG, load it
-    if (CONFIG.manifestUri) {
-        manifestInput.value = CONFIG.manifestUri;
-        loadManifest(CONFIG.manifestUri);
-    } else {
-        setStatus('Ready. Paste your HLS .m3u8 manifest URL above and click "Load".');
-    }
-}
+        // --- MAIN WORKFLOW ---
+        playBtn.addEventListener('click', async () => {
+            playBtn.disabled = true;
+            const accessToken = document.getElementById('accessToken').value.trim();
+            const spDcCookie = document.getElementById('spDcCookie').value.trim();
+            const audioUrl = document.getElementById('audioUrl').value.trim();
 
-/* =========================================================================
- *  5. PLAYER SETUP
- * ========================================================================= */
-async function initPlayer() {
-    player = new shaka.Player(audioElement);
-    window.player = player; // for debugging
-
-    // Error handling
-    player.addEventListener('error', onPlayerError);
-    audioElement.addEventListener('error', () => {
-        setStatus('Audio element error: ' + (audioElement.error && audioElement.error.message), 'error');
-    });
-
-    // Track changes
-    player.addEventListener('trackschanged', refreshTrackMenus);
-
-    // Optional license request filter (custom header)
-    player.getNetworkingEngine().registerRequestFilter((type, request) => {
-        if (type === shaka.net.NetworkingEngine.RequestType.LICENSE && CONFIG.licenseHeader) {
-            request.headers[CONFIG.licenseHeader.name] = CONFIG.licenseHeader.value;
-        }
-    });
-
-    // Build DRM server map
-    const servers = {};
-    const advanced = {};
-
-    if (CONFIG.drm.widevine) {
-        servers['com.widevine.alpha'] = CONFIG.drm.widevine;
-        if (CONFIG.forceL3) {
-            advanced['com.widevine.alpha'] = {
-                videoRobustness: 'SW_SECURE_CRYPTO',
-                audioRobustness: 'SW_SECURE_CRYPTO'
-            };
-        }
-    }
-    if (CONFIG.drm.playready) {
-        servers['com.microsoft.playready'] = CONFIG.drm.playready;
-    }
-    if (CONFIG.drm.fairplay) {
-        servers['com.apple.fps'] = CONFIG.drm.fairplay;
-        if (CONFIG.drm.fairplayCertificate) {
-            advanced['com.apple.fps'] = { serverCertificateUri: CONFIG.drm.fairplayCertificate };
-        }
-    }
-
-    // Configure the player
-    player.configure({
-        drm: {
-            servers: servers,
-            advanced: advanced,
-            retryParameters: { maxAttempts: 3, baseDelay: 500, timeout: 15000 }
-        },
-        preferredAudioLanguage: CONFIG.preferredAudioLanguage,
-        preferredAudioChannelCount: CONFIG.preferredAudioChannelCount,
-        streaming: {
-            bufferingGoal: 30,
-            rebufferingGoal: 2,
-            lowLatencyMode: false
-        },
-        abr: {
-            enabled: true,
-            defaultBandwidthEstimate: 128000
-        }
-    });
-
-    log('Player initialized and configured');
-}
-
-/* =========================================================================
- *  6. LOAD A MANIFEST
- * ========================================================================= */
-async function loadManifest(url) {
-    if (!player) {
-        setStatus('Player not ready yet.', 'error');
-        return;
-    }
-
-    setStatus('Loading manifest…');
-    loadBtn.disabled = true;
-
-    try {
-        await player.load(url);
-        setStatus('Audio stream loaded successfully. DRM session active.', 'ok');
-        onLoaded();
-    } catch (e) {
-        onPlayerError({ detail: e });
-    } finally {
-        loadBtn.disabled = false;
-    }
-}
-
-function onLoaded() {
-    refreshTrackMenus();
-
-    // Autoplay may be blocked
-    audioElement.play().catch(() => {
-        playOverlay.classList.add('show');
-    });
-
-    playOverlay.addEventListener('click', () => {
-        playOverlay.classList.remove('show');
-        audioElement.play().catch(() => {});
-    });
-
-    // Unmute on first user interaction
-    const unmute = () => {
-        audioElement.muted = false;
-        audioElement.volume = 1;
-        document.removeEventListener('click', unmute);
-    };
-    document.addEventListener('click', unmute);
-}
-
-/* =========================================================================
- *  7. TRACK MENUS
- * ========================================================================= */
-function refreshTrackMenus() {
-    if (!player) return;
-
-    /* ----- AUDIO ----- */
-    const audioTracks = player.getAudioTracks();
-    const activeAudio = player.getVariantTracks().find(t => t.active);
-
-    audioSelect.innerHTML = '';
-
-    if (audioTracks.length === 0) {
-        audioSelect.disabled = true;
-        audioSelect.innerHTML = '<option>No audio tracks</option>';
-    } else {
-        audioSelect.disabled = false;
-        audioTracks.forEach((track, i) => {
-            const opt = document.createElement('option');
-            opt.value = String(i);
-            opt.textContent = describeAudio(track);
-            if (activeAudio && track.language === activeAudio.language &&
-                track.channelsCount === activeAudio.channelsCount &&
-                track.roles.join() === activeAudio.roles.join()) {
-                opt.selected = true;
+            if (!accessToken || !audioUrl) {
+                setStatus('Error: Access token and audio URL are required.', true);
+                playBtn.disabled = false;
+                return;
             }
-            audioSelect.appendChild(opt);
+
+            try {
+                await initializePlayback(audioUrl, accessToken, spDcCookie);
+            } catch (error) {
+                setStatus(`Playback failed: ${error.message}`, true);
+                console.error(error);
+                playBtn.disabled = false;
+            }
         });
-    }
 
-    audioSelect.onchange = () => {
-        const idx = Number(audioSelect.value);
-        const track = player.getAudioTracks()[idx];
-        if (!track) return;
-        player.selectAudioTrack(track);
-        setStatus(`Audio switched → ${describeAudio(track)}`, 'ok');
-    };
+        async function initializePlayback(audioUrl, accessToken, spDcCookie) {
+            setStatus('Step 1: Fetching initial audio chunk...');
+            
+            // 1. Fetch the first chunk of the encrypted audio to get the initData (PSSH box).
+            const initialChunk = await fetchAudioChunk(audioUrl, 0, 1024 * 1024, accessToken, spDcCookie);
+            if (initialChunk.byteLength === 0) {
+                throw new Error('Failed to fetch initial audio chunk. Check your URL and tokens.');
+            }
 
-    /* ----- TEXT ----- */
-    const textTracks = player.getTextTracks();
-    textSelect.innerHTML = '<option value="-1">Off</option>';
-    textTracks.forEach((t, i) => {
-        const opt = document.createElement('option');
-        opt.value = String(i);
-        opt.textContent = t.label || t.language || `Track ${i + 1}`;
-        textSelect.appendChild(opt);
-    });
-    textSelect.disabled = textTracks.length === 0;
+            setStatus('Step 2: Extracting initData (PSSH box)...');
+            const initData = extractPsshBox(initialChunk);
+            if (!initData) {
+                throw new Error('Could not find PSSH box in the audio chunk. The content may not be encrypted or the format is unexpected.');
+            }
+            console.log('Extracted initData:', initData);
 
-    textSelect.onchange = () => {
-        const idx = Number(textSelect.value);
-        if (idx === -1) {
-            player.setTextTrackVisibility(false);
-        } else {
-            const track = player.getTextTracks()[idx];
-            player.selectTextTrack(track);
-            player.setTextTrackVisibility(true);
+            setStatus('Step 3: Requesting MediaKeySystemAccess...');
+            // 2. Request access to the Widevine CDM.
+            // For audio-only, we only need 'audioCapabilities'.
+            const config = [{
+                initDataTypes: ['cenc'],
+                audioCapabilities: [{
+                    contentType: 'audio/mp4; codecs="mp4a.40.2"', // AAC-LC in MP4 container
+                    robustness: 'SW_SECURE_CRYPTO' // Use L3 software decryption
+                }]
+            }];
+
+            const access = await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
+            mediaKeys = await access.createMediaKeys();
+
+            setStatus('Step 4: Creating MediaKeySession and generating license request...');
+            // 3. Create a session and generate the license challenge.
+            mediaKeySession = mediaKeys.createSession();
+            
+            // Listen for the license request message from the CDM.
+            mediaKeySession.addEventListener('message', async (event) => {
+                setStatus('Step 5: Sending license request to Spotify...');
+                await handleLicenseRequest(event.message, accessToken);
+            });
+
+            // Listen for key status changes to know when decryption keys are ready.
+            mediaKeySession.addEventListener('keystatuseschange', (event) => {
+                const keys = Array.from(mediaKeySession.keyStatuses.entries());
+                console.log('Key statuses changed:', keys);
+                const hasUsableKey = keys.some(([keyId, status]) => status === 'usable');
+                if (hasUsableKey) {
+                    setStatus('Decryption keys acquired! Starting media playback...', false);
+                    startMediaStreaming(audioUrl, accessToken, spDcCookie, initialChunk);
+                }
+            });
+
+            // Generate the license request.
+            await mediaKeySession.generateRequest('cenc', initData);
         }
-    };
-}
 
-function describeAudio(track) {
-    const parts = [];
-    parts.push(track.label || (track.language ? track.language.toUpperCase() : 'Unknown'));
-    if (track.channelsCount) {
-        const map = { 1: 'Mono', 2: 'Stereo', 6: '5.1', 8: '7.1' };
-        parts.push(map[track.channelsCount] || `${track.channelsCount}ch`);
-    }
-    if (track.roles && track.roles.length) {
-        const roles = track.roles.filter(r => !['main', 'alternative'].includes(r));
-        if (roles.length) parts.push(`(${roles.join(', ')})`);
-    }
-    if (track.audioBandwidth) {
-        parts.push(`· ${Math.round(track.audioBandwidth / 1000)} kbps`);
-    }
-    return parts.join(' ');
-}
+        // --- CORE FUNCTIONS ---
 
-/* =========================================================================
- *  8. ERROR HANDLING
- * ========================================================================= */
-function onPlayerError(event) {
-    const detail = event.detail || event;
-    const code = detail.code;
-    const data = detail.data || [];
+        /**
+         * Fetches a byte range from the audio URL.
+         * Note: Spotify's CDN may require the Authorization header or cookies.
+         */
+        async function fetchAudioChunk(url, start, end, accessToken, spDcCookie) {
+            const headers = {
+                'Range': `bytes=${start}-${end}`,
+                // These headers are typically required to access the CDN.
+                // The exact requirements can vary. The accessToken is often passed as a Bearer token.
+                'Authorization': `Bearer ${accessToken}`,
+                // Cookies might be needed for session validation.
+                // 'Cookie': `sp_dc=${spDcCookie}`
+            };
 
-    console.error('Shaka Player Error:', code, detail);
+            const response = await fetch(url, { headers });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+            }
+            return await response.arrayBuffer();
+        }
 
-    let hint = '';
-    switch (code) {
-        case 1000: hint = 'Network request failed (check CORS / proxy).'; break;
-        case 1001: hint = 'Manifest could not be parsed or was not found.'; break;
-        case 1002: hint = 'Manifest is invalid or unsupported.'; break;
-        case 1003: hint = 'Streaming protocol not supported by this browser.'; break;
-        case 1004: hint = 'Media is not supported by this browser (codec issue).'; break;
-        case 1005: hint = 'Media key / license acquisition failed.'; break;
-        case 1006: hint = 'DRM system is not supported on this browser.'; break;
-        case 3016: hint = 'License request failed — check your DRM token / proxy. ' +
-                         'Make sure the manifest contains #EXT-X-KEY with Widevine info.'; break;
-        case 6001: hint = 'Failed to fetch DRM license.'; break;
-        case 6007: hint = 'License server rejected the request (expired token?).'; break;
-        default:   hint = 'See console for full details.';
-    }
+        /**
+         * Parses the fetched buffer to find the 'pssh' box.
+         * The PSSH box is a top-level box in the ISO BMFF (MP4) container.
+         */
+        function extractPsshBox(buffer) {
+            const dataView = new DataView(buffer);
+            let offset = 0;
+            const length = buffer.byteLength;
 
-    const extra = data.map(d => (d && d.message) ? d.message : String(d)).join(' | ');
-    setStatus(`Error ${code}: ${hint}${extra ? ' — ' + extra : ''}`, 'error');
-}
+            while (offset < length) {
+                // Each box starts with a 4-byte size.
+                if (offset + 8 > length) break; // Not enough data for a box header.
+                const size = dataView.getUint32(offset);
+                const type = String.fromCharCode(
+                    dataView.getUint8(offset + 4),
+                    dataView.getUint8(offset + 5),
+                    dataView.getUint8(offset + 6),
+                    dataView.getUint8(offset + 7)
+                );
 
-/* =========================================================================
- *  9. MISC
- * ========================================================================= */
-document.addEventListener('contextmenu', e => e.preventDefault());
+                if (type === 'pssh') {
+                    // Found the PSSH box! Return the entire box, including its size and type.
+                    return buffer.slice(offset, offset + size);
+                }
+                if (size === 0) break; // A size of 0 means the box extends to the end of the file.
+                offset += size;
+            }
+            return null;
+        }
 
-window.addEventListener('beforeunload', () => {
-    if (player) player.destroy();
-});
-</script>
+        /**
+         * Handles the license request by sending the CDM's challenge to Spotify's license server.
+         */
+        async function handleLicenseRequest(message, accessToken) {
+            // Construct the full license URL with required query parameters.
+            // 'exp' is an expiration timestamp (e.g., 1 hour from now).
+            // 'cp' is often an empty parameter.
+            // 'tok' is the user's access token.
+            const exp = Math.floor(Date.now() / 1000) + 3600; // 1 hour expiry
+            const licenseUrl = `${SPOTIFY_LICENSE_ENDPOINT}?exp=${exp}&cp=&tok=${accessToken}`;
+            
+            // Route through a CORS proxy. The proxy must forward the URL and the request body.
+            const proxyUrl = LICENSE_PROXY_URL + encodeURIComponent(licenseUrl);
+
+            try {
+                const response = await fetch(proxyUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        // Some proxies require the Origin header to be set.
+                        // 'Origin': 'https://open.spotify.com'
+                    },
+                    body: message // The CDM's license challenge.
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`License server responded with ${response.status}: ${errorText}`);
+                }
+
+                const license = await response.arrayBuffer();
+                setStatus('License received. Updating session...');
+                // Pass the license to the CDM to derive the decryption keys.
+                await mediaKeySession.update(license);
+
+            } catch (error) {
+                setStatus(`License request failed: ${error.message}`, true);
+                console.error('License request error:', error);
+                throw error;
+            }
+        }
+
+        /**
+         * Sets up MSE and begins streaming the encrypted audio chunks.
+         */
+        async function startMediaStreaming(url, accessToken, spDcCookie, initialChunk) {
+            // 1. Create a MediaSource and attach it to the audio element.
+            mediaSource = new MediaSource();
+            audioElement.src = URL.createObjectURL(mediaSource);
+
+            mediaSource.addEventListener('sourceopen', async () => {
+                try {
+                    // 2. Create a SourceBuffer for the AAC audio codec.
+                    // The codec string 'mp4a.40.2' corresponds to AAC-LC.
+                    const mimeCodec = 'audio/mp4; codecs="mp4a.40.2"';
+                    sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+
+                    // 3. Set the MediaKeys on the audio element to enable decryption.
+                    await audioElement.setMediaKeys(mediaKeys);
+
+                    // 4. Append the initial chunk (which includes the header and initData).
+                    sourceBuffer.appendBuffer(initialChunk);
+                    await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
+
+                    // 5. Begin fetching and appending subsequent chunks.
+                    await streamRemainingChunks(url, accessToken, spDcCookie, initialChunk.byteLength);
+
+                } catch (error) {
+                    setStatus(`MediaSource setup failed: ${error.message}`, true);
+                    console.error(error);
+                }
+            });
+        }
+
+        /**
+         * Fetches and appends the remaining chunks of the audio file.
+         */
+        async function streamRemainingChunks(url, accessToken, spDcCookie, startOffset) {
+            const CHUNK_SIZE = 512 * 1024; // ~512 kB, typical for Spotify
+            let offset = startOffset;
+            const totalLength = parseInt((await fetch(url, { method: 'HEAD' })).headers.get('Content-Length'), 10);
+
+            setStatus(`Streaming audio... (Total size: ${(totalLength / 1024 / 1024).toFixed(2)} MB)`);
+
+            while (offset < totalLength) {
+                try {
+                    const chunk = await fetchAudioChunk(url, offset, offset + CHUNK_SIZE - 1, accessToken, spDcCookie);
+                    if (chunk.byteLength === 0) break;
+
+                    // Wait for the SourceBuffer to be ready for more data.
+                    if (sourceBuffer.updating) {
+                        await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
+                    }
+                    
+                    sourceBuffer.appendBuffer(chunk);
+                    offset += chunk.byteLength;
+                    
+                    // Wait for the append to finish before fetching the next chunk.
+                    await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
+
+                    // Update status with progress.
+                    const progress = ((offset / totalLength) * 100).toFixed(1);
+                    setStatus(`Streaming audio... ${progress}%`);
+
+                } catch (error) {
+                    setStatus(`Streaming error: ${error.message}`, true);
+                    console.error('Streaming error:', error);
+                    break;
+                }
+            }
+
+            if (offset >= totalLength) {
+                setStatus('Playback complete.', false);
+                if (mediaSource.readyState === 'open') {
+                    mediaSource.endOfStream();
+                }
+            }
+        }
+
+        // Initial status
+        setStatus('Ready. Please fill in the fields and click "Load & Play".');
+    </script>
 </body>
-    </html>
+</html>

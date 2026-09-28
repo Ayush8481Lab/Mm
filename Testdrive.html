@@ -1,313 +1,584 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Custom Spotify DRM Audio Player (EME + MSE)</title>
-    <style>
-        body { font-family: sans-serif; background: #121212; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 2rem; }
-        #controls { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 600px; margin-bottom: 20px; }
-        input, button { padding: 10px; border-radius: 5px; border: 1px solid #333; background: #222; color: #fff; }
-        button { background: #1DB954; border: none; font-weight: bold; cursor: pointer; }
-        button:disabled { background: #555; cursor: not-allowed; }
-        #status { margin-top: 10px; font-size: 0.9em; color: #aaa; max-width: 600px; word-break: break-all; }
-        #audio-container { width: 100%; max-width: 600px; margin-top: 20px; }
-        audio { width: 100%; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Custom Spotify DRM Audio Player (EME + MSE)</title>
+<style>
+    :root {
+        --bg: #121212;
+        --panel: #1e1e1e;
+        --input: #262626;
+        --border: #3a3a3a;
+        --accent: #1DB954;
+        --accent-hover: #1ed760;
+        --error: #ff4757;
+        --ok: #2ed573;
+        --text-dim: #9a9a9a;
+    }
+    * { box-sizing: border-box; }
+    body {
+        background: var(--bg);
+        color: #fff;
+        font-family: system-ui, -apple-system, Arial, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 24px 16px;
+    }
+    h1 {
+        font-size: 1.3rem;
+        margin: 0 0 6px;
+        text-align: center;
+    }
+    .subtitle {
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        margin: 0 0 22px;
+        text-align: center;
+        max-width: 620px;
+    }
+    #controls {
+        width: 100%;
+        max-width: 640px;
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+    label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-dim);
+    }
+    input {
+        background: var(--input);
+        color: #fff;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 0.88rem;
+        outline: none;
+        font-family: inherit;
+        width: 100%;
+    }
+    input:focus { border-color: var(--accent); }
+    button {
+        background: var(--accent);
+        border: 0;
+        color: #000;
+        font-weight: 700;
+        padding: 12px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: background 0.15s;
+    }
+    button:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled {
+        background: #444;
+        color: #888;
+        cursor: not-allowed;
+    }
+    #audio-container {
+        width: 100%;
+        max-width: 640px;
+        margin-top: 20px;
+        padding: 20px;
+        background: linear-gradient(145deg, #1e1e1e, #0e0e0e);
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+    }
+    .audio-icon { font-size: 3rem; opacity: 0.35; user-select: none; }
+    audio { width: 100%; border-radius: 6px; outline: none; }
+    #status {
+        width: 100%;
+        max-width: 640px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        background: #1a1a1a;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: var(--text-dim);
+        min-height: 46px;
+        word-break: break-word;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        line-height: 1.45;
+    }
+    #status.error { color: var(--error); border-color: #4a1f23; background: #1f1214; }
+    #status.ok    { color: var(--ok); border-color: #1f4a2c; background: #12201a; }
+    #status.info  { color: #6cb6ff; border-color: #1f3a4a; background: #101a20; }
+    .hint {
+        font-size: 0.75rem;
+        color: #666;
+        margin-top: -4px;
+    }
+</style>
 </head>
 <body>
-    <h1>Custom Spotify DRM Player</h1>
-    <div id="controls">
-        <label>Spotify Access Token (tok):</label>
-        <input type="text" id="accessToken" placeholder="Paste your Spotify access token here">
-        <label>Spotify sp_dc Cookie:</label>
-        <input type="text" id="spDcCookie" placeholder="Paste your sp_dc cookie value here">
-        <label>Encrypted Audio URL (from CDN):</label>
-        <input type="text" id="audioUrl" placeholder="https://audio-ak.spotifycdn.com/audio/..." style="width: 100%;">
-        <button id="playBtn" disabled>Load & Play</button>
+
+<h1>🔒 Custom Spotify DRM Audio Player</h1>
+<p class="subtitle">
+    Low‑level EME + MSE implementation. Requires a valid Spotify Premium
+    <code>accessToken</code>, <code>sp_dc</code> cookie, a CORS proxy, and a
+    fresh encrypted CDN URL.
+</p>
+
+<div id="controls">
+    <div class="field">
+        <label for="accessToken">Spotify Access Token (tok)</label>
+        <input type="text" id="accessToken" placeholder="BQD... (from Authorization: Bearer ...)" autocomplete="off" spellcheck="false">
+        <span class="hint">DevTools → Network → any api.spotify.com request → Request Headers → authorization: Bearer …</span>
     </div>
-    <div id="status">Initializing...</div>
-    <div id="audio-container">
-        <audio id="audioPlayer" controls></audio>
+
+    <div class="field">
+        <label for="spDcCookie">Spotify sp_dc Cookie</label>
+        <input type="text" id="spDcCookie" placeholder="AQ... (long value)" autocomplete="off" spellcheck="false">
+        <span class="hint">DevTools → Application → Cookies → https://open.spotify.com → sp_dc</span>
     </div>
 
-    <script>
-        // --- CONFIGURATION ---
-        // Replace with your own CORS proxy that forwards requests to the Spotify license server.
-        // Example: https://your-proxy.workers.dev/?url=
-        const LICENSE_PROXY_URL = 'https://jiotvegp.vercel.app/api/Spotify?url=';
-        
-        // Spotify's Widevine license endpoint.
-        const SPOTIFY_LICENSE_ENDPOINT = 'https://api.spotify.com/v1/widevine-license/v1/audio/license';
+    <div class="field">
+        <label for="audioUrl">Encrypted Audio URL (CDN)</label>
+        <input type="text" id="audioUrl" placeholder="https://audio-ak.spotifycdn.com/audio/...?__token__=exp=..." autocomplete="off" spellcheck="false">
+        <span class="hint">Must be freshly generated. Old URLs with expired <code>__token__</code> will 403.</span>
+    </div>
 
-        // The audio player element.
-        const audioElement = document.getElementById('audioPlayer');
-        const statusElement = document.getElementById('status');
-        const playBtn = document.getElementById('playBtn');
+    <button id="playBtn" type="button" disabled>Load &amp; Play</button>
+</div>
 
-        // Global variables for the EME session.
-        let mediaKeys = null;
-        let mediaKeySession = null;
-        let mediaSource = null;
-        let sourceBuffer = null;
+<div id="audio-container">
+    <div class="audio-icon">🎵</div>
+    <audio id="audioPlayer" controls playsinline></audio>
+</div>
 
-        // --- UI HELPER ---
-        function setStatus(message, isError = false) {
-            console.log(`[Status] ${message}`);
-            statusElement.textContent = message;
-            statusElement.style.color = isError ? '#ff4757' : '#2ed573';
-        }
+<div id="status">Ready. Fill in the fields above to enable the button.</div>
 
-        // --- MAIN WORKFLOW ---
-        playBtn.addEventListener('click', async () => {
-            playBtn.disabled = true;
-            const accessToken = document.getElementById('accessToken').value.trim();
-            const spDcCookie = document.getElementById('spDcCookie').value.trim();
-            const audioUrl = document.getElementById('audioUrl').value.trim();
+<script>
+/* =========================================================================
+ *  CONFIGURATION — EDIT THESE
+ * ========================================================================= */
 
-            if (!accessToken || !audioUrl) {
-                setStatus('Error: Access token and audio URL are required.', true);
-                playBtn.disabled = false;
-                return;
-            }
+/**
+ * Your CORS proxy. It must forward POST requests with binary bodies to the
+ * target URL and return the raw response with CORS headers.
+ *
+ * The proxy receives:   LICENSE_PROXY_URL + encodeURIComponent(targetUrl)
+ * Example worker URL:   https://my-proxy.workers.dev/?url=
+ * Final request:        https://my-proxy.workers.dev/?url=https%3A%2F%2Fapi...
+ */
+const LICENSE_PROXY_URL = 'https://YOUR_CORS_PROXY/?url=';
 
-            try {
-                await initializePlayback(audioUrl, accessToken, spDcCookie);
-            } catch (error) {
-                setStatus(`Playback failed: ${error.message}`, true);
-                console.error(error);
-                playBtn.disabled = false;
-            }
+/** Spotify's Widevine license endpoint (do not change). */
+const SPOTIFY_LICENSE_ENDPOINT =
+    'https://api.spotify.com/v1/widevine-license/v1/audio/license';
+
+/** Size of the first chunk fetched to locate the PSSH box. 1 MB is safe. */
+const INITIAL_CHUNK_SIZE = 1024 * 1024;
+
+/** Size of subsequent audio chunks. ~512 KB matches Spotify's web player. */
+const STREAM_CHUNK_SIZE = 512 * 1024;
+
+/** AAC-LC in MP4 container — the codec used by Spotify's web audio. */
+const AUDIO_MIME_CODEC = 'audio/mp4; codecs="mp4a.40.2"';
+
+/* =========================================================================
+ *  DOM
+ * ========================================================================= */
+const audioElement  = document.getElementById('audioPlayer');
+const statusElement = document.getElementById('status');
+const playBtn       = document.getElementById('playBtn');
+const accessTokenEl = document.getElementById('accessToken');
+const spDcCookieEl  = document.getElementById('spDcCookie');
+const audioUrlEl    = document.getElementById('audioUrl');
+
+/* =========================================================================
+ *  STATE
+ * ========================================================================= */
+let mediaKeys       = null;
+let mediaKeySession = null;
+let mediaSource     = null;
+let sourceBuffer    = null;
+let isPlaying       = false;
+
+/* =========================================================================
+ *  UI HELPERS
+ * ========================================================================= */
+function setStatus(message, kind = '') {
+    statusElement.textContent = message;
+    statusElement.className = kind;
+    console.log(`[SpotifyDRM][${kind || 'log'}] ${message}`);
+}
+
+function enableButtonIfReady() {
+    const hasToken = accessTokenEl.value.trim().length > 0;
+    const hasUrl   = audioUrlEl.value.trim().length > 0;
+    playBtn.disabled = !(hasToken && hasUrl) || isPlaying;
+}
+
+[accessTokenEl, spDcCookieEl, audioUrlEl].forEach(el => {
+    el.addEventListener('input', enableButtonIfReady);
+});
+
+/* =========================================================================
+ *  BOOTSTRAP
+ * ========================================================================= */
+(async function bootstrap() {
+    enableButtonIfReady();
+
+    if (!window.isSecureContext) {
+        setStatus('Error: EME requires HTTPS or localhost.', 'error');
+        return;
+    }
+    if (!('requestMediaKeySystemAccess' in navigator)) {
+        setStatus('Error: This browser does not support EME.', 'error');
+        return;
+    }
+    if (!('MediaSource' in window)) {
+        setStatus('Error: This browser does not support MSE.', 'error');
+        return;
+    }
+    if (LICENSE_PROXY_URL.includes('YOUR_CORS_PROXY')) {
+        setStatus('Warning: Replace LICENSE_PROXY_URL with a real CORS proxy before playing.', 'info');
+    } else {
+        setStatus('Ready. Fill in the fields above to enable the button.');
+    }
+})();
+
+/* =========================================================================
+ *  MAIN FLOW
+ * ========================================================================= */
+playBtn.addEventListener('click', async () => {
+    if (isPlaying) return;
+
+    const accessToken = accessTokenEl.value.trim();
+    const spDcCookie  = spDcCookieEl.value.trim();
+    const audioUrl    = audioUrlEl.value.trim();
+
+    if (!accessToken || !audioUrl) {
+        setStatus('Error: Access token and audio URL are required.', 'error');
+        return;
+    }
+    if (LICENSE_PROXY_URL.includes('YOUR_CORS_PROXY')) {
+        setStatus('Error: You must set LICENSE_PROXY_URL to a working CORS proxy.', 'error');
+        return;
+    }
+
+    isPlaying = true;
+    playBtn.disabled = true;
+
+    try {
+        await runPlayback(audioUrl, accessToken, spDcCookie);
+    } catch (err) {
+        setStatus(`Playback failed: ${err.message}`, 'error');
+        console.error('[SpotifyDRM] Fatal error:', err);
+        isPlaying = false;
+        enableButtonIfReady();
+    }
+});
+
+async function runPlayback(audioUrl, accessToken, spDcCookie) {
+    /* ---- Step 1: fetch first chunk ---- */
+    setStatus('Step 1/6 — Fetching initial audio chunk…', 'info');
+    const initialChunk = await fetchRange(audioUrl, 0, INITIAL_CHUNK_SIZE - 1, accessToken, spDcCookie);
+    if (!initialChunk || initialChunk.byteLength === 0) {
+        throw new Error('Empty response from CDN. Check the URL, token, and Referer/Origin headers.');
+    }
+    setStatus(`Step 1/6 — Received ${initialChunk.byteLength} bytes.`, 'info');
+
+    /* ---- Step 2: extract PSSH box ---- */
+    setStatus('Step 2/6 — Searching for PSSH box…', 'info');
+    const initData = extractPsshBox(initialChunk);
+    if (!initData) {
+        throw new Error(
+            'No PSSH box found in the first chunk. The content is either not encrypted ' +
+            'or you fetched the wrong byte range.'
+        );
+    }
+    setStatus(`Step 2/6 — PSSH found (${initData.byteLength} bytes).`, 'ok');
+
+    /* ---- Step 3: request Widevine access ---- */
+    setStatus('Step 3/6 — Requesting Widevine MediaKeySystemAccess…', 'info');
+    const config = [{
+        initDataTypes: ['cenc'],
+        audioCapabilities: [{
+            contentType: AUDIO_MIME_CODEC,
+            robustness: 'SW_SECURE_CRYPTO'
+        }]
+    }];
+    const access = await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
+    mediaKeys = await access.createMediaKeys();
+    setStatus('Step 3/6 — Widevine CDM ready.', 'ok');
+
+    /* ---- Step 4: create session, wire handlers, generate request ---- */
+    setStatus('Step 4/6 — Creating MediaKeySession…', 'info');
+    mediaKeySession = mediaKeys.createSession();
+
+    mediaKeySession.addEventListener('message', (event) => {
+        // Fire-and-forget: errors handled inside.
+        handleLicenseMessage(event.message, accessToken).catch(err => {
+            setStatus(`License request failed: ${err.message}`, 'error');
+            console.error('[SpotifyDRM] License error:', err);
         });
+    });
 
-        async function initializePlayback(audioUrl, accessToken, spDcCookie) {
-            setStatus('Step 1: Fetching initial audio chunk...');
-            
-            // 1. Fetch the first chunk of the encrypted audio to get the initData (PSSH box).
-            const initialChunk = await fetchAudioChunk(audioUrl, 0, 1024 * 1024, accessToken, spDcCookie);
-            if (initialChunk.byteLength === 0) {
-                throw new Error('Failed to fetch initial audio chunk. Check your URL and tokens.');
-            }
+    mediaKeySession.addEventListener('keystatuseschange', () => {
+        const statuses = Array.from(mediaKeySession.keyStatuses.entries());
+        console.log('[SpotifyDRM] keyStatuses:', statuses);
+        const usable = statuses.some(([, status]) => status === 'usable');
+        if (usable && !mediaSource) {
+            setStatus('Step 6/6 — Keys usable. Starting media stream…', 'ok');
+            startMediaSource(audioUrl, accessToken, spDcCookie, initialChunk);
+        }
+    });
 
-            setStatus('Step 2: Extracting initData (PSSH box)...');
-            const initData = extractPsshBox(initialChunk);
-            if (!initData) {
-                throw new Error('Could not find PSSH box in the audio chunk. The content may not be encrypted or the format is unexpected.');
-            }
-            console.log('Extracted initData:', initData);
+    await mediaKeySession.generateRequest('cenc', initData);
+    setStatus('Step 5/6 — License challenge generated, awaiting response…', 'info');
+}
 
-            setStatus('Step 3: Requesting MediaKeySystemAccess...');
-            // 2. Request access to the Widevine CDM.
-            // For audio-only, we only need 'audioCapabilities'.
-            const config = [{
-                initDataTypes: ['cenc'],
-                audioCapabilities: [{
-                    contentType: 'audio/mp4; codecs="mp4a.40.2"', // AAC-LC in MP4 container
-                    robustness: 'SW_SECURE_CRYPTO' // Use L3 software decryption
-                }]
-            }];
+/* =========================================================================
+ *  LICENSE REQUEST
+ * ========================================================================= */
+async function handleLicenseMessage(challenge, accessToken) {
+    setStatus('Step 5/6 — Sending license request…', 'info');
 
-            const access = await navigator.requestMediaKeySystemAccess('com.widevine.alpha', config);
-            mediaKeys = await access.createMediaKeys();
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const licenseUrl = `${SPOTIFY_LICENSE_ENDPOINT}?exp=${exp}&cp=&tok=${encodeURIComponent(accessToken)}`;
+    const proxiedUrl = LICENSE_PROXY_URL + encodeURIComponent(licenseUrl);
 
-            setStatus('Step 4: Creating MediaKeySession and generating license request...');
-            // 3. Create a session and generate the license challenge.
-            mediaKeySession = mediaKeys.createSession();
-            
-            // Listen for the license request message from the CDM.
-            mediaKeySession.addEventListener('message', async (event) => {
-                setStatus('Step 5: Sending license request to Spotify...');
-                await handleLicenseRequest(event.message, accessToken);
+    const response = await fetch(proxiedUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/octet-stream'
+        },
+        body: challenge
+    });
+
+    if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status} ${response.statusText}${text ? ' — ' + text.slice(0, 300) : ''}`);
+    }
+
+    const license = await response.arrayBuffer();
+    if (license.byteLength === 0) {
+        throw new Error('License response was empty.');
+    }
+
+    await mediaKeySession.update(license);
+    setStatus('Step 5/6 — License accepted by CDM.', 'ok');
+}
+
+/* =========================================================================
+ *  MEDIA SOURCE (MSE) + STREAMING
+ * ========================================================================= */
+function startMediaSource(audioUrl, accessToken, spDcCookie, initialChunk) {
+    mediaSource = new MediaSource();
+    audioElement.src = URL.createObjectURL(mediaSource);
+
+    mediaSource.addEventListener('sourceopen', async () => {
+        try {
+            sourceBuffer = mediaSource.addSourceBuffer(AUDIO_MIME_CODEC);
+            await audioElement.setMediaKeys(mediaKeys);
+
+            // Append the initial chunk (contains init segment + PSSH).
+            await appendBuffer(initialChunk);
+
+            // Try autoplay (may be blocked without user gesture).
+            audioElement.play().catch(() => {
+                setStatus('Autoplay blocked — click the play button on the audio element.', 'info');
             });
 
-            // Listen for key status changes to know when decryption keys are ready.
-            mediaKeySession.addEventListener('keystatuseschange', (event) => {
-                const keys = Array.from(mediaKeySession.keyStatuses.entries());
-                console.log('Key statuses changed:', keys);
-                const hasUsableKey = keys.some(([keyId, status]) => status === 'usable');
-                if (hasUsableKey) {
-                    setStatus('Decryption keys acquired! Starting media playback...', false);
-                    startMediaStreaming(audioUrl, accessToken, spDcCookie, initialChunk);
-                }
-            });
+            // Stream the rest.
+            await streamRemaining(audioUrl, accessToken, spDcCookie, initialChunk.byteLength);
+        } catch (err) {
+            setStatus(`MediaSource error: ${err.message}`, 'error');
+            console.error('[SpotifyDRM] MediaSource error:', err);
+        }
+    });
 
-            // Generate the license request.
-            await mediaKeySession.generateRequest('cenc', initData);
+    mediaSource.addEventListener('sourceended', () => {
+        setStatus('Playback complete.', 'ok');
+    });
+    mediaSource.addEventListener('sourceclose', () => {
+        setStatus('MediaSource closed.', '');
+    });
+}
+
+function appendBuffer(buffer) {
+    return new Promise((resolve, reject) => {
+        if (!sourceBuffer) return reject(new Error('SourceBuffer not ready.'));
+
+        const onUpdateEnd = () => {
+            sourceBuffer.removeEventListener('updateend', onUpdateEnd);
+            sourceBuffer.removeEventListener('error', onError);
+            resolve();
+        };
+        const onError = (e) => {
+            sourceBuffer.removeEventListener('updateend', onUpdateEnd);
+            sourceBuffer.removeEventListener('error', onError);
+            reject(new Error('SourceBuffer append error: ' + (e.message || 'unknown')));
+        };
+
+        sourceBuffer.addEventListener('updateend', onUpdateEnd);
+        sourceBuffer.addEventListener('error', onError);
+
+        try {
+            sourceBuffer.appendBuffer(buffer);
+        } catch (err) {
+            onError(err);
+        }
+    });
+}
+
+async function streamRemaining(url, accessToken, spDcCookie, startOffset) {
+    let offset = startOffset;
+    let total = 0;
+
+    // Try to learn total size via HEAD; if it fails, stream until empty chunk.
+    try {
+        const head = await fetch(url, {
+            method: 'HEAD',
+            headers: buildCdnHeaders(accessToken, spDcCookie)
+        });
+        const len = head.headers.get('Content-Length');
+        if (len) total = parseInt(len, 10);
+    } catch (_) { /* ignore — some CDNs block HEAD */ }
+
+    setStatus(`Streaming…${total ? ' total ' + (total / 1024 / 1024).toFixed(2) + ' MB' : ''}`, 'info');
+
+    while (true) {
+        if (total && offset >= total) break;
+
+        const end = offset + STREAM_CHUNK_SIZE - 1;
+        let chunk;
+        try {
+            chunk = await fetchRange(url, offset, end, accessToken, spDcCookie);
+        } catch (err) {
+            setStatus(`Streaming stopped: ${err.message}`, 'error');
+            break;
+        }
+        if (!chunk || chunk.byteLength === 0) break;
+
+        // Keep the buffer bounded — avoid unbounded memory growth.
+        // (Simple strategy: if we've buffered a lot ahead, wait a moment.)
+        while (sourceBuffer.updating) {
+            await new Promise(r => sourceBuffer.addEventListener('updateend', r, { once: true }));
         }
 
-        // --- CORE FUNCTIONS ---
-
-        /**
-         * Fetches a byte range from the audio URL.
-         * Note: Spotify's CDN may require the Authorization header or cookies.
-         */
-        async function fetchAudioChunk(url, start, end, accessToken, spDcCookie) {
-            const headers = {
-                'Range': `bytes=${start}-${end}`,
-                // These headers are typically required to access the CDN.
-                // The exact requirements can vary. The accessToken is often passed as a Bearer token.
-                'Authorization': `Bearer ${accessToken}`,
-                // Cookies might be needed for session validation.
-                // 'Cookie': `sp_dc=${spDcCookie}`
-            };
-
-            const response = await fetch(url, { headers });
-            if (!response.ok) {
-                throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
-            }
-            return await response.arrayBuffer();
+        try {
+            await appendBuffer(chunk);
+        } catch (err) {
+            setStatus(`Append error: ${err.message}`, 'error');
+            break;
         }
 
-        /**
-         * Parses the fetched buffer to find the 'pssh' box.
-         * The PSSH box is a top-level box in the ISO BMFF (MP4) container.
-         */
-        function extractPsshBox(buffer) {
-            const dataView = new DataView(buffer);
-            let offset = 0;
-            const length = buffer.byteLength;
+        offset += chunk.byteLength;
 
-            while (offset < length) {
-                // Each box starts with a 4-byte size.
-                if (offset + 8 > length) break; // Not enough data for a box header.
-                const size = dataView.getUint32(offset);
-                const type = String.fromCharCode(
-                    dataView.getUint8(offset + 4),
-                    dataView.getUint8(offset + 5),
-                    dataView.getUint8(offset + 6),
-                    dataView.getUint8(offset + 7)
-                );
+        if (total) {
+            const pct = ((offset / total) * 100).toFixed(1);
+            setStatus(`Streaming… ${pct}% (${(offset / 1024 / 1024).toFixed(2)} MB)`, 'info');
+        } else {
+            setStatus(`Streaming… ${(offset / 1024 / 1024).toFixed(2)} MB`, 'info');
+        }
+    }
 
-                if (type === 'pssh') {
-                    // Found the PSSH box! Return the entire box, including its size and type.
-                    return buffer.slice(offset, offset + size);
-                }
-                if (size === 0) break; // A size of 0 means the box extends to the end of the file.
-                offset += size;
-            }
-            return null;
+    if (mediaSource && mediaSource.readyState === 'open') {
+        try { mediaSource.endOfStream(); } catch (_) {}
+    }
+    setStatus('Streaming finished.', 'ok');
+}
+
+/* =========================================================================
+ *  FETCH HELPERS
+ * ========================================================================= */
+function buildCdnHeaders(accessToken, spDcCookie) {
+    const headers = {
+        'Authorization': `Bearer ${accessToken}`
+    };
+    if (spDcCookie) {
+        headers['Cookie'] = `sp_dc=${spDcCookie}`;
+    }
+    return headers;
+}
+
+async function fetchRange(url, start, end, accessToken, spDcCookie) {
+    const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+            ...buildCdnHeaders(accessToken, spDcCookie),
+            'Range': `bytes=${start}-${end}`
+        }
+    });
+    if (!response.ok && response.status !== 206) {
+        throw new Error(`CDN responded ${response.status} ${response.statusText}`);
+    }
+    return await response.arrayBuffer();
+}
+
+/* =========================================================================
+ *  PSSH EXTRACTION
+ *  Walks top-level ISO BMFF boxes looking for 'pssh'.
+ * ========================================================================= */
+function extractPsshBox(buffer) {
+    const view = new DataView(buffer);
+    const len = buffer.byteLength;
+    let offset = 0;
+
+    while (offset + 8 <= len) {
+        let size = view.getUint32(offset);
+        const type = String.fromCharCode(
+            view.getUint8(offset + 4),
+            view.getUint8(offset + 5),
+            view.getUint8(offset + 6),
+            view.getUint8(offset + 7)
+        );
+
+        // 64-bit box size (rare but valid).
+        let headerSize = 8;
+        if (size === 1) {
+            if (offset + 16 > len) break;
+            const hi = view.getUint32(offset + 8);
+            const lo = view.getUint32(offset + 12);
+            size = hi * 2 ** 32 + lo;
+            headerSize = 16;
         }
 
-        /**
-         * Handles the license request by sending the CDM's challenge to Spotify's license server.
-         */
-        async function handleLicenseRequest(message, accessToken) {
-            // Construct the full license URL with required query parameters.
-            // 'exp' is an expiration timestamp (e.g., 1 hour from now).
-            // 'cp' is often an empty parameter.
-            // 'tok' is the user's access token.
-            const exp = Math.floor(Date.now() / 1000) + 3600; // 1 hour expiry
-            const licenseUrl = `${SPOTIFY_LICENSE_ENDPOINT}?exp=${exp}&cp=&tok=${accessToken}`;
-            
-            // Route through a CORS proxy. The proxy must forward the URL and the request body.
-            const proxyUrl = LICENSE_PROXY_URL + encodeURIComponent(licenseUrl);
-
-            try {
-                const response = await fetch(proxyUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/octet-stream',
-                        // Some proxies require the Origin header to be set.
-                        // 'Origin': 'https://open.spotify.com'
-                    },
-                    body: message // The CDM's license challenge.
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`License server responded with ${response.status}: ${errorText}`);
-                }
-
-                const license = await response.arrayBuffer();
-                setStatus('License received. Updating session...');
-                // Pass the license to the CDM to derive the decryption keys.
-                await mediaKeySession.update(license);
-
-            } catch (error) {
-                setStatus(`License request failed: ${error.message}`, true);
-                console.error('License request error:', error);
-                throw error;
-            }
+        if (type === 'pssh') {
+            return buffer.slice(offset, offset + size);
         }
+        if (size === 0) break; // extends to EOF
+        if (size < headerSize) break; // malformed
 
-        /**
-         * Sets up MSE and begins streaming the encrypted audio chunks.
-         */
-        async function startMediaStreaming(url, accessToken, spDcCookie, initialChunk) {
-            // 1. Create a MediaSource and attach it to the audio element.
-            mediaSource = new MediaSource();
-            audioElement.src = URL.createObjectURL(mediaSource);
+        offset += size;
+    }
+    return null;
+}
 
-            mediaSource.addEventListener('sourceopen', async () => {
-                try {
-                    // 2. Create a SourceBuffer for the AAC audio codec.
-                    // The codec string 'mp4a.40.2' corresponds to AAC-LC.
-                    const mimeCodec = 'audio/mp4; codecs="mp4a.40.2"';
-                    sourceBuffer = mediaSource.addSourceBuffer(mimeCodec);
+/* =========================================================================
+ *  MISC
+ * ========================================================================= */
+document.addEventListener('contextmenu', e => e.preventDefault());
 
-                    // 3. Set the MediaKeys on the audio element to enable decryption.
-                    await audioElement.setMediaKeys(mediaKeys);
-
-                    // 4. Append the initial chunk (which includes the header and initData).
-                    sourceBuffer.appendBuffer(initialChunk);
-                    await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
-
-                    // 5. Begin fetching and appending subsequent chunks.
-                    await streamRemainingChunks(url, accessToken, spDcCookie, initialChunk.byteLength);
-
-                } catch (error) {
-                    setStatus(`MediaSource setup failed: ${error.message}`, true);
-                    console.error(error);
-                }
-            });
-        }
-
-        /**
-         * Fetches and appends the remaining chunks of the audio file.
-         */
-        async function streamRemainingChunks(url, accessToken, spDcCookie, startOffset) {
-            const CHUNK_SIZE = 512 * 1024; // ~512 kB, typical for Spotify
-            let offset = startOffset;
-            const totalLength = parseInt((await fetch(url, { method: 'HEAD' })).headers.get('Content-Length'), 10);
-
-            setStatus(`Streaming audio... (Total size: ${(totalLength / 1024 / 1024).toFixed(2)} MB)`);
-
-            while (offset < totalLength) {
-                try {
-                    const chunk = await fetchAudioChunk(url, offset, offset + CHUNK_SIZE - 1, accessToken, spDcCookie);
-                    if (chunk.byteLength === 0) break;
-
-                    // Wait for the SourceBuffer to be ready for more data.
-                    if (sourceBuffer.updating) {
-                        await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
-                    }
-                    
-                    sourceBuffer.appendBuffer(chunk);
-                    offset += chunk.byteLength;
-                    
-                    // Wait for the append to finish before fetching the next chunk.
-                    await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
-
-                    // Update status with progress.
-                    const progress = ((offset / totalLength) * 100).toFixed(1);
-                    setStatus(`Streaming audio... ${progress}%`);
-
-                } catch (error) {
-                    setStatus(`Streaming error: ${error.message}`, true);
-                    console.error('Streaming error:', error);
-                    break;
-                }
-            }
-
-            if (offset >= totalLength) {
-                setStatus('Playback complete.', false);
-                if (mediaSource.readyState === 'open') {
-                    mediaSource.endOfStream();
-                }
-            }
-        }
-
-        // Initial status
-        setStatus('Ready. Please fill in the fields and click "Load & Play".');
-    </script>
+window.addEventListener('beforeunload', () => {
+    try {
+        if (mediaKeySession) mediaKeySession.close();
+        if (mediaSource && mediaSource.readyState === 'open') mediaSource.endOfStream();
+    } catch (_) {}
+});
+</script>
 </body>
-</html>
+    </html>

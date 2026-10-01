@@ -619,9 +619,9 @@
     "name": "Zee News",
     "id": "504",
     "category": "News",
-    "url": "https://amg01448-samsungin-zeenews-samsungin-ad-34.amagi.tv/ts-ap-s1-n1/playlist/amg01448-samsungin-zeenews-samsungin/playlist.m3u8?ads.ads_cdn=ak&ads.cdn=ak&pb_type=pb-dkdpz5so0aqqr_akamai",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Zee_News_MOB/WDVLive/index.mpd",
+    "keyId": "643816b8692553f7af08ed5dbe9585bb",
+    "key": "e2136ac8b8b57f625140e586fc8224c8",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Zee_News.png"
   },
   {

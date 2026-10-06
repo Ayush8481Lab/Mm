@@ -607,8 +607,8 @@
     "id": "1106",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"OVH-f79LCzPmJG_EAfdnlw\",\"kid\":\"RYJVYfTvUWaqeFtHTXdHQ\"},{\"kty\":\"oct\",\"k\":\"vJMidgMbPmN1jPZ7FHw1Vw\",\"kid\":\"v5UiLZvoXYWpEoHnlumUgQ\"},{\"kty\":\"oct\",\"k\":\"Y2QNxEMNFAA97wyXoturTQ\",\"kid\":\"8hfp_hM-W5SMjq-8eObRw\"},{\"kty\":\"oct\",\"k\":\"K1-L26J5AylDoEAHi7IrNQ\",\"kid\":\"7aMTIkR0XBCSwFTa8inWw\"},{\"kty\":\"oct\",\"k\":\"qC1rhQtcKBwAVPxtVeHGug\",\"kid\":\"Bt1ih8S5VkGdFdbI5ROu7Q\"}],\"type\":\"temporary\"}",
-    "logo": "https://img.media.jio.com/tvpimages/76/32/301981_1749665664018_l_medium.jpg"
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"OVH-f79LCzPmJG_EAfdnlw\",\"kid\":\"RYJVYfTvUWaRqeFtHTXdHQ\"},{\"kty\":\"oct\",\"k\":\"vJMidgMbPmN1jPZ7FHw1Vw\",\"kid\":\"v5UiLZvoXYWpEoHnlumUgQ\"},{\"kty\":\"oct\",\"k\":\"Y2QNxEMNFAA97wyXoturTQ\",\"kid\":\"8hfp_hM-W5SMjq-8eObRw\"},{\"kty\":\"oct\",\"k\":\"K1-L26J5AylDoEAHi7IrNQ\",\"kid\":\"7aMTIkR0XBCSwFTa8inWw\"},{\"kty\":\"oct\",\"k\":\"qC1rhQtcKBwAVPxtVeHGug\",\"kid\":\"Bt1ih8S5VkGdFdbI5ROu7Q\"}],\"type\":\"temporary\"}",
+ "logo": "https://img.media.jio.com/tvpimages/76/32/301981_1749665664018_l_medium.jpg"
   },
   {
     "name": "Star Sports 2",
@@ -640,8 +640,8 @@
     "id": "1984",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/StarSportsHD2Hin_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"m5zjXI2RNAk5Axq6XkM5kQ\",\"kid\":\"W1DxGgmhUnW1dC7y1uAB4A\"},{\"kty\":\"oct\",\"k\":\"tBNPSkHMDSFLqQnMTr2wug\",\"kid\":\"IuTeIqObXOeEJcc5xJQeew\"},{\"kty\":\"oct\",\"k\":\"Ddzw9lb1IAiiJ2qFrbz0Lg\",\"kid\":\"F6MkAXQcUHK9L1UPcr56Qg\"},{\"kty\":\"oct\",\"k\":\"k59CXg73gvFsydtLhLRxlQ\",\"kid\":\"DBpMT0pgU4qIQa1ntd80iA\"},{\"kty\":\"oct\",\"k\":\"uJ0Y5UrStVXbJ8MlnbGaPg\",\"kid\":\"jkhDW6A4VIKZ7nP-ZhTXQ\"}],\"type\":\"temporary\"}",
-    "logo": "https://img.media.jio.com/tvpimages/56/36/301229_1742214332015_l_medium.jpg"
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"m5zjXI2RNAk5Axq6XkM5kQ\",\"kid\":\"W1DxGgmhUnW1dC7y1uAB4A\"},{\"kty\":\"oct\",\"k\":\"tBNPSkHMDSFLqQnMTr2wug\",\"kid\":\"IuTeIqObXOeEJcc5xJQeew\"},{\"kty\":\"oct\",\"k\":\"Ddzw9lb1IAiiJ2qFrbz0Lg\",\"kid\":\"F6MkAXQcUHK9L1UPcr56Qg\"},{\"kty\":\"oct\",\"k\":\"k59CXg73gvFsydtLhLRxlQ\",\"kid\":\"DBpMT0pgU4qIQa1ntd80iA\"},{\"kty\":\"oct\",\"k\":\"uJ0Y5UrStVXbJ8MlnbGaPg\",\"kid\":\"jkhDW6A4VIKZ7nP--ZhTXQ\"}],\"type\":\"temporary\"}",
+ "logo": "https://img.media.jio.com/tvpimages/56/36/301229_1742214332015_l_medium.jpg"
   },
   {
     "name": "Star Sports 3",

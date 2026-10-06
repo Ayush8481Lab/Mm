@@ -572,8 +572,8 @@
     "id": "1108",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"XF4VhyTs7ZL5LKgob7KP2Q\",\"kid\":\"oc5rlRTzUXS9qA3dQlv9i\"},{\"kty\":\"oct\",\"k\":\"vwHm6P90eX-1IV_q13nouQ\",\"kid\":\"3S-mBK_EXlKPiiKDvzy2KA\"},{\"kty\":\"oct\",\"k\":\"HFQJPv91ruzNMOu8U8Dlow\",\"kid\":\"IJl19nU9XeGsJtYE2s5TEw\"},{\"kty\":\"oct\",\"k\":\"bxtZN2CQ0ffOM8vSZOh8Ng\",\"kid\":\"e9zNs90BXDegw71wZ1yOTA\"},{\"kty\":\"oct\",\"k\":\"XRxZqAUpVr0FaBDyYBYeXw\",\"kid\":\"EQc7j0JuUJKi7_raO_r3IQ\"}],\"type\":\"temporary\"}",
-    "logo": "https://img.media.jio.com/tvpimages/5/6/301982_1749665314605_l_medium.jpg"
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"XF4VhyTs7ZL5LKgob7KP2Q\",\"kid\":\"oc5rlRTzUXS9qA3dQlv9iA\"},{\"kty\":\"oct\",\"k\":\"vwHm6P90eX-1IV_q13nouQ\",\"kid\":\"3S-mBK_EXlKPiiKDvzy2KA\"},{\"kty\":\"oct\",\"k\":\"HFQJPv91ruzNMOu8U8Dlow\",\"kid\":\"IJl19nU9XeGsJtYE2s5TEw\"},{\"kty\":\"oct\",\"k\":\"bxtZN2CQ0ffOM8vSZOh8Ng\",\"kid\":\"e9zNs90BXDegw71wZ1yOTA\"},{\"kty\":\"oct\",\"k\":\"XRxZqAUpVr0FaBDyYBYeXw\",\"kid\":\"EQc7j0JuUJKi7_raO_r3IQ\"}],\"type\":\"temporary\"}",
+"logo": "https://img.media.jio.com/tvpimages/5/6/301982_1749665314605_l_medium.jpg"
   },
   {
     "name": "SONY TEN 3 HD",
@@ -728,8 +728,8 @@
     "id": "460",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com//bpk-tv/Star_Sports_Select_HD_1_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"wP8vvVnibWYz-Yr0cMTXtg\",\"kid\":\"j8hJmFLqUYKyqTB72SHOoQ\"},{\"kty\":\"oct\",\"k\":\"D7uxLvzxbigXs8iBhHsqvw\",\"kid\":\"JyybmCdCUPGwuunhlhInWg\"},{\"kty\":\"oct\",\"k\":\"E9fETA4_7o2RhqBJEgdinA\",\"kid\":\"_jgVXhzuU3eNtiezW9LSCw\"},{\"kty\":\"oct\",\"k\":\"TvrNOlr4h96jk_C5VfSZtg\",\"kid\":\"M3_jS78hUsG_5eqHhwcs1A\"},{\"kty\":\"oct\",\"k\":\"AHTEYFV7HyGmD6Cq2lUOg\",\"kid\":\"zARCsKdWae2IJNN277LfA\"}],\"type\":\"temporary\"}",
-    "logo": "https://img.media.jio.com/tvpimages/96/65/302113_1749664252703_l_medium.jpg"
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"wP8vvVnibWYz-Yr0cMTXtg\",\"kid\":\"j8hJmFLqUYKyqTB72SHOoQ\"},{\"kty\":\"oct\",\"k\":\"D7uxLvzxbigXs8iBhHsqvw\",\"kid\":\"JyybmCdCUPGwuunhlhInWg\"},{\"kty\":\"oct\",\"k\":\"E9fETA4_7o2RhqBJEgdinA\",\"kid\":\"_jgVXhzuU3eNtiezW9LSCw\"},{\"kty\":\"oct\",\"k\":\"TvrNOlr4h96jk_C5VfSZtg\",\"kid\":\"M3_jS78hUsG_5eqHhwcs1A\"},{\"kty\":\"oct\",\"k\":\"AHTEYFV7HyGmD6Cq2lUOg\",\"kid\":\"zARCasKDWae2IJNN277LfA\"}],\"type\":\"temporary\"}",
+     "logo": "https://img.media.jio.com/tvpimages/96/65/302113_1749664252703_l_medium.jpg"
   },
   {
     "name": "Star Sports Select 1",

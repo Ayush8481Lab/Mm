@@ -571,8 +571,8 @@
     "name": "Star Sports 1 Hindi HD",
     "id": "1108",
     "category": "SPORTS",
-    "url": "hhttps://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd",
-    "keyId": "11073b8f426e5092a2effada3bfaf721"",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd",
+    "keyId": "11073b8f426e5092a2effada3bfaf721",
     "key": "5d1c59a8052956bd056810f260161e5f",
     "logo": "https://img.media.jio.com/tvpimages/5/6/301982_1749665314605_l_medium.jpg"
   },{
@@ -651,7 +651,7 @@
     "id": "1389",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_3_BTS/WDVLive/index.mpd",
-    "keyId": "82dc7db814ef5165a3d93102f40a5142"",
+    "keyId": "82dc7db814ef5165a3d93102f40a5142",
     "key": "f767c4c59fbfeaf84754994a0ed5dc8b",
     "logo": "https://img.media.jio.com/tvpimages/78/2/302117_1749666092192_l_medium.jpg"
   },  {
@@ -682,7 +682,7 @@
   },
   {
     "name": "SONY TEN 2",
-    "id": "891",
+    "id": "523",
     "category": "SPORTS",
  "url": "https://dishmt.slivcdn.com/hls/live/2020590/TEN2SD/master.m3u8",
  "keyId": "null",

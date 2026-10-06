@@ -558,13 +558,13 @@
     "keyId": "a19c52e13a755afaa457a3c8488f4822",
     "key": "89dc06fb26e0fc72e9b9a1226073c8a2",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-348/channel_list/1920x1080list7568db782c114329afd8bb7e030eca0d.png"
-  },{
+  },
+  {
     "name": "Star Sports 1 Hindi",
     "id": "362",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_1_Hindi_BTS/WDVLive/index.mpd",
-    "keyId": "187e53dccc7c50f5b43306635bc93adb",
-    "key": "72f9a4a4ff898de730991ae465d06388",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"eqYQxoAA_p7ZeFHUClKr_w\",\"kid\":\"MAObbixUXAGqhOZJh1xJdw\"},{\"kty\":\"oct\",\"k\":\"ZUOxmEMwEJiG0oZNBgllkA\",\"kid\":\"wvCiBMbDU0KJVHQNBdc8PQ\"},{\"kty\":\"oct\",\"k\":\"lvNYWqskEJ1kt06fDGpe0w\",\"kid\":\"qcuLOQNaU5OkRQ9Ww1sVog\"},{\"kty\":\"oct\",\"k\":\"ONneZFQA_i35hRd6r7aiSA\",\"kid\":\"aiigXQ-aXgmYfkJn6rWpRw\"},{\"kty\":\"oct\",\"k\":\"cvmkpP-JjecwmRrkZdBjiA\",\"kid\":\"GH5T3Mx8UPW0MwZjW8k62w\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/13/81/302112_1749665154709_l_medium.jpg"
   },
   {
@@ -572,27 +572,28 @@
     "id": "1108",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_Hindi_BTS/WDVLive/index.mpd",
-    "keyId": "11073b8f426e5092a2effada3bfaf721",
-    "key": "5d1c59a8052956bd056810f260161e5f",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"XF4VhyTs7ZL5LKgob7KP2Q\",\"kid\":\"oc5rlRTzUXS9qA3dQlv9i\"},{\"kty\":\"oct\",\"k\":\"vwHm6P90eX-1IV_q13nouQ\",\"kid\":\"3S-mBK_EXlKPiiKDvzy2KA\"},{\"kty\":\"oct\",\"k\":\"HFQJPv91ruzNMOu8U8Dlow\",\"kid\":\"IJl19nU9XeGsJtYE2s5TEw\"},{\"kty\":\"oct\",\"k\":\"bxtZN2CQ0ffOM8vSZOh8Ng\",\"kid\":\"e9zNs90BXDegw71wZ1yOTA\"},{\"kty\":\"oct\",\"k\":\"XRxZqAUpVr0FaBDyYBYeXw\",\"kid\":\"EQc7j0JuUJKi7_raO_r3IQ\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/5/6/301982_1749665314605_l_medium.jpg"
-  },{
+  },
+  {
     "name": "SONY TEN 3 HD",
     "id": "892",
     "category": "SPORTS",
     "url": "https://dishmt.slivcdn.com/hls/live/2020591/TEN3HD/master.m3u8",
- "keyId": "null", 
-"key": "null",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten3_HD.png"
   },
   {
     "name": "SONY TEN 3",
     "id": "524",
     "category": "SPORTS",
-     "url": "https://dishmt.slivcdn.com/hls/live/2020592/TEN3SD/master.m3u8",
- "keyId": "null", 
-"key": "null",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020592/TEN3SD/master.m3u8",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten3.png"
-  },{
+  },
+  {
     "name": "Star Sports 1",
     "id": "1142",
     "category": "SPORTS",
@@ -606,8 +607,7 @@
     "id": "1106",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD1_BTS/WDVLive/index.mpd",
-    "keyId": "06dd6287c4b956419d15d6c8e513aeed",
-    "key": "a82d6b850b5c281c0054fc6d55e1c6ba",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"OVH-f79LCzPmJG_EAfdnlw\",\"kid\":\"RYJVYfTvUWaqeFtHTXdHQ\"},{\"kty\":\"oct\",\"k\":\"vJMidgMbPmN1jPZ7FHw1Vw\",\"kid\":\"v5UiLZvoXYWpEoHnlumUgQ\"},{\"kty\":\"oct\",\"k\":\"Y2QNxEMNFAA97wyXoturTQ\",\"kid\":\"8hfp_hM-W5SMjq-8eObRw\"},{\"kty\":\"oct\",\"k\":\"K1-L26J5AylDoEAHi7IrNQ\",\"kid\":\"7aMTIkR0XBCSwFTa8inWw\"},{\"kty\":\"oct\",\"k\":\"qC1rhQtcKBwAVPxtVeHGug\",\"kid\":\"Bt1ih8S5VkGdFdbI5ROu7Q\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/76/32/301981_1749665664018_l_medium.jpg"
   },
   {
@@ -624,8 +624,7 @@
     "id": "1109",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_HD2_BTS/WDVLive/index.mpd",
-    "keyId": "c1ea31b9099b5030b14b67b41dc547d2",
-    "key": "db74fb55442bc9cf7e8e9f364b3fe37f",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"svEPCadxMnubxpSE145FlQ\",\"kid\":\"uZFE8nuGXWuhAH_q2Csngw\"},{\"kty\":\"oct\",\"k\":\"fuu1ObA_Z0om6ErgljIMcA\",\"kid\":\"BCBMmHGKUr-eiNXmdv16Yw\"},{\"kty\":\"oct\",\"k\":\"Ju_56XIVTmJPryWa4O547A\",\"kid\":\"M_q2-CpZWQ64dflJOJ4DqQ\"},{\"kty\":\"oct\",\"k\":\"7_Aoe0yU7ami2qctPGg5A\",\"kid\":\"pa197IYUaSQKRKO50wuw\"},{\"kty\":\"oct\",\"k\":\"23T7VUQryc9-jp82Sz_jfw\",\"kid\":\"weoxuQmbUDCxS2e0HcVH0g\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/41/51/301983_1749666169105_l_medium.jpg"
   },
   {
@@ -633,8 +632,7 @@
     "id": "1985",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Sports18_1_SD_BTS/WDVLive/index.mpd",
-    "keyId": "602ce22ddc995d4495d10c1adeeb8e8c",
-    "key": "be784f89f9513333c7621900c7a1d89b",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"uXn7-EC1yYRzPSiq9oN2Lg\",\"kid\":\"-a8i9tdvX12Yo17tf8NSkg\"},{\"kty\":\"oct\",\"k\":\"kT3pXLqR6tvu6XhIghhfcA\",\"kid\":\"0g-k9JH_XnSktbFJyu05ew\"},{\"kty\":\"oct\",\"k\":\"i28AGZcV5ec2_JcOLoh3CQ\",\"kid\":\"9S2Oa0PJXue10QksEnBJvA\"},{\"kty\":\"oct\",\"k\":\"mMxm9W2ppOgWP1-DHwPNQw\",\"kid\":\"tK4lmaM_XLyO_yFvgihM7w\"},{\"kty\":\"oct\",\"k\":\"vnhPiflRMzPHYhkAx6HYmw\",\"kid\":\"YCziLdyZXUSV0Qwa3uuOjA\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/57/17/302124_1749130246443_l_medium.jpg"
   },
   {
@@ -642,8 +640,7 @@
     "id": "1984",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/StarSportsHD2Hin_BTS/WDVLive/index.mpd",
-    "keyId": "8e48435ba038548299ee73fef998535d",
-    "key": "b89d18e54ad2b5576c27c3259db19a3e",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"m5zjXI2RNAk5Axq6XkM5kQ\",\"kid\":\"W1DxGgmhUnW1dC7y1uAB4A\"},{\"kty\":\"oct\",\"k\":\"tBNPSkHMDSFLqQnMTr2wug\",\"kid\":\"IuTeIqObXOeEJcc5xJQeew\"},{\"kty\":\"oct\",\"k\":\"Ddzw9lb1IAiiJ2qFrbz0Lg\",\"kid\":\"F6MkAXQcUHK9L1UPcr56Qg\"},{\"kty\":\"oct\",\"k\":\"k59CXg73gvFsydtLhLRxlQ\",\"kid\":\"DBpMT0pgU4qIQa1ntd80iA\"},{\"kty\":\"oct\",\"k\":\"uJ0Y5UrStVXbJ8MlnbGaPg\",\"kid\":\"jkhDW6A4VIKZ7nP-ZhTXQ\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/56/36/301229_1742214332015_l_medium.jpg"
   },
   {
@@ -651,85 +648,87 @@
     "id": "1389",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_3_BTS/WDVLive/index.mpd",
-    "keyId": "82dc7db814ef5165a3d93102f40a5142",
-    "key": "f767c4c59fbfeaf84754994a0ed5dc8b",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"9pEBtxhy3Pss0Zh9N3PA9A\",\"kid\":\"KQRzLI-1Xr6qD1kxaRaZfg\"},{\"kty\":\"oct\",\"k\":\"iMVjcSYsG76EPBdHILvesA\",\"kid\":\"LwQM5kDuV5eLC8u5da8ApA\"},{\"kty\":\"oct\",\"k\":\"yuGdFx-xAVqJNC5RhfjMew\",\"kid\":\"b79mlv8wUXaDN6NNoOZuA\"},{\"kty\":\"oct\",\"k\":\"jtdX7aK3QChbz5qP2SY0Ig\",\"kid\":\"wZts_qAxUL6GiVTReXXBg\"},{\"kty\":\"oct\",\"k\":\"92fExZ-_6vhHVJlKDtXciw\",\"kid\":\"gtx9uBTvUWWj2TEC9ApRQg\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/78/2/302117_1749666092192_l_medium.jpg"
-  },  {
+  },
+  {
     "name": "SONY TEN 1 HD",
     "id": "162",
     "category": "SPORTS",
-    "url": "https://dishmt.slivcdn.com/hls/live/2011747/TEN1HD/master.m3u8", 
-"keyId": "3525c924e54154b39533d86b1c7a428a", 
-"key": "8548b566fc6608a7d3bd601ee5f3d889",
+    "url": "https://dishmt.slivcdn.com/hls/live/2011747/TEN1HD/master.m3u8",
+    "keyId": "3525c924e54154b39533d86b1c7a428a",
+    "key": "8548b566fc6608a7d3bd601ee5f3d889",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_HD.png"
   },
   {
     "name": "SONY TEN 1",
     "id": "514",
     "category": "SPORTS",
-    "url": "https://dishmt.slivcdn.com/hls/live/2011739/TEN1SD/master.m3u8", "keyId": "null",
- "key": "null",
+    "url": "https://dishmt.slivcdn.com/hls/live/2011739/TEN1SD/master.m3u8",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_1.png"
   },
   {
     "name": "SONY TEN 2 HD",
     "id": "891",
     "category": "SPORTS",
-    "url": "https://dishmt.slivcdn.com/hls/live/2020434/TEN2HD/master.m3u8", 
-"keyId": "null", 
-"key": "null",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020434/TEN2HD/master.m3u8",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten2_HD.png"
   },
   {
     "name": "SONY TEN 2",
     "id": "523",
     "category": "SPORTS",
- "url": "https://dishmt.slivcdn.com/hls/live/2020590/TEN2SD/master.m3u8",
- "keyId": "null",
- "key": "null",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020590/TEN2SD/master.m3u8",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten2_HD.png"
-  },{
+  },
+  {
     "name": "SONY TEN 4 HD",
     "id": "1775",
     "category": "SPORTS",
     "url": "https://dishmt.slivcdn.com/hls/live/2020589/ten4hd/master.m3u8",
- "keyId": "null", 
-"key": "null",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_4_HD_Telugu.png"
   },
   {
     "name": "SONY TEN 4",
     "id": "1774",
     "category": "SPORTS",
-"url": "https://dishmt.slivcdn.com/hls/live/2020437/ten4sd/master.m3u8", 
-"keyId": "null", 
-"key": "null",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020437/ten4sd/master.m3u8",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_4_Tamil.png"
   },
-  
   {
     "name": "SONY TEN 5",
     "id": "525",
     "category": "SPORTS",
     "url": "https://dishmt.slivcdn.com/hls/live/2020594/SONYSIXSD/master.m3u8",
- "keyId": "null",
- "key": "null",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Six_HD.png"
-  },{
+  },
+  {
     "name": "SONY TEN 5 HD",
     "id": "155",
     "category": "SPORTS",
     "url": "https://dishmt.slivcdn.com/hls/live/2020595/TEN5HD/master.m3u8",
- "keyId": "null",
- "key": "null",
+    "keyId": "null",
+    "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Six_HD.png"
-  },{
+  },
+  {
     "name": "Star Sports Select 1 HD",
     "id": "460",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com//bpk-tv/Star_Sports_Select_HD_1_BTS/WDVLive/index.mpd",
-    "keyId": "c2c048e439d65316beeda6ef64d5d0f8",
-    "key": "e2fdc132cbdee65501b845ce414fce39",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"wP8vvVnibWYz-Yr0cMTXtg\",\"kid\":\"j8hJmFLqUYKyqTB72SHOoQ\"},{\"kty\":\"oct\",\"k\":\"D7uxLvzxbigXs8iBhHsqvw\",\"kid\":\"JyybmCdCUPGwuunhlhInWg\"},{\"kty\":\"oct\",\"k\":\"E9fETA4_7o2RhqBJEgdinA\",\"kid\":\"_jgVXhzuU3eNtiezW9LSCw\"},{\"kty\":\"oct\",\"k\":\"TvrNOlr4h96jk_C5VfSZtg\",\"kid\":\"M3_jS78hUsG_5eqHhwcs1A\"},{\"kty\":\"oct\",\"k\":\"AHTEYFV7HyGmD6Cq2lUOg\",\"kid\":\"zARCsKdWae2IJNN277LfA\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/96/65/302113_1749664252703_l_medium.jpg"
   },
   {
@@ -746,8 +745,7 @@
     "id": "461",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_Select_HD_2_BTS/WDVLive/index.mpd",
-    "keyId": "6017d0514d425fa38f6e80ba6dcc852f",
-    "key": "0018944b00adf2078f62386f30c68b74",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"HXjzUgDrWXepXeZpeIzxKA\",\"kid\":\"LEQ9_--yVqW3oTZMxK81KQ\"},{\"kty\":\"oct\",\"k\":\"_mSA0olHRrpXmaPChH5ViQ\",\"kid\":\"y0sh4MrRXgC6OBn7kWYP7A\"},{\"kty\":\"oct\",\"k\":\"RB8iWIH4Fsa-3s4Ohu-A5w\",\"kid\":\"5cR8-ZKnX5i04aTSYt5h6A\"},{\"kty\":\"oct\",\"k\":\"RoEb5zGVBJoJtzG9k0TK1A\",\"kid\":\"ko2QWMCoVQ-2ujFRJKds1Q\"},{\"kty\":\"oct\",\"k\":\"rGpqQWudJr5oGegML-XTnw\",\"kid\":\"JfuyqTKyXpqsrpR7L4c9PA\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/98/79/302114_1749665414817_l_medium.jpg"
   },
   {
@@ -755,10 +753,10 @@
     "id": "1114",
     "category": "SPORTS",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_Select_2_BTS/WDVLive/index.mpd",
-    "keyId": "ec7d009d07aa5cbc81a441880530dfa5",
-    "key": "8147983ad7402ebfc222d28b667a196f",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"08F5CdBhyqLgqcdeGVrj1A\",\"kid\":\"KzB9qlenVpis-sPoXU_4xQ\"},{\"kty\":\"oct\",\"k\":\"PfxHTbQIbxc9NC8gzcjgTA\",\"kid\":\"IlMe8bWAWly1r8A_M0aPrA\"},{\"kty\":\"oct\",\"k\":\"21Vaqnaa1gwk3B75AFoFaw\",\"kid\":\"D94Q2zhsWKqpL1kyCS8AOQ\"},{\"kty\":\"oct\",\"k\":\"86M9vDiUIkaon_Rx0AYsZg\",\"kid\":\"KvD2cTexX1qryqPyZhulnQ\"},{\"kty\":\"oct\",\"k\":\"Uri_AOvgBW583NIh-u2Eag\",\"kid\":\"wYJy3KAQVvuD1u8M_QqTrQ\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/98/48/301989_1749664475828_l_medium.jpg"
   },
+
   {
     "name": "Aaj Tak",
     "id": "173",

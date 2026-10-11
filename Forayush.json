@@ -38,8 +38,7 @@
     "id": "484",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeCinema_BTS/WDVLive/index.mpd",
-    "keyId": "90d8713ba5e85d779d005b1f14a5bc8d",
-    "key": "33650314fe1e945017640ba9878c5de9",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"fgiX7NhAKPIH-bxNya8SGw\",\"kid\":\"LEaEYrSgUZ6EGOSPskXldg\"},{\"kty\":\"oct\",\"k\":\"aYTWaMnWC6K90LMRJN6IhA\",\"kid\":\"cvWxBIHGWDW8lpUlsfxsAg\"},{\"kty\":\"oct\",\"k\":\"6y9E530F93AODk-2IVPwNA\",\"kid\":\"iEk1IXgZWOqhgYJ0rPXozg\"},{\"kty\":\"oct\",\"k\":\"nflD6KUmJjpo5y8OjWQf2g\",\"kid\":\"olnq9ujSXda6lT_-6NvvxA\"},{\"kty\":\"oct\",\"k\":\"URBkt47WAA3pc_oTZrIOHQ\",\"kid\":\"fWt_0ZC1WZONrkuj22h2-A\"}],\"type\":\"temporary\"}",
     "logo": "https://upload.wikimedia.org/wikipedia/commons/a/af/Zee_Cinema_logo.png"
   },
   {
@@ -47,16 +46,14 @@
     "id": "165",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeCinemaHD_BTS/WDVLive/index.mpd",
-    "keyId": "d0049ab307fd5a13b96e306b953d06dd",
-    "key": "8057ff282237f0831dcdc4f8a9b2946f",
+"license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"HdgI-LjjZ92SBRKLwIZd7g\",\"kid\":\"J-t55sjvWU6oUIARtga7Ag\"},{\"kty\":\"oct\",\"k\":\"Z4IdVA1JhDjDyE4TuJcfdw\",\"kid\":\"L3P9b8MwVfCTHmtSmJqWiw\"},{\"kty\":\"oct\",\"k\":\"qF0c4WAEfxS_srk6HvI4WQ\",\"kid\":\"6vLFn1utXOKTg4sRZYUXTA\"},{\"kty\":\"oct\",\"k\":\"3YPyTr8vte9ar7B1uUUdRA\",\"kid\":\"cN9B7zo2VNexyxP7skMEgA\"},{\"kty\":\"oct\",\"k\":\"zpc-RfkjiEzOQgINoPtjmA\",\"kid\":\"rpp1DznuUjyI9xxHhyApzg\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeecinemahd/channel_list/1920x1080listb0707389e11d47edb651c329f76a0755.png"
   },  {
     "name": "And Pictures HD",
     "id": "185",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/AndPicturesHD_BTS/WDVLive/index.mpd",
-    "keyId": "6c589ac8b1715f698d5fac41fcc1840c",
-    "key": "4eb71be4db9d348e21ba68f40cecc478",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"gHr1K6Zx8QwRJ895AbFrCg\",\"kid\":\"RP6U02yAXLGQaK-or--mfQ\"},{\"kty\":\"oct\",\"k\":\"b-AhCiKpKok8VSUxYxUSRQ\",\"kid\":\"9G4NJNThXrmd2HOTFb4hiw\"},{\"kty\":\"oct\",\"k\":\"aAYufLReiJVdZPh_EQ8ARw\",\"kid\":\"4EPVJRVBWt6CNWplRvuZxg\"},{\"kty\":\"oct\",\"k\":\"t0z_kdEJHJloxh6kyMuKOw\",\"kid\":\"IrawKwU9UnGodPw3uLYvXA\"},{\"kty\":\"oct\",\"k\":\"LqwXtCBKL6eg9nzmMoj6_g\",\"kid\":\"tMYBTYlQUGK8Nd7g7VGb7Q\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/resources/0-9-tvpictureshd/channel_web/1170x658withlog1476130363.png"
   },
   {
@@ -228,8 +225,7 @@
     "id": "487",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeBollywood_BTS/WDVLive/index.mpd",
-    "keyId": "5895b358bf9f57a0addbec524e473919",
-    "key": "8fddf9c4394cb4984bafa3aaffb7dcca",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"lZnDJnKe-hzRQhD1MVqndg\",\"kid\":\"XgmHNj-PUUqPVlufNbYPBw\"},{\"kty\":\"oct\",\"k\":\"Uf7XIZQTGxwAiXYWiI5M1g\",\"kid\":\"PNveOFXkUn2Got6Tdn8ibw\"},{\"kty\":\"oct\",\"k\":\"QYdWdfoxT7mj5x9HUCdVHg\",\"kid\":\"7ex1r8v6WACMvLxw1YdC1Q\"},{\"kty\":\"oct\",\"k\":\"5eMzNKwnrSL5MU03YpDf0g\",\"kid\":\"ki40p7iAUQmHX2lF6SboJw\"},{\"kty\":\"oct\",\"k\":\"4koxDnqzkoOEs8WL279z4w\",\"kid\":\"hQjy27ZhVhq1VQcU3GGPXQ\"}],\"type\":\"temporary\"}",
     "logo": "https://imagesdishtvd2h.whatsonindia.com/dasimages/channel/landscape/360x270/EqDlflgi.png"
   },
   {
@@ -237,8 +233,7 @@
     "id": "488",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeAction_BTS/WDVLive/index.mpd",
-    "keyId": "a881e2bda4785fecbd13e50e6e3ba530",
-    "key": "3e27c8b04a620f1094bcbfdf0472c744",
+"license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"9nIKOESkeVn0y9d8hN51Mw\",\"kid\":\"0vsMgYrLVoSGXs9Vr-xkTA\"},{\"kty\":\"oct\",\"k\":\"yRJ8iSf_6VRG7XrNwD2mZA\",\"kid\":\"vuZ-DeWhVxe2qHFhS5Gw8w\"},{\"kty\":\"oct\",\"k\":\"pH_ghBB3pPQ0WXFGQ2V0tQ\",\"kid\":\"HpOi0GbWWkGf9yeVDFh4vg\"},{\"kty\":\"oct\",\"k\":\"_VOcU46c15prZf1h4UISGQ\",\"kid\":\"CwRRYOmMXhOIGbQbZZRw3A\"},{\"kty\":\"oct\",\"k\":\"XOyTDtGdZNezNs4tv7J_mg\",\"kid\":\"buqk9gk2V-eMgWzk8nyGLw\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeaction/channel_list/1920x1080list109ad06dd3c2485a97dbaddc85d22130.png"
   },
   {
@@ -246,8 +241,7 @@
     "id": "1691",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeClassicSD_BTS/WDVLive/index.mpd",
-    "keyId": "a4ca77c81bc556d994f7ecbee3bcbd20",
-    "key": "dade64f6771f47a113f6cfdf67606cd0",
+"license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"obZ0xLmc-ZPgenA7GZH_tg\",\"kid\":\"nMPs1i4MVzyCkNBgEq6wtw\"},{\"kty\":\"oct\",\"k\":\"N-tgrDb8t5zcYYc-LjRMoA\",\"kid\":\"0qr53D8WW-WXMHgRTzmkBA\"},{\"kty\":\"oct\",\"k\":\"qHhdqPUWtRvw9q5EVXUawg\",\"kid\":\"P5sN-eXPXdqsXsudveeOkA\"},{\"kty\":\"oct\",\"k\":\"T2fhQDOEuYFbsVtWx6A6vw\",\"kid\":\"DV9dVbafWUmMgiy_NR4njQ\"},{\"kty\":\"oct\",\"k\":\"g-DSRC-v8q9b4xF10eH57A\",\"kid\":\"VIbN-VLnUEaT3lYetWVFtA\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-176/channel_list/1920x1080list18cba842de654a3cb92b33556dfa0bc2.png"
   },
   {
@@ -282,8 +276,7 @@
     "id": "1668",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/AndXploreHD_BTS/WDVLive/index.mpd",
-    "keyId": "67e52f4bdcfc525898be0446feb7f185",
-    "key": "8cf5c24b168105bca24b358eb05f6df4",
+"license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"GGMVvgSg3kyDW3msoc8D8g\",\"kid\":\"ARAJ2G0GWG6xOWci5V_9Kw\"},{\"kty\":\"oct\",\"k\":\"05cCd9VcezS8QgaYxukg8w\",\"kid\":\"npaPVDKPWKyRSn9x4JqvcQ\"},{\"kty\":\"oct\",\"k\":\"TXHM_USjRvNEzf-fc9eaSQ\",\"kid\":\"ADEzih1QVUKC5BehnKSTZA\"},{\"kty\":\"oct\",\"k\":\"Uz2RRU1Ye1-I-Nqd8iSlEQ\",\"kid\":\"m2C5p533WHuXzhjo0j5A4Q\"},{\"kty\":\"oct\",\"k\":\"g2LqvU80T54RoI-r0iUtIg\",\"kid\":\"oXxVqD7VXT2EOz08Vdt9bw\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AndXploreHD.png"
   },
   {
@@ -361,16 +354,14 @@
     "id": "1351",
     "category": "Shows",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTV_BTS/WDVLive/index.mpd",
-    "keyId": "135fa2c3db6756a2a89dc08c033680ec",
-    "key": "5d2ed0c831759179354b2151a2cb0566",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"yaTmhLWZyp2uPkgrbxoPPA\",\"kid\":\"sYgFQSHgXmy7ZuoQrVW7mA\"},{\"kty\":\"oct\",\"k\":\"asyzCqHvugd5I4tsjY18wA\",\"kid\":\"v4BLpAboWiSf2avuJaj28Q\"},{\"kty\":\"oct\",\"k\":\"ZEZGUkhiEWp4t67y04p93g\",\"kid\":\"mWKL8WgLXaKA5iMYaj_d7w\"},{\"kty\":\"oct\",\"k\":\"pnVa2aTRVMlbCJVvTsmCwA\",\"kid\":\"DJPPBRpxXUCsP7gts3xbuA\"},{\"kty\":\"oct\",\"k\":\"PBMu_kF1OZze0yT78CQp_Q\",\"kid\":\"hL_Ehy3qU7-iQ4sAE2VLFA\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeetv/channel_list/1920x1080lista5ee31338b52425094454cd07e6981b1.png"
   },{
     "name": "Zee TV HD",
     "id": "167",
     "category": "Shows",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTVHD_BTS/WDVLive/index.mpd",
-    "keyId": "a23b609b33e254a48e4fc6fa7af0fd8d",
-    "key": "4064c52328bfe9e6008776b48a431e4b",
+"license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"0O36jr1lWSbF4pMtjFmz0Q\",\"kid\":\"ez0ikHhyVayc2vQ64x6szg\"},{\"kty\":\"oct\",\"k\":\"aMJovaPDPWd9tbd66BBNCQ\",\"kid\":\"JKDCzkaSXVml0HdTKQHXdQ\"},{\"kty\":\"oct\",\"k\":\"wDJC44NNrbt5zMHK2a-pTQ\",\"kid\":\"72jWSH2yXw-7CN_WU1Ev3g\"},{\"kty\":\"oct\",\"k\":\"4rZT1X6paE2OWyoDUQXwrw\",\"kid\":\"oDtwjd-YX262UTrAKTJGqQ\"},{\"kty\":\"oct\",\"k\":\"XLcdM04vhgCt3SMDcK8Ojw\",\"kid\":\"tVOpK3WCWbiPSK1SH0HLVA\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeetvhd/channel_list/1920x1080list3424a135de534b88a95bfd69d193ae1c.png"
   },
   {
@@ -439,8 +430,7 @@
     "id": "472",
     "category": "Shows",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/AndTVHD_BTS/WDVLive/index.mpd",
-    "keyId": "88295124db295a6b9f5027dc6049e294",
-    "key": "641c40230a95cb76d1949125f9552fda",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"beNW1d_uoLTEEt0Ayf8i7A\",\"kid\":\"oZUvlN4uWKy3XF561XeTjA\"},{\"kty\":\"oct\",\"k\":\"zyxqxpDy5xFrb8iiFaPxoA\",\"kid\":\"vzKKzQ4dU1-M12bTlE_5UQ\"},{\"kty\":\"oct\",\"k\":\"eI1lm3-_UuzGc3w7zAgajw\",\"kid\":\"D9d3iforWXug30FjyR4Zcg\"},{\"kty\":\"oct\",\"k\":\"HmbyG7BWp-erPq55T1yRew\",\"kid\":\"FNog2ECFVVSC5iSNmZ1QqA\"},{\"kty\":\"oct\",\"k\":\"q66_A5F_7af-MDWZV27K-w\",\"kid\":\"mTKc31lEXGOeAqAjNY05PQ\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-tvhd_0/channel_list/1920x1080list8cecf80ef6884ff09063a5abd21f81d6.png"
   },
   {
@@ -1426,8 +1416,7 @@
     "id": "1745",
     "category": "Bhojpuri",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeBiskope_BTS/WDVLive/index.mpd",
-    "keyId": "71b2f1f7ceed5d4ab62273dbdc16e3ac",
-    "key": "2d42ff5481ea336970c75f938b2e1473",
+"license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"tJfgkbCNd20llQtzwZM18w\",\"kid\":\"NtQ-4QLSVG2N-fLRiQ-SBQ\"},{\"kty\":\"oct\",\"k\":\"dBUCONmCJW4wTf380wwLnQ\",\"kid\":\"JOS8DnfDURWoTKb1YLidqA\"},{\"kty\":\"oct\",\"k\":\"13uRTLkiRQ01TXwQ7oYktA\",\"kid\":\"dvZIsLMmUZCHuGqTXWto9g\"},{\"kty\":\"oct\",\"k\":\"lBf79QQDXaeMZl2w0k9imw\",\"kid\":\"qlK-BsEtUc2qzmuCTeMhIA\"},{\"kty\":\"oct\",\"k\":\"fn0Ha-hmoP3qeXt63yRAoQ\",\"kid\":\"QX-PCitrWI6ebBLhNG-l1Q\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-216/channel_list/1920x1080list277eec9ca86a41f2bdc68935794767e9.png"
   },
   {

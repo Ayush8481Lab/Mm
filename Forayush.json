@@ -529,8 +529,7 @@
     "id": "585",
     "category": "Entertainment",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeZing_BTS/WDVLive/index.mpd",
-    "keyId": "f39ff1d0f5c85cd0a71c8fbbf9a317b3",
-    "key": "4f65f754e8d2c9dda5d9de825aa9daaa",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"T2X3VOjSyd2l2d6CWqnaqg\",\"kid\":\"85_x0PXIXNCnHI-7-aMXsw\"},{\"kty\":\"oct\",\"k\":\"SKGVjN1ULtOzY_hgpGf0ng\",\"kid\":\"o5L1naL5cbtKJJx3PkS0ZQ\"},{\"kty\":\"oct\",\"k\":\"fMJh4SDmgrKsuP2mfwxSwQ\",\"kid\":\"AvIhbSrvXsODZHqcxTZkGA\"},{\"kty\":\"oct\",\"k\":\"8U_gg_7JNXI2K0HWjI8UOA\",\"kid\":\"_LwrGpOva308TBZ6GDMFmw\"},{\"kty\":\"oct\",\"k\":\"Mi3iDIep49ImHXt2xfTcPQ\",\"kid\":\"5JrkSgCsf7I_xYVhns3_7w\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zing/channel_list/1920x1080list47035ca213b8483fb3985b221724ae7b.png"
   },
   {

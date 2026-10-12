@@ -93,7 +93,7 @@
     "name": "Star Gold Romance",
     "id": "3097",
     "category": "Movies",
-    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_Romance_MOB/WDVLive/index.mpd",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Gold_Romance_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"JkA3_4AWAuPc_pJ7zvjJCg\",\"kid\":\"jHgHLuhIURiCrYY9Q6bE_g\"},{\"kty\":\"oct\",\"k\":\"wmyh62GVvrGQkB2LGl4nMQ\",\"kid\":\"1nC2Np98W5KRm68W8ugqyA\"},{\"kty\":\"oct\",\"k\":\"xNfIE6MLRlfcyp2KZYwTRQ\",\"kid\":\"YrNVRHXgXa28ygHAkvO83w\"},{\"kty\":\"oct\",\"k\":\"PoLu-bXVxdK5sUeZGMVS7w\",\"kid\":\"XC0o47ZnUnqgWIvMYSyJSw\"},{\"kty\":\"oct\",\"k\":\"TTye6u9DidqlYSBL-LlIEA\",\"kid\":\"4C9nps_yURuU65tcqnRCfQ\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_Romance.png"
   },
@@ -101,7 +101,7 @@
     "name": "Star Gold Thrills",
     "id": "3098",
     "category": "Movies",
-    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Gold_Thrills_MOB/WDVLive/index.mpd",
+    "url": "https://jiotvPllive.cdn.jio.com/bpk-tv/Star_Gold_Thrills_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"gcIDhifQ3CvmmH9RVpP16Q\",\"kid\":\"eLpqGnfQUTyJwPg_o21WEA\"},{\"kty\":\"oct\",\"k\":\"6m1aaMfUUzcZswfntHAcOA\",\"kid\":\"xEgicMwOWT6EcHtPV_aLag\"},{\"kty\":\"oct\",\"k\":\"0QUiAwjHE_nprxGQVCJ29g\",\"kid\":\"9dLhGBCgXAKOUr0Jm0IsbA\"},{\"kty\":\"oct\",\"k\":\"kYlxb9HQGTscxFRuVuo7pg\",\"kid\":\"Z28vlXXTXS6UepmKd7AcAw\"},{\"kty\":\"oct\",\"k\":\"W0NYj0zwOeXlTT5tipSFUA\",\"kid\":\"mbvxUTdIXcK6PaTw4KaemA\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_Thrills.png"
   },

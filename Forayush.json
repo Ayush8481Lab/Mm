@@ -137,7 +137,7 @@
     "id": "415",
     "category": "Movies",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeAnmolCinema_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"7dbqdRkC9QN1HfSJ0fC13w\",\"kid\":\"xDYPvmsWIWvHM0CbZ2g81Q\"},{\"kty\":\"oct\",\"k\":\"R2-BPYZRmH_BtAdGk2dv2A\",\"kid\":\"irBnTro_Wt-WqbZaboLSCA\"},{\"kty\":\"oct\",\"k\":\"7Z6vqa0L3RrJcciocmlpng\",\"kid\":\"ppVH_XvKvJdvlEZ_c576Zw\"},{\"kty\":\"oct\",\"k\":\"XvEBQc71gosprkweaNzuxw\",\"kid\":\"HSd_KcT-R2HElf_49PJvYw\"},{\"kty\":\"oct\",\"k\":\"H6hY5RVX2wyH4DOBSyUGAA\",\"kid\":\"uHyj9SpX2kkP8J3VgIf8Jw\"}],\"type\":\"temporary\"}",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"vhTaj-YfR_bmT3h9553gVQ\",\"kid\":\"DK6EaRncUbmrfiWH8K_acg\"},{\"kty\":\"oct\",\"k\":\"upW0FIr8Bw5HasH_aYwbMA\",\"kid\":\"vvS2jf4PWNSSEF00KFNdxQ\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeanmolcinema/channel_list/1920x1080listfa46ad9c89684d268b5c141e7987de38.png"
   },
   {
@@ -397,7 +397,7 @@
     "id": "473",
     "category": "Shows",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeAnmol_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"GatVjzqYsd29dkUpMt-5Cw\",\"kid\":\"dxnDS8hnQOC7XazkIVyGDw\"},{\"kty\":\"oct\",\"k\":\"e9sJezSlRBQse2szj11h3Q\",\"kid\":\"anBek2fRUReRYCiSJ99KMw\"},{\"kty\":\"oct\",\"k\":\"x8GDR-0EJb3iUgHnTndbBA\",\"kid\":\"4Rx0TSQKLlbOgqjUZFNM6g\"},{\"kty\":\"oct\",\"k\":\"5D5U8YPBvLh31Q3QIXR5wQ\",\"kid\":\"wjjf3GBtZNSNsbEZtpbbKw\"},{\"kty\":\"oct\",\"k\":\"Y3V2hFC_LpWgQvmWvekqdQ\",\"kid\":\"0BghZJTXcueuWtgyvdf_RA\"}],\"type\":\"temporary\"}",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"ihNFwL53oJwTDh9Au13Otg\",\"kid\":\"6PyZrciLVSqfpBkFQzoJuA\"},{\"kty\":\"oct\",\"k\":\"uAGueZHAY7V_vaa07JUgrw\",\"kid\":\"hhfzDHJhWw-TH2lwfFr5qw\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeanmol/channel_list/1920x1080listef6865f9714b40139037d98300559cd7.png"
   },
   {

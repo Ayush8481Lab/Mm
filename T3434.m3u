@@ -3,8 +3,8 @@
 #KODIPROP:inputstream=inputstream.adaptive
 #KODIPROP:inputstream.adaptive.manifest_type=mpd
 #KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha
-#KODIPROP:inputstream.adaptive.license_key=https://wg-fd1d84e38aca0001946f5538710c6d0f-5350.serveousercontent.com/live/key/291?serveo-skip-browser-warning=true
-http://jiotvcod.cdn.jio.com/bpk-tv/Sony_HD_MOB/WDVCatchup/index.mpd?begin=20260924T201000&end=20260924T213000&__hdnea__=st=1790258493~exp=1790344893~acl=/*~hmac=ab9c239d4f3db4481f2a45f761790281897f07bad8d0a81d3b13d90bb6c5b23a
+#KODIPROP:inputstream.adaptive.license_key=http://localhost:8000/vzy.php?id=HE_E_10086
+https://d2o8pibksxtln6.cloudfront.net/live/media/And_Tv_HD/dash/And_Tv_HD.mpd
 #EXTINF:-1 tvg-id="144" tvg-name="Colors HD" tvg-logo="http://localhost:5350/jtvimage/ColorsHD1.png" tvg-language="Hindi" tvg-type="Entertainment" group-title="Entertainment", Colors HD
 #KODIPROP:inputstream=inputstream.adaptive
 #KODIPROP:inputstream.adaptive.manifest_type=mpd

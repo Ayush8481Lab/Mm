@@ -630,7 +630,7 @@
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"9pEBtxhy3Pss0Zh9N3PA9A\",\"kid\":\"KQRzLI-1Xr6qD1kxaRaZfg\"},{\"kty\":\"oct\",\"k\":\"iMVjcSYsG76EPBdHILvesA\",\"kid\":\"LwQM5kDuV5eLC8u5da8ApA\"},{\"kty\":\"oct\",\"k\":\"yuGdFx-xAVqJNC5RhfjMew\",\"kid\":\"b79mlv8wUXaDN6NNoOZuA\"},{\"kty\":\"oct\",\"k\":\"jtdX7aK3QChbz5qP2SY0Ig\",\"kid\":\"wZts_qAxUL6GiVTReXXBg\"},{\"kty\":\"oct\",\"k\":\"92fExZ-_6vhHVJlKDtXciw\",\"kid\":\"gtx9uBTvUWWj2TEC9ApRQg\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/78/2/302117_1749666092192_l_medium.jpg"
   },{
-    "name": "Unite8 Sports 1 HD,
+    "name": "Unite8 Sports 1 HD",
     "id": "9624886",
     "category": "SPORTS",
     "url": "https://d2o8pibksxtln6.cloudfront.net/live/media/Unite8_Sports_1_HD/dash/Unite8_Sports_1_HD.mpd",

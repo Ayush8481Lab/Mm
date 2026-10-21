@@ -123,15 +123,7 @@
     "key": "bba5064a2c162761bb92a15170c88b75",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyMAX2.png"
   },
-  {
-    "name": "And Pictures",
-    "id": "1839",
-    "category": "Movies",
-    "url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Andpictures/default/manifest.mpd",
-    "keyId": "8dea532cabfe4f71ba20f62310e7949f",
-    "key": "7a214a974e4f4d1d9bb66364d5f0cb92",
-    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AndPictures.png"
-  },
+  
   {
     "name": "Anmol Cinema",
     "id": "415",
@@ -408,15 +400,7 @@
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"8n7QtKFja3SBIO2bsE2neg\",\"kid\":\"eieKHQejVXa2bOTimFPS4A\"},{\"kty\":\"oct\",\"k\":\"qDg9rZp1WClUjoUx6sN31w\",\"kid\":\"47E4zdGCWgmjCziF1mwKeg\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/34/40/302086_1753186825045_l_medium.jpg"
   },
-  {
-    "name": "&TV ",
-    "id": "2024",
-    "category": "Shows",
-    "url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Andtv/default/manifest.mpd",
-    "keyId": "26df86eeebb04d7fbc45c948f76e81fd",
-    "key": "5f3a23f1a73c4c96ababce5fffe7b06b",
-    "logo": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/33/&TV_2025.svg/1280px-&TV_2025.svg.png?utm_source=en.wikipedia.org&utm_campaign=index&utm_content=thumbnail"
-  },
+q
   {
     "name": "&TV HD",
     "id": "472",
@@ -711,7 +695,7 @@
     "name": "SONY TEN 5 HD",
     "id": "155",
     "category": "SPORTS",
-    "url": "https://dishmt.slivcdn.com/hls/live/2020595/SONYSIXHD/master.m3u8",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020593/SONYSIXHD/master.m3u8",
     "keyId": "null",
     "key": "null",
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Six_HD.png"

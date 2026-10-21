@@ -508,7 +508,7 @@
   },{
     "name": "EPIC TV",
     "id": "3382",
-    "category": "ENTERTAINMENT",
+    "category": "Entertainment",
     "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/EPIC_TV_MOB/WDVLive/index.mpd",
     "keyId": "0384122132e151639aafddeb8bd1a50b",
     "key": "f9be8660035eecbca5ae015adb73fe7b",
@@ -516,7 +516,7 @@
   },{
     "name": "Star Bharat HD",
     "id": "931",
-    "category": "STAR",
+    "category": "Entertainment",
     "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Bharat_HD_MOB/WDVLive/index.mpd",
     "keyId": "ad6f73e2f7f15ed9b095576e43fe405f",
     "key": "38d5d669d5ee96f18dc890636753da3b",
@@ -524,7 +524,7 @@
   },{
     "name": "EPIC Bharat",
     "id": "3383",
-    "category": "ENTERTAINMENT",
+    "category": "Entertainment",
     "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Nazara_MOB/WDVLive/index.mpd",
     "keyId": "531f0c69be995cc88d05324b15af383f",
     "key": "d8492685fcdc3d1367e86cfc5b685e07",

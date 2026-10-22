@@ -399,6 +399,14 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Utsav_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"8n7QtKFja3SBIO2bsE2neg\",\"kid\":\"eieKHQejVXa2bOTimFPS4A\"},{\"kty\":\"oct\",\"k\":\"qDg9rZp1WClUjoUx6sN31w\",\"kid\":\"47E4zdGCWgmjCziF1mwKeg\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/34/40/302086_1753186825045_l_medium.jpg"
+  },{
+    "name": "Colors Rishtey",
+    "id": "279",
+    "category": "Shows",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/ColorsRishtey_MOB/WDVLive/index.mpd",
+    "keyId": "baf92e22e64d5de39d46ddb024cb589b",
+    "key": "b19a35807713524b7698bf55cc47dee6",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ColorsRishtey.png"
   },
   {
     "name": "&TV HD",

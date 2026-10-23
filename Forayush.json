@@ -104,6 +104,13 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Gold_Thrills_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"gcIDhifQ3CvmmH9RVpP16Q\",\"kid\":\"eLpqGnfQUTyJwPg_o21WEA\"},{\"kty\":\"oct\",\"k\":\"6m1aaMfUUzcZswfntHAcOA\",\"kid\":\"xEgicMwOWT6EcHtPV_aLag\"},{\"kty\":\"oct\",\"k\":\"0QUiAwjHE_nprxGQVCJ29g\",\"kid\":\"9dLhGBCgXAKOUr0Jm0IsbA\"},{\"kty\":\"oct\",\"k\":\"kYlxb9HQGTscxFRuVuo7pg\",\"kid\":\"Z28vlXXTXS6UepmKd7AcAw\"},{\"kty\":\"oct\",\"k\":\"W0NYj0zwOeXlTT5tipSFUA\",\"kid\":\"mbvxUTdIXcK6PaTw4KaemA\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_Thrills.png"
+  },{
+    "name": "And Pictures",
+    "id": "185",
+    "category": "Movies",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/AndPictures_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"ViIrv8R_uhs5rnJFED8y3w\",\"kid\":\"xu5iorZIXu-pUapA_TbJpQ\"},{\"kty\":\"oct\",\"k\":\"5PRZTrbSAopICPk599KAPQ\",\"kid\":\"Aa3nsxPXWjyJTYnk2IeIyA\"},{\"kty\":\"oct\",\"k\":\"_uMCdKqvp8HAq5t2LbK5Zw\",\"kid\":\"j7MQ9Z2iUCKcaNs1xrcHGw\"},{\"kty\":\"oct\",\"k\":\"uUMYLsFC7f2VV5Q2Rg12Sw\",\"kid\":\"MqZ6uhaFXFmVQoXRYqI1HQ\"},{\"kty\":\"oct\",\"k\":\"Mf_ITnXs0SChYdS5a5lwdQ\",\"kid\":\"yBhIwHV8W0aPRuGayr2ejQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2c/%26pictures.svg/3840px-%26pictures.svg.png"
   },
   {
     "name": "Sony MAX1",
@@ -1563,7 +1570,7 @@
     "name": "Zee Talkies",
     "id": "153",
     "category": "Marathi",
-    "url": "https://liveserverayush2.onrender.com/0-9-9z5383489.m3u8",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTalkies_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"hnIpP0Ry8B_fdGYOLg_WAg\",\"kid\":\"tJXGu6dNUgObDTEO8rycwg\"},{\"kty\":\"oct\",\"k\":\"FMxmnHINykA-xVZvyX2_-A\",\"kid\":\"0BeXTQiWXvGd24Dae72WeA\"},{\"kty\":\"oct\",\"k\":\"1BQIUpQ25gSS3ecvDvST5Q\",\"kid\":\"yl1uH4gnUOyOxK5QcqzUMQ\"},{\"kty\":\"oct\",\"k\":\"qPnvpqcYq8kNp-ttA5q2iA\",\"kid\":\"Ff0pCWxPUqS1RswlWKbB2A\"},{\"kty\":\"oct\",\"k\":\"wHCeY_ntLrhR96Mlx-ZbPg\",\"kid\":\"3KHUSJK0UqehEhhCAH7ztA\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383489/channel_list/1920x1080list43aaeb0656a9484e855f731963eeeb20.png"
   },

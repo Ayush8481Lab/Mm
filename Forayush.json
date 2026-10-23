@@ -1463,5 +1463,321 @@
     "keyId": "77ac3922e3ae5597b2bb0a52afb88d0f",
     "key": "35030fa506bf92866f369da6d6e917fa",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sangeet_Bhojpuri.png"
+  },
+  {
+    "name": "Zee Marathi HD",
+    "id": "1360",
+    "category": "Marathi",
+    "url": "https://liveserverayush2.onrender.com/0-9-zeemarathi.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeemarathi/channel_list/1920x1080list63a3bd62dcbd42478d7ef28b66d31c3f.png"
+  },
+  {
+    "name": "Zee Marathi",
+    "id": "0-9-9z5383486",
+    "category": "Marathi",
+    "url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Zeemarathi/default/manifest.mpd",
+    "keyId": "2a8d6c938ea647248f7a10eedc39f097",
+    "key": "7d81feb84ed84bd88fdc5ca9de3c16da",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383486/channel_list/thumbnail1920x10804b8e9b0fdb9a41a6845b71593c54abea.png"
+  },
+  {
+    "name": "9x Jhakaas",
+    "id": "441",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/9xjhakaas/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/9xjhakaas.png"
+  },
+  {
+    "name": "Sangeet Marathi",
+    "id": "735",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Sangeet_Marathi_MOB/WDVLive/index.mpd",
+    "keyId": "7f462e785a2c53649ab662034077766c",
+    "key": "5c6b5dcfcea6528f915e4c3dad9c8e31",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sangeet_Marathi.png"
+  },
+  {
+    "name": "Star Pravah HD",
+    "id": "336",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Pravah_HD_MOB/WDVLive/index.mpd",
+    "keyId": "fb288091038b58b8839d202640bfe46f",
+    "key": "99bad05f52b77e9c2460545f631140dd",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_HD.png"
+  },
+  {
+    "name": "Star Pravah Picture HD",
+    "id": "3100",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Pravah_Picture_HD_MOB/WDVLive/index.mpd",
+    "keyId": "0cb8027f563f5f32b27900a4a15c065f",
+    "key": "b29afa97e86a3df924dec4ba47bd84eb",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_Picture_HD.png"
+  },
+  {
+    "name": "Sony Marathi SD",
+    "id": "1146",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/SonyMarathi_MOB/WDVLive/index.mpd",
+    "keyId": "70ce79e941ac5b308f3fd8fc171fa3f7",
+    "key": "f20bf73b9339106ce55484c1d9822cfd",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyMarathi.png"
+  },
+  {
+    "name": "Colors Marathi SD",
+    "id": "1326",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Colors_Marathi_SD_MOB/WDVLive/index.mpd",
+    "keyId": "d60fa0c54e625171a1f6594a41b727c6",
+    "key": "deca7c933b6aa0c968c2620c46130360",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Colors_Marathi_SD.png"
+  },
+  {
+    "name": "Colors Marathi HD",
+    "id": "755",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Colors_Marathi_HD_MOB/WDVLive/index.mpd",
+    "keyId": "10f25f26738a531a82501d1edb967ad2",
+    "key": "6a8ba1c4a88563b359f95f2f69afa74e",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Colors_Marathi_HD.png"
+  },
+  {
+    "name": "Zee Marathi HD",
+    "id": "1360",
+    "category": "Marathi",
+    "url": "https://liveserverayush2.onrender.com/0-9-zeemarathi.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeemarathi/channel_list/1920x1080list63a3bd62dcbd42478d7ef28b66d31c3f.png"
+  },
+  {
+    "name": "Zee Marathi",
+    "id": "0-9-9z5383486",
+    "category": "Marathi",
+    "url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Zeemarathi/default/manifest.mpd",
+    "keyId": "2a8d6c938ea647248f7a10eedc39f097",
+    "key": "7d81feb84ed84bd88fdc5ca9de3c16da",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383486/channel_list/thumbnail1920x10804b8e9b0fdb9a41a6845b71593c54abea.png"
+  },
+  {
+    "name": "Zee Talkies",
+    "id": "0-9-9z5383489",
+    "category": "Marathi",
+    "url": "https://liveserverayush2.onrender.com/0-9-9z5383489.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383489/channel_list/1920x1080list43aaeb0656a9484e855f731963eeeb20.png"
+  },
+  {
+    "name": "Zee Talkies HD",
+    "id": "0-9-zeetalkies",
+    "category": "Marathi",
+    "url": "https://liveserverayush2.onrender.com/0-9-zeetalkies.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeetalkies/channel_list/1920x1080list8db83dea9fb7450aa0d1bf6a4e5f30f5.png"
+  },
+  {
+    "name": "Zee Yuva",
+    "id": "0-9-zeeyuva",
+    "category": "Marathi",
+    "url": "https://liveserverayush2.onrender.com/0-9-zeeyuva.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeyuva/channel_list/1920x1080list5dd504da63d94665be555d032df9000c.png"
+  },
+  {
+    "name": "Shemaroo MarathiBana",
+    "id": "1452",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Shemaroo_MarathiBana_MOB/WDVLive/index.mpd",
+    "keyId": "3fad8a9054e3594591e0d66b1fdf63b5",
+    "key": "5937bb76b8e4ca9ccc15832644a816b2",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Shemaroo_MarathiBana.png"
+  },
+  {
+    "name": "Sun Marathi",
+    "id": "2424",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Sun_Marathi_MOB/WDVLive/index.mpd",
+    "keyId": "f5caecf34c8f5453bbbd851a2dc424ed",
+    "key": "b600a7ad14865399462b9eeb3a10e72c",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sun_Marathi.png"
+  },
+  {
+    "name": "Nick Marathi",
+    "id": "1342",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Nick_Mar_MOB/WDVLive/index.mpd",
+    "keyId": "d34e333a7e6257a085895b06c4bb09b0",
+    "key": "207f4b0bee68b0de29e8e47ca43bbff1",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Nick_Marathi.png"
+  },
+  {
+    "name": "Pogo Marathi",
+    "id": "3034",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Pogo_Mar_MOB/WDVLive/index.mpd",
+    "keyId": "741a027410395b8ab6dc410bc52283cb",
+    "key": "7a85e3c101321554ed77f1bdfe9a2cab",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Pogo_Mar.png"
+  },
+  {
+    "name": "Sonic Marathi",
+    "id": "1346",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Sonic_Marathi_MOB/WDVLive/index.mpd",
+    "keyId": "c329e1a4429c525cad86d4346efcd68a",
+    "key": "7c21c2f9cddaa5c084bf1d5b02fb4610",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sonic_Marathi.png"
+  },
+  {
+    "name": "Cartoon Network Marathi",
+    "id": "3454",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/CNMarathi_MOB/WDVLive/index.mpd",
+    "keyId": "ec7ff2e3ec915b4a801fc652aff238f5",
+    "key": "1915dce4eac57b1e0cb2fa3cadce76ab",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/CNMarathi.png"
+  },
+  {
+    "name": "DD Sahayadri",
+    "id": "695",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DD_Sahayadri_MOB/WDVLive/index.mpd",
+    "keyId": "9ea6b5d48dde53d591388cedcd3724b6",
+    "key": "36bc0e37c348833752b6c5f3ca5e714d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DD_Sahayadri.png"
+  },
+  {
+    "name": "ABP Majha",
+    "id": "612",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/ABP_Majha_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ABP_Majha.png"
+  },
+  {
+    "name": "Jai Maharashtra",
+    "id": "1394",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Jai_Maharashtra_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Jai_Maharashtra.png"
+  },
+  {
+    "name": "Lokshahi News",
+    "id": "1293",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Lokshahi_News_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Lokshahi_News.png"
+  },
+  {
+    "name": "NDTV Marathi",
+    "id": "3095",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/NDTV_Marathi_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/NDTV_Marathi.png"
+  },
+  {
+    "name": "News18 Marathi",
+    "id": "232",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/News18Lokmat_MOB/WDVLive/index.mpd",
+    "keyId": "7950de17d1a95c1e911b7e76d2c9e955",
+    "key": "4a14e16f1696ece79b640f9abc3fc193",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/News18Lokmat.png"
+  },
+  {
+    "name": "Pudhari News",
+    "id": "2935",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Pudhari_News_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Pudhari_News.png"
+  },
+  {
+    "name": "Saam Tv",
+    "id": "691",
+    "category": "Marathi",
+    "url": "https://amg26011-amg26011c1-amgplt0173.playout.now3.amagi.tv/playlist/amg26011-amg26011c1-amgplt0173/playlist.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Saam_Tv.png"
+  },
+  {
+    "name": "TV9 Maharashtra",
+    "id": "617",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TV9_Maharashtra_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TV9_Maharashtra.png"
+  },
+  {
+    "name": "Top News Marathi",
+    "id": "1972",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/topnewsmarathi/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/topnewsmarathi.png"
+  },
+  {
+    "name": "Gomantak TV",
+    "id": "1273",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gomantak_TV_MOB/WDVLive/index.mpd",
+    "keyId": "127ea075e38f567890c4214114ff631a",
+    "key": "5a919bb886220aa8a73e5e67c7a8a2bf",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gomantak_TV.png"
+  },
+  {
+    "name": "Zee 24 Taas",
+    "id": "442",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Zee_24_Taas_MOB/WDVLive/index.mpd",
+    "keyId": "d7333200484559e8953e830aa6ed10cf",
+    "key": "2bd07c70bff76713485e28e2ba22eb4e",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Zee_24_Taas.png"
+  },
+  {
+    "name": "Times of Maharashtra",
+    "id": "3463",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TimesofMaharashtra_MOB/WDVLive/index.mpd",
+    "keyId": "fd8839da26935732a991c730a1d5f2ed",
+    "key": "21b5bc32ee9ca85c72a7a786ca03c91f",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TimesofMaharashtra.png"
+  },
+  {
+    "name": "Lok manch Marathi",
+    "id": "3167",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Lok_manch_Marathi_MOB/WDVLive/index.mpd",
+    "keyId": "afcc633f684d594db284c7148e9374cf",
+    "key": "6e691e55657f2aaed9f72c1c5bf8d834",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Lok_manch_Marathi.png"
+  },
+  {
+    "name": "News Marathi 24x7",
+    "id": "3179",
+    "category": "Marathi",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/newsmarathi/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/newsmarathi.png"
   }
-]
+    ]
+

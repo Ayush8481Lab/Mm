@@ -1464,24 +1464,7 @@
     "key": "35030fa506bf92866f369da6d6e917fa",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sangeet_Bhojpuri.png"
   },
-  {
-    "name": "Zee Marathi HD",
-    "id": "1360",
-    "category": "Marathi",
-    "url": "https://liveserverayush2.onrender.com/0-9-zeemarathi.m3u8",
-    "keyId": "null",
-    "key": "null",
-    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeemarathi/channel_list/1920x1080list63a3bd62dcbd42478d7ef28b66d31c3f.png"
-  },
-  {
-    "name": "Zee Marathi",
-    "id": "0-9-9z5383486",
-    "category": "Marathi",
-    "url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Zeemarathi/default/manifest.mpd",
-    "keyId": "2a8d6c938ea647248f7a10eedc39f097",
-    "key": "7d81feb84ed84bd88fdc5ca9de3c16da",
-    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383486/channel_list/thumbnail1920x10804b8e9b0fdb9a41a6845b71593c54abea.png"
-  },
+  
   {
     "name": "9x Jhakaas",
     "id": "441",
@@ -1501,6 +1484,13 @@
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sangeet_Marathi.png"
   },
   {
+    "name": "Star Pravah",
+    "id": "1121",
+    "category": "Marathi",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Pravah_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"UonNcfOEz7pP05hfCLAxzg\",\"kid\":\"sd0pTmLiXkWh4SfxZYC4Ww\"},{\"kty\":\"oct\",\"k\":\"jHSZWUziNFEhkO2aElwK3w\",\"kid\":\"CYu0j0-IWBCiE_YJw2-56g\"},{\"kty\":\"oct\",\"k\":\"LfkZ2FW0nDaw3WEMPIkEFg\",\"kid\":\"gYrNwBxRUFa9SjmBsSDcrA\"},{\"kty\":\"oct\",\"k\":\"kJuK004WplflVRNuEkQW3Q\",\"kid\":\"nkgAdMehVTCImog_5SypWA\"},{\"kty\":\"oct\",\"k\":\"6_SEi3-OnL5Snuok4vscfQ\",\"kid\":\"JG1_NgJ6XK6OSrgRaqUAZQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://upload.wikimedia.org/wikipedia/commons/a/a3/Star_Pravah_2023.png"
+  },{
     "name": "Star Pravah HD",
     "id": "336",
     "category": "Marathi",
@@ -1509,6 +1499,14 @@
     "key": "99bad05f52b77e9c2460545f631140dd",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_HD.png"
   },
+  {
+    "name": "Star Pravah Picture",
+    "id": "3099",
+    "category": "Marathi",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Pravah_Picture_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"M2cbAtzunfrKfDentcyBoQ\",\"kid\":\"6r-jcFBuVG-ANTXlFdblkQ\"},{\"kty\":\"oct\",\"k\":\"XQym4S7peCudLR-F6jpkkA\",\"kid\":\"sBE9YGBSXROdxXIwejFyIw\"},{\"kty\":\"oct\",\"k\":\"Ly5bq_4tXjHutoPBJXLRfg\",\"kid\":\"NhZ24_3TV0O8rQ0kDUt1xQ\"},{\"kty\":\"oct\",\"k\":\"QZe5PCdfxzkR7ZBWGNfgqw\",\"kid\":\"tC7E5EmwX-qjqYAnzFpeQg\"},{\"kty\":\"oct\",\"k\":\"P9DjgKNEDUbfP3EU2MqsLQ\",\"kid\":\"FW-GRTY17Wc2MfSOIOLZlw\"},{\"kty\":\"oct\",\"k\":\"CptY06pCTAI8coVng-2kyA\",\"kid\":\"iI6Dj2aF5cXvf_Z9QPGgJQ\"},{\"kty\":\"oct\",\"k\":\"3-pnrLxLUTzVI3BJXDNUxw\",\"kid\":\"A80ePuArVDq9JFQPv3hzHw\"},{\"kty\":\"oct\",\"k\":\"JkGj1crjpHl76QS2KeO25w\",\"kid\":\"VK8-0xDBDThpdYwtVefAUQ\"},{\"kty\":\"oct\",\"k\":\"dgWZ9ui_EJ1_bOvTY3bwkQ\",\"kid\":\"Z8d6y4jhlqg68Mm7TAIbNg\"},{\"kty\":\"oct\",\"k\":\"ytCjxiTivCVIq-xEryhWdg\",\"kid\":\"DnskAUi2W--TLf_K1T3ujg\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_Picture.png"
+  }, 
   {
     "name": "Star Pravah Picture HD",
     "id": "3100",
@@ -1549,45 +1547,40 @@
     "name": "Zee Marathi HD",
     "id": "1360",
     "category": "Marathi",
-    "url": "https://liveserverayush2.onrender.com/0-9-zeemarathi.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeMarathiHD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"PaAcAB5XUiAMUwxntrAXyg\",\"kid\":\"ML1pN5rBUjKOx1jb4VXzeA\"},{\"kty\":\"oct\",\"k\":\"MayHpGPsKkHN8DjLF7zxiA\",\"kid\":\"LX5e7Sg1WO6GS-OEnMB7wg\"},{\"kty\":\"oct\",\"k\":\"-4cgxoI3lWdEs_6lPmEWPA\",\"kid\":\"tfyszxhBU8OZtX-ePBMU0Q\"},{\"kty\":\"oct\",\"k\":\"YEonO0Nh-lI05V0Xma0aNA\",\"kid\":\"RcLCoTSNVh63sFRPlhbJyA\"},{\"kty\":\"oct\",\"k\":\"r1K3GfNP72k_7gd8-m0nng\",\"kid\":\"MbFUxMz8U26QJmasqT8z3w\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeemarathi/channel_list/1920x1080list63a3bd62dcbd42478d7ef28b66d31c3f.png"
   },
   {
     "name": "Zee Marathi",
-    "id": "0-9-9z5383486",
+    "id": "445",
     "category": "Marathi",
-    "url": "https://d1g8wgjurz8via.cloudfront.net/bpk-tv/Zeemarathi/default/manifest.mpd",
-    "keyId": "2a8d6c938ea647248f7a10eedc39f097",
-    "key": "7d81feb84ed84bd88fdc5ca9de3c16da",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeMarathi_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"iMi3ENEo0qMvJJRog689kw\",\"kid\":\"XdtCLygQVHag2S8enyKADQ\"},{\"kty\":\"oct\",\"k\":\"NC1CNPHs8L9V7p6jaPLQNw\",\"kid\":\"zNtFCalFVFyYgWLQPWoHRw\"},{\"kty\":\"oct\",\"k\":\"Wx2lr9D5HlRHzwPPgbSWnQ\",\"kid\":\"8FoQiSOSV9qBt0K9QvbReA\"},{\"kty\":\"oct\",\"k\":\"ZeDXPgsGF2bIMacCrNZtDA\",\"kid\":\"sShGioZgVviaCgzACk9_Sw\"},{\"kty\":\"oct\",\"k\":\"5ZO_l9A9UncgXYd_HN-Ucg\",\"kid\":\"uKVA9mTlX9qpA-lDBrHpaw\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383486/channel_list/thumbnail1920x10804b8e9b0fdb9a41a6845b71593c54abea.png"
   },
   {
     "name": "Zee Talkies",
-    "id": "0-9-9z5383489",
+    "id": "153",
     "category": "Marathi",
     "url": "https://liveserverayush2.onrender.com/0-9-9z5383489.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"hnIpP0Ry8B_fdGYOLg_WAg\",\"kid\":\"tJXGu6dNUgObDTEO8rycwg\"},{\"kty\":\"oct\",\"k\":\"FMxmnHINykA-xVZvyX2_-A\",\"kid\":\"0BeXTQiWXvGd24Dae72WeA\"},{\"kty\":\"oct\",\"k\":\"1BQIUpQ25gSS3ecvDvST5Q\",\"kid\":\"yl1uH4gnUOyOxK5QcqzUMQ\"},{\"kty\":\"oct\",\"k\":\"qPnvpqcYq8kNp-ttA5q2iA\",\"kid\":\"Ff0pCWxPUqS1RswlWKbB2A\"},{\"kty\":\"oct\",\"k\":\"wHCeY_ntLrhR96Mlx-ZbPg\",\"kid\":\"3KHUSJK0UqehEhhCAH7ztA\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-9z5383489/channel_list/1920x1080list43aaeb0656a9484e855f731963eeeb20.png"
   },
   {
     "name": "Zee Talkies HD",
-    "id": "0-9-zeetalkies",
+    "id": "1358",
     "category": "Marathi",
-    "url": "https://liveserverayush2.onrender.com/0-9-zeetalkies.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTalkiesHD_BTS/WDVLive/index.mpd",
+        "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"fgnwFTes3uDa063mpuCjHQ\",\"kid\":\"eE1lEepNWUGj-TFL8_pLkA\"},{\"kty\":\"oct\",\"k\":\"ObMnL4YMPMHzXCt0ZTM3CQ\",\"kid\":\"Tg8HOaOvVumYgNVXQfbZPQ\"},{\"kty\":\"oct\",\"k\":\"TksogeS1Bh1cyL3J1H0Omg\",\"kid\":\"mfcFhaYzVK-gA9WFZrDEDQ\"},{\"kty\":\"oct\",\"k\":\"CieaIJbmCyizLCPwYgUbOw\",\"kid\":\"NEMH7uZhXgajYZStQpDERQ\"},{\"kty\":\"oct\",\"k\":\"AWi-vx0Ni4EwxtFux8Gn7A\",\"kid\":\"PaFaW5ptW1elTDppNCEw1A\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeetalkies/channel_list/1920x1080list8db83dea9fb7450aa0d1bf6a4e5f30f5.png"
   },
   {
     "name": "Zee Yuva",
-    "id": "0-9-zeeyuva",
+    "id": "414",
     "category": "Marathi",
-    "url": "https://liveserverayush2.onrender.com/0-9-zeeyuva.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeYuva_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"H8AbBCcvHOWzTAAKduPVXw\",\"kid\":\"Q118PNlTXIetYSyP5TwM1Q\"},{\"kty\":\"oct\",\"k\":\"5ybdvSpo1peGyRUqmA4sbg\",\"kid\":\"8-ItiBqhXVq6xwpb4Dp4cQ\"},{\"kty\":\"oct\",\"k\":\"SKmAKaZ54RtymIUfIqaN9Q\",\"kid\":\"XwfYGST1V2S8C0HcJcjZsw\"},{\"kty\":\"oct\",\"k\":\"YqRqWQhjCBqwzru348w7LA\",\"kid\":\"dhhDDHi2WveK43Wr7hK8mg\"},{\"kty\":\"oct\",\"k\":\"FqjDCQiyKKBRI88uxvl0hQ\",\"kid\":\"qHbyPxaCX_uwtnYmbnVk8Q\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeyuva/channel_list/1920x1080list5dd504da63d94665be555d032df9000c.png"
   },
   {
@@ -1607,6 +1600,14 @@
     "keyId": "f5caecf34c8f5453bbbd851a2dc424ed",
     "key": "b600a7ad14865399462b9eeb3a10e72c",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sun_Marathi.png"
+  },
+  {
+    "name": "Fakt Marathi",
+    "id": "9487064",
+    "category": "Marathi",
+    "url": "https://d2o8pibksxtln6.cloudfront.net/live/media/Fakt_Marathi/dash_fta/Fakt_Marathi.mpd",
+    "licenseurl": "https://jiotvegp.vercel.app/api/Zee?id=HE_F_10060",
+    "logo": "https://upload.wikimedia.org/wikipedia/hi/1/10/Fakt_Marathi_Tv.jpg"
   },
   {
     "name": "Nick Marathi",

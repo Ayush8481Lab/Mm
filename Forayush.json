@@ -1786,6 +1786,526 @@
     "keyId": "null",
     "key": "null",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/newsmarathi.png"
+  },
+  {
+    "name": "TV9 Telugu News",
+    "id": "618",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TV9_Telugu_News_MOB/WDVLive/index.mpd",
+    "keyId": "526b422853c0528ba3ffc22f2705af27",
+    "key": "bb4f477e75150db68b7184669687de7d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TV9_Telugu_News.png"
+  },
+  {
+    "name": "ETV Andhra pradesh",
+    "id": "614",
+    "category": "Telugu",
+    "url": "https://d1t0ftvgxmmgk0.cloudfront.net/cdbded927dea40ab8cda857b3d12db0e/etvBBJRQ.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://etv-win-image.akamaized.net/etvwin/live/channel/47688/etv-andhra-pradesh-320x240.jpg"
+  },
+  {
+    "name": "ABN Andhra Jyothi",
+    "id": "666",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/ABN_Andhra_Jyothi_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ABN_Andhra_Jyothi.png"
+  },
+  {
+    "name": "Star Maa",
+    "id": "1138",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Maa_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"XVFTB8XLxx2P-1yUxEkV1g\",\"kid\":\"suSdklwSVnWKsnUwODHEgg\"},{\"kty\":\"oct\",\"k\":\"G27g-5Tcj38G5W60bHBNhg\",\"kid\":\"qqfj_JyaX3aKMiDUx5jmjg\"},{\"kty\":\"oct\",\"k\":\"0hxUK6cH2AlglTHDgn2nWQ\",\"kid\":\"kLsGtdaoXT6u5-Tpv3CFGg\"},{\"kty\":\"oct\",\"k\":\"5czRlQl1Y1wkMJY-vDq1PQ\",\"kid\":\"XSAHUZypV6a7kTRyvictJg\"},{\"kty\":\"oct\",\"k\":\"EeGK6Iy3oRv8MI4dP8HN4w\",\"kid\":\"a-asGcLrUhuEIeyNlrB3sA\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Maa.png"
+  },
+  {
+    "name": "Maa HD",
+    "id": "1112",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Maa_HD_MOB/WDVLive/index.mpd",
+    "keyId": "c94a85da7e44563f8f3a687b5bef641c",
+    "key": "445450834250887830adbde7c75caa2b",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_HD.png"
+  },
+  {
+    "name": "ETV Telugu",
+    "id": "629",
+    "category": "Telugu",
+    "url": "https://d1rznlx03muoan.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_HD_H264_cloud_in/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://i.ibb.co/K34XQRP/ETVnew-Logo.png"
+  },
+  {
+    "name": "Sun Gemini HD",
+    "id": "897",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gemini_TV_HD_MOB/WDVLive/index.mpd",
+    "keyId": "0d0317b57c045842a700483a46f1212e",
+    "key": "cd9f07a43e89b32bf3af1bfc7e6c84b2",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_TV_HD.png"
+  },
+  
+  {
+    "name": "ETV Cinema HD",
+    "id": "1665",
+    "category": "Telugu",
+    "url": "https://d27zlkxhgwrfgo.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_CINEMA_H264_cloud_in/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://i.ibb.co/chW8CJSc/unnamed-2.jpg"
+  },  {
+    "name": "Star Maa Movies",
+    "id": "1111",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Maa_Movies_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"nwY4jEi_uUz_l5fiWEfR0Q\",\"kid\":\"9MAiBT81W0udygCTRj17oA\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_Movies.png"
+  },
+  {
+    "name": "Maa Movies HD",
+    "id": "760",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Maa_Movies_HD_MOB/WDVLive/index.mpd",
+    "keyId": "a78f7295d78453c69f9849d40095be2d",
+    "key": "a9d4d809e74edc7625c4fe7ffc9e4647",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_Movies_HD.png"
+  },
+  {
+    "name": "Zee Cinemalu HD",
+    "id": "1363",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeCinemaluHD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"KRknT20uRpODibvd83c--w\",\"kid\":\"7vKELeDhX0KmxPsac44dVw\"},{\"kty\":\"oct\",\"k\":\"hPLSGnIejqbgPa2v7KlY4w\",\"kid\":\"dZN45Gg1UWuNlNaBUJr4dA\"},{\"kty\":\"oct\",\"k\":\"-b5UahoZ7t9PZ6dzm3r7IA\",\"kid\":\"UHp2t9c0VfaxuzAkZ-VV5A\"},{\"kty\":\"oct\",\"k\":\"q4PhcD8FJSCioe87-1XYqw\",\"kid\":\"hBB0TrGEXmKUdfDn-l_Qvw\"},{\"kty\":\"oct\",\"k\":\"UY2MEG365ARZsjERns2A1w\",\"kid\":\"cw7VzTCJViik237wpJ2wGg\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ZeeCinemaluHD.png"
+  },
+  {
+    "name": "Zee Cinemalu",
+    "id": "413",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeCinemalu_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"IjM7p8z2LU_pk0rbjRuBww\",\"kid\":\"PbjoIUDmUE2GN91CPmQxtQ\"},{\"kty\":\"oct\",\"k\":\"XP0vPRdpddp_zgw1pkSuLQ\",\"kid\":\"OFLJ4mqAX0yZj2QID7-Vsg\"},{\"kty\":\"oct\",\"k\":\"aeEDp3DNEQ_oh2elI2zjOg\",\"kid\":\"xM5BmlHXXbi8FQ0XfkV7fQ\"},{\"kty\":\"oct\",\"k\":\"doZi6_TWpXwXIr-5vhlESA\",\"kid\":\"4MzkntA4XVm0KtfschfMqA\"},{\"kty\":\"oct\",\"k\":\"uTIezL7KhsGff4BEbGNYNw\",\"kid\":\"dPgOBoQXXCCIfR8-k2fDjw\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ZeeCinemalu.png"
+  },
+  {
+    "name": "Sun Gemini Movies HD",
+    "id": "899",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gemini_Movies_HD_MOB/WDVLive/index.mpd",
+    "keyId": "e166773b30c55dd38872ca4d62104729",
+    "key": "b9bc45e3b1e9fa91ad36243588f80c9e",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_Movies_HD.png"
+  },
+  {
+    "name": "ETV Abhiruchi",
+    "id": "565",
+    "category": "Telugu",
+    "url": "https://diy3vq1irs76a.cloudfront.net/78e9244a64104ef48987207cea0cf20b/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/channel/ad1d0bdebbe763e34bd6af14fc856589.png"
+  },
+  {
+    "name": "ETV Life",
+    "id": "570",
+    "category": "Telugu",
+    "url": "https://d15mjojxgag4el.cloudfront.net/b149e4ea70324b9d9c1fbc11e09e6459/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://i.ibb.co/QFbs9mZC/channels4-profile.jpg"
+  },
+  {
+    "name": "ETV Plus HD",
+    "id": "2956",
+    "category": "Telugu",
+    "url": "https://d2qbg25361k63d.cloudfront.net/7d95c8f44ab14e1196e5c2df9189b33a/etvL76H6.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://i.ibb.co/wr83fbq0/unnamed-1.jpg"
+  },
+  {
+    "name": "Sun Gemini Life",
+    "id": "684",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gemini_Life_MOB/WDVLive/index.mpd",
+    "keyId": "89887cc3539757c4802bb3f4b1bed42f",
+    "key": "9d02cba14dd041059c40bf3070d7f32e",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_Life.png"
+  },
+  {
+    "name": "Sun Gemini Music HD",
+    "id": "898",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gemini_Music_HD_MOB/WDVLive/index.mpd",
+    "keyId": "548c049108f95c3b81ea4befee5a3aae",
+    "key": "5d3e71b422b7cc2f782c87f600e5a5b4",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_Music_HD.png"
+  },
+  {
+    "name": "Vanitha",
+    "id": "775",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Vanitha_MOB/WDVLive/index.mpd",
+    "keyId": "e6d2c1fcac2252d38c49f2b6fbc4bd71",
+    "key": "7e1ef6a1476633c63fae88e9732f8193",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Vanitha.png"
+  },
+  {
+    "name": "Discovery HD Telugu",
+    "id": "3446",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DiscoveryHDTel_MOB/WDVLive/index.mpd",
+    "keyId": "e27ae3a6764e5040b8ae942ef65b5543",
+    "key": "651c362c87414d40a5400e5bd4cc3970",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DiscoveryHDTel.png"
+  },
+  {
+    "name": "History TV18 HD Telugu",
+    "id": "577",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/History_18_Telugu_MOB/WDVLive/index.mpd",
+    "keyId": "0d0ccc0ee7e8560b93b3d3e639ea32b0",
+    "key": "7beacbf5552dc159e5373fba32e2e5ea",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/History_18_Telugu.png"
+  },
+  {
+    "name": "Animal Planet HD Telugu",
+    "id": "3182",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/AnimalPlanetHDTel_MOB/WDVLive/index.mpd",
+    "keyId": "514b531ea70a590bbb14d4875d61fde9",
+    "key": "f3e57f244cbfe59a2f20980a377752a8",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AnimalPlanetHDTel.png"
+  },
+  {
+    "name": "Nat Geo Wild HD",
+    "id": "1332",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Nat_Geo_Wild_HD_BTS/WDVLive/index.mpd",
+    "keyId": "45fc661aa1af51c98950c43329391d18",
+    "key": "c2677c874886e78d24b3fb656c5734e0",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Nat_Geo_Wild_HD.png"
+  },
+  {
+    "name": "Sri Venkateshwar Bhakti",
+    "id": "598",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Sri_Venkateshwar_Bhakti_MOB/WDVLive/index.mpd",
+    "keyId": "4e5c224b85ca565f9d0a3233ac1f259f",
+    "key": "04442d2dd2af50d598a3c24d5a22334c",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sri_Venkateshwar_Bhakti.png"
+  },
+  {
+    "name": "Bhakti TV",
+    "id": "776",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Bhakti_TV_MOB/WDVLive/index.mpd",
+    "keyId": "5f395a634dec56aea8e7ef9f088e8e43",
+    "key": "f799f108446f372391f020502a419c23",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Bhakti_TV.png"
+  },
+  {
+    "name": "DD Saptagiri",
+    "id": "706",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DD_Saptagiri_MOB/WDVLive/index.mpd",
+    "keyId": "0d11e12870645293b3ead5c6f7e5f239",
+    "key": "b53cbff88cf00ecb57da3cce5d219a21",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DD_Saptagiri.png"
+  },
+  {
+    "name": "ETV Telangana",
+    "id": "630",
+    "category": "Telugu",
+    "url": "https://d2iclbsmm559pr.cloudfront.net/7dda7e8e5e4a49ff9ac6e6e78a5e6ae0/etv0NXKE.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://etv-win-image.akamaized.net/etvwin/live/channel/18492/etv-telangana-320x240.jpg"
+  },
+  {
+    "name": "Sakshi tv",
+    "id": "632",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Sakshi_tv_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sakshi_tv.png"
+  },
+  {
+    "name": "10 TV",
+    "id": "832",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/10_TV_MOB/WDVLive/index.mpd",
+    "keyId": "1edbcf52713c5dcaa36bd2d055c40076",
+    "key": "6677984bdf8e69590f66d93c37e33c5d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/10_TV.png"
+  },
+  {
+    "name": "NTV",
+    "id": "646",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/NTV_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/NTV.png"
+  },
+  {
+    "name": "TV 5 News",
+    "id": "668",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TV_5_News_MOB/WDVLive/index.mpd",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TV_5_News.png"
+  },
+  {
+    "name": "PMC Telugu",
+    "id": "1975",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/PMC_Telugu_MOB/WDVLive/index.mpd",
+    "keyId": "12259a16ceda552e8f14a2c5e275ec1b",
+    "key": "d38be019d871dca35215d7557c3bb39a",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/PMC_Telugu.png"
+  },
+  {
+    "name": "Maa Gold",
+    "id": "1137",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Maa_Gold_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"VTgCscADfKm8GCvPMhvHLA\",\"kid\":\"nE4EUdWQUc6TUgG-lw5qwA\"},{\"kty\":\"oct\",\"k\":\"KkEvfpxm-IkL4qqQ3c5Q0A\",\"kid\":\"BAdufrO-V8eNiu1mbH_srg\"},{\"kty\":\"oct\",\"k\":\"wzBDKR23OZ22ZJqbcHaGWQ\",\"kid\":\"ZYOUGwLSXdyTxaO9VKYinA\"},{\"kty\":\"oct\",\"k\":\"-4RbeAC4--yzufvJUOpdFg\",\"kid\":\"9_ssSMaXXSqRVPVZkDQ0vg\"},{\"kty\":\"oct\",\"k\":\"OAOeqVUJo-esPlE4PNfw4g\",\"kid\":\"DLqa5of4VSGjHI2w0aIaoQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_Gold.png"
+  },
+  {
+    "name": "Maa Music",
+    "id": "1129",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Maa_Music_MOB/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"REmTjZg8J8x-FUulEmCqJA\",\"kid\":\"1m4KnKwoUxGch7N9XdfSXQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_Music.png"
+  },
+  {
+    "name": "ETV Beats",
+    "id": "3559",
+    "category": "Telugu",
+    "url": "https://cc-szivnms4rlah6.akamaized.net/WWBI/Amagi/ETV_Music_IN/playlist.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/channel/7ea0d451b8ed9a3260dcc78c0fe3d457.png"
+  },
+  {
+    "name": "ETV Josh",
+    "id": "3560",
+    "category": "Telugu",
+    "url": "https://cc-uyh1ow5zouoio.akamaized.net/WWBI/Amagi/ETV_Josh_IN/playlist.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/IN4900004LP_20250811T033452SQUARE.png"
+  },
+  {
+    "name": "ETV Comedy",
+    "id": "3561",
+    "category": "Telugu",
+    "url": "https://cc-wie8j8y69d2uy.akamaized.net/WWBI/Amagi/ETV_Comedy_IN/playlist.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/IN4900003U3_20251106T195117SQUARE.png"
+  },
+  {
+    "name": "Zee Telugu HD",
+    "id": "1354",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTeluguHD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"AEP5oaOKTGyaHfQCYtQwQA\",\"kid\":\"S_CbFWstXQaDK_4hOhmZ3Q\"},{\"kty\":\"oct\",\"k\":\"CDvOwMsRQo3Je21mnG5aTg\",\"kid\":\"uQXDt8HpUliA-Av4j8XpgA\"},{\"kty\":\"oct\",\"k\":\"CX_fcc33IxR8yVX58WkZNA\",\"kid\":\"XPXl0iaIXvi7qyKdA2NwOQ\"},{\"kty\":\"oct\",\"k\":\"x3zTG0jaYZrk33Qa7VgMWw\",\"kid\":\"lf3A852GUqadtD9dkw9rbQ\"},{\"kty\":\"oct\",\"k\":\"2KqstlhZt3eztnfp00Q-fA\",\"kid\":\"Y2uAENiBWUSTlrlBtp1IBw\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ZeeTeluguHD.png"
+  },
+  {
+    "name": "Zee Telugu",
+    "id": "638",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTelugu_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"8QfHpmTIHE7U2Y5o84Q0EA\",\"kid\":\"D95AW8wfVLSCMbdDHMDGPQ\"},{\"kty\":\"oct\",\"k\":\"HtWmPQbHFmOOXCkgJG3ayw\",\"kid\":\"hTv915pEV2y4G3H3nJZ_RA\"},{\"kty\":\"oct\",\"k\":\"bhovrQghGLK4wu7xM3LoPQ\",\"kid\":\"y5Ee8OMXUjWwvoVIEt59pA\"},{\"kty\":\"oct\",\"k\":\"2tAgMGO0Ch4GLy58pG49uw\",\"kid\":\"iIY-_VGyWFquU3Xi_osJcA\"},{\"kty\":\"oct\",\"k\":\"SLs09yW2QsghegA7GjEWYQ\",\"kid\":\"Q-0rBRcKVUu1MlgC89zjwg\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/46/63/300348_1768311189162_l_medium.jpg"
+  },
+  {
+    "name": "SONY TEN 4 HD",
+    "id": "1775",
+    "category": "Telugu",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020589/ten4hd/master.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_4_HD_Telugu.png"
+  },
+  {
+    "name": "SONY TEN 4",
+    "id": "1774",
+    "category": "Telugu",
+    "url": "https://dishmt.slivcdn.com/hls/live/2020437/ten4sd/master.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_4_Tamil.png"
+  },
+  {
+    "name": "Star Sports 1 Telugu HD",
+    "id": "3278",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_1_Telugu_HD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"xFp2JpXED2Z1uLVqxQ6XpQ\",\"kid\":\"HpCZr38CWtaz_TY7stuPrw\"},{\"kty\":\"oct\",\"k\":\"90hY8ykVet69vFVW0EF_Rw\",\"kid\":\"jYmFjJJ-VaKwP6qpj8qesg\"},{\"kty\":\"oct\",\"k\":\"l25OT5LRC40XAlWam6u14A\",\"kid\":\"HmJGytERV3-QvSCCN4t-0g\"},{\"kty\":\"oct\",\"k\":\"WOIJm1VbfqWd7guVe2lM6g\",\"kid\":\"JIejj5ANX-G6mO7WNdlsbg\"},{\"kty\":\"oct\",\"k\":\"g3KLmBiLH6i_aVCeF5b7Jw\",\"kid\":\"Q50x-gVSWpm4VuhS0DUCOw\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/19/57/302123_1749663029798_l_medium.jpg"
+  },
+  {
+    "name": "Star Sports 1 Telugu",
+    "id": "1651",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_1_Telugu_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"V1avAviSOx6HZ_83W6-0qg\",\"kid\":\"oF94jmCCVh-tVWWrdFfJlQ\"},{\"kty\":\"oct\",\"k\":\"d_nd_jntSzosVTUiuWnscA\",\"kid\":\"mNZM9FpcVzuydI3htXBdgg\"},{\"kty\":\"oct\",\"k\":\"5ya1Sf9bCj3o1GLzg80zgA\",\"kid\":\"wY3dXpJTXb6WYnciXaZ42w\"},{\"kty\":\"oct\",\"k\":\"d8EWNzIX0HAHOuEovEOuow\",\"kid\":\"eauWZJWnWb2I_OXPQv2x4w\"},{\"kty\":\"oct\",\"k\":\"DiC7PCU7Vlmg-q4ZsQJVXw\",\"kid\":\"0XAG_WsgXnuIR98RO7ITrg\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/26/67/302119_1749662981095_l_medium.jpg"
+  },
+  {
+    "name": "Star Sports 2 Telugu HD",
+    "id": "3274",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports2_Telugu_HD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"VvqR4u4J5amJxjDLOy3xPQ\",\"kid\":\"VRXniJ0iVASTn1N2X-ui6g\"},{\"kty\":\"oct\",\"k\":\"0l22MbvNsCfZo_3d9d3rqA\",\"kid\":\"ItqHo5BnUOeMDncMxLiMfg\"},{\"kty\":\"oct\",\"k\":\"6q9q7F6ozt620kjy6W1rkw\",\"kid\":\"hhgO6OawUXWt3cXrZrAfrw\"},{\"kty\":\"oct\",\"k\":\"BomAwl3U_jNjH-B6NcEonw\",\"kid\":\"djXxlGWsWZGXzfiJ2a2XOQ\"},{\"kty\":\"oct\",\"k\":\"i6Vg-x_N_q3fwlSWXjpC9g\",\"kid\":\"Afw4dPIQWNy_ggTwdhbOgQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/84/67/302121_1749664974599_l_medium.jpg"
+  },
+  {
+    "name": "Star Sports 2 Telugu",
+    "id": "2852",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/StarSports2Telugu_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"_aQW2qx2CL_WCKtMW3JKhA\",\"kid\":\"6F_8lAz8XFeQoktxSs7xzQ\"},{\"kty\":\"oct\",\"k\":\"FDRaPasdG_XmRXC1qjd4gw\",\"kid\":\"U4fGqfaKXOy-EjgZTbmoKg\"},{\"kty\":\"oct\",\"k\":\"ViGEU8RhmwHBoJE3eSNPrw\",\"kid\":\"qDlguk_IVOiMO81_FvCPJw\"},{\"kty\":\"oct\",\"k\":\"m0Rv3nEG6xt4IcXPJR35Mg\",\"kid\":\"pkto7qZcWIGg_FdCvTiYBg\"},{\"kty\":\"oct\",\"k\":\"RsFPGIeJdTt778JweCnLag\",\"kid\":\"TTpv7trgWfuPkvW8uiUSjQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/41/94/301562_1749665043898_l_medium.jpg"
+  },
+  {
+    "name": "All Women's Sports Network",
+    "id": "3146",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/AWSN_MOB/WDVLive/index.mpd",
+    "keyId": "8f7f3239c37f521ba1804aebdcd7404a",
+    "key": "516e21012c50b8e6c51b297b07bb0675",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AWSN.png"
+  },
+  {
+    "name": "Eurosport HD",
+    "id": "875",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Dsports_HD_MOB/WDVLive/index.mpd",
+    "keyId": "b3bcfaeae129566f80a3afb2b533f917",
+    "key": "6843545622aa27cab11368ffb3cae72a",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Dsports_HD.png"
+  },
+  {
+    "name": "Investigation Discovery English",
+    "id": "3452",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDEnglish_MOB/WDVLive/index.mpd",
+    "keyId": "4b962057a46e5a0a9ba877a71b3e4bc8",
+    "key": "3d7327305c44a64dee1bf6f9a3618bf8",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IDEnglish.png"
+  },
+  {
+    "name": "National Geographic HD",
+    "id": "1335",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/National_Geographic_HD_BTS/WDVLive/index.mpd",
+    "keyId": "4b006dd7965e5777a7fa33dd636c2e5d",
+    "key": "179f796bdf11b750bebd469a3aeae1d0",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/National_Geographic_HD.png"
+  },
+  {
+    "name": "Sony BBC Earth HD Telugu",
+    "id": "854",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/SonyBBCEarthTel_MOB/WDVLive/index.mpd",
+    "keyId": "a27b652e1c7d5dd2b752da161317168a",
+    "key": "6c93d6b6fca86a51db17c05ddc800710",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyBBCEarthTel.png"
+  },
+  {
+    "name": "5 Minutes craft",
+    "id": "325778",
+    "category": "Telugu",
+    "url": "https://amg02051-soulpublishing-amg02051c7-lg-in-1018.playouts.now.amagi.tv/playlist/amg02051-admecyltd-5minutecraftsenglish-lgin/playlist.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://upload.wikimedia.org/wikipedia/en/9/96/5-Minute_Crafts_logo.jpg"
+  },
+  {
+    "name": "Cartoon Network HD+ Telugu",
+    "id": "1080",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/CNHDTelugu_MOB/WDVLive/index.mpd",
+    "keyId": "dfc915acb96f52e780f1d10e641a68ed",
+    "key": "55f3cc761f9590761ee2b829be86cd45",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/CNHDTelugu.png"
+  },
+  {
+    "name": "Pogo Telugu",
+    "id": "1883",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Pogo_Tel_MOB/WDVLive/index.mpd",
+    "keyId": "e00e2372e66056d99642254b92bcf53e",
+    "key": "70dc00e600e4a4c16afc0148ad2e8881",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Pogo_Telugu.png"
+  },
+  {
+    "name": "Discovery Kids Telugu",
+    "id": "3447",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DiscoveryKidsTel_MOB/WDVLive/index.mpd",
+    "keyId": "38bded57666354cc923aa6cb1a297843",
+    "key": "969e6ee46248a3b6fe704e528f20953d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DiscoveryKidsTel.png"
+  },
+  {
+    "name": "Sonic Telugu",
+    "id": "1242",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Sonic_Telugu_MOB/WDVLive/index.mpd",
+    "keyId": "c5f797fac3ce566c990a2057c99a81c2",
+    "key": "a65755a4676a6c2e9d803d5611954b26",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sonic_Telugu.png"
+  },
+  {
+    "name": "Sony Yay Telugu",
+    "id": "874",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/SonyYAYTel_MOB/WDVLive/index.mpd",
+    "keyId": "af022a63d90353d9974d5cc15ce709e1",
+    "key": "0db40153e9e2fc30e3949101c87d2ecb",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyYAYTel.png"
+  },
+  {
+    "name": "Nick Telugu",
+    "id": "543",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Nick_Tel_MOB/WDVLive/index.mpd",
+    "keyId": "df95eed20e955879a75aba7a834213ba",
+    "key": "7b52568720e54c7b28d998415298d50f",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Nick_Telugu.png"
+  },
+  {
+    "name": "Kushi TV",
+    "id": "558",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Kushi_TV_MOB/WDVLive/index.mpd",
+    "keyId": "36762890a11b5ed9bc633626b7b8fca1",
+    "key": "2b7b31848c9047e232543b883bc59a1a",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Kushi_TV.png"
+  },
+  {
+    "name": "Sun Gemini Comedy",
+    "id": "729",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gemini_Comedy_MOB/WDVLive/index.mpd",
+    "keyId": "a39a9699a2e354ce9312d2933d8bf83c",
+    "key": "4bc2a11372933c408bc27b11d832d836",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_Comedy.png"
   }
-    ]
+  ]
+    
 

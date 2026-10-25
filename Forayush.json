@@ -1984,15 +1984,6 @@
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AnimalPlanetHDTel.png"
   },
   {
-    "name": "Nat Geo Wild HD",
-    "id": "1332",
-    "category": "Telugu",
-    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Nat_Geo_Wild_HD_BTS/WDVLive/index.mpd",
-    "keyId": "45fc661aa1af51c98950c43329391d18",
-    "key": "c2677c874886e78d24b3fb656c5734e0",
-    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Nat_Geo_Wild_HD.png"
-  },
-  {
     "name": "Sri Venkateshwar Bhakti",
     "id": "598",
     "category": "Telugu",
@@ -2199,24 +2190,6 @@
     "keyId": "b3bcfaeae129566f80a3afb2b533f917",
     "key": "6843545622aa27cab11368ffb3cae72a",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Dsports_HD.png"
-  },
-  {
-    "name": "Investigation Discovery English",
-    "id": "3452",
-    "category": "Telugu",
-    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDEnglish_MOB/WDVLive/index.mpd",
-    "keyId": "4b962057a46e5a0a9ba877a71b3e4bc8",
-    "key": "3d7327305c44a64dee1bf6f9a3618bf8",
-    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IDEnglish.png"
-  },
-  {
-    "name": "National Geographic HD",
-    "id": "1335",
-    "category": "Telugu",
-    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/National_Geographic_HD_BTS/WDVLive/index.mpd",
-    "keyId": "4b006dd7965e5777a7fa33dd636c2e5d",
-    "key": "179f796bdf11b750bebd469a3aeae1d0",
-    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/National_Geographic_HD.png"
   },
   {
     "name": "Sony BBC Earth HD Telugu",
@@ -2668,5 +2641,221 @@
     "key": "3c4ac4012b39a55a94618381ed00c4b4",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Vissa_TV.png"
   },
+  {
+    "name": "TLC Hindi",
+    "id": "571",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TLCHindi_MOB/WDVLive/index.mpd",
+    "keyId": "e50aa8136d3f58bc97b00d2cc9e6517e",
+    "key": "c5be8d5c21caee8ec290d4ac6a558b22",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TLCHindi.png"
+  },
+  {
+    "name": "TLC HD Hindi",
+    "id": "3458",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TLCHDHindi_MOB/WDVLive/index.mpd",
+    "keyId": "54f83d4d6b445837b6fb8526a3af4420",
+    "key": "cdbd04c39f730f0092431c3ffb15bea2",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TLCHDHindi.png"
+  },
+  {
+    "name": "Discovery Hindi",
+    "id": "575",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Discovery_Channel_Hindi_MOB/WDVLive/index.mpd",
+    "keyId": "a77c9893335a5c7da2b32343d0dfff50",
+    "key": "26d646a63b8b006dd1317ce69e2132e6",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Discovery_Channel_Hindi.png"
+  },
+  {
+    "name": "Discovery HD Hindi",
+    "id": "3444",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DiscoveryHDHin_MOB/WDVLive/index.mpd",
+    "keyId": "cec7a51dedca5c10b6de7502d7bf0322",
+    "key": "808231afe4b919a46e0fed39c8d95f63",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DiscoveryHDHin.png"
+  },
+  {
+    "name": "Discovery Turbo",
+    "id": "541",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Discovery_Turbo_MOB/WDVLive/index.mpd",
+    "keyId": "237b251f46e855dcb9d39147b591b39f",
+    "key": "46f8006b1fc251354aadf4537c42d997",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Discovery_Turbo.png"
+  },
+  {
+    "name": "Discovery Science Hindi",
+    "id": "3453",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DiscoveryScienceHin_MOB/WDVLive/index.mpd",
+    "keyId": "924722baa49257b6b5fa7aa3712fd38b",
+    "key": "353925fb35909b91d7a84cd80bedeb8d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DiscoveryScienceHin.png"
+  },
+  {
+    "name": "Investigation Discovery Hindi",
+    "id": "527",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDHindi_MOB/WDVLive/index.mpd",
+    "keyId": "9aef395dfa3c501f9bacf0ccf76ef6da",
+    "key": "76e1fc47cd666d195437df8662a977db",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IDHindi.png"
+  },
+  {
+    "name": "Investigation Discovery HD Hindi",
+    "id": "3434",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDHDHindi_MOB/WDVLive/index.mpd",
+    "keyId": "ec115aad2fcd5a76a2714c05120878d1",
+    "key": "4baf022094dfd9dd90b44f5157f88e7a",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IDHDHindi.png"
+  },
+  {
+    "name": "History TV18",
+    "id": "1471",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/History_TV18_SD_MOB/WDVLive/index.mpd",
+    "keyId": "fc8bda6bd61954d69d7d07a31d1af972",
+    "key": "0555191ba0e5e4a58f13ef9fec2adcb1",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/History_TV18_SD.png"
+  },
+  {
+    "name": "History TV18 HD",
+    "id": "146",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/History_HD_MOB/WDVLive/index.mpd",
+    "keyId": "0172b8cd13ed59349a05aadc58ae11e0",
+    "key": "e4ab7836617767a2a6e7aaae17fad2b6",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/History_HD.png"
+  },
+  {
+    "name": "History TV18 HD Hindi",
+    "id": "578",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/History_18_Hindi_MOB/WDVLive/index.mpd",
+    "keyId": "d54023f9a77158a5a192c68e8d3086d6",
+    "key": "dddf9f57a4ab5fc9c605545f13ebca94",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/History_18_Hindi.png"
+  },
+  {
+    "name": "History TV18 Hindi NW18",
+    "id": "2857",
+    "category": "Infotainment",
+    "url": "https://nw18live.cdn.jio.com/bpk-tv/History_TV18_Hindi_NW18_MOB/output01/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": ""
+  },
+  {
+    "name": "Travelxp HD",
+    "id": "164",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Travel_XP_HD_MOB/WDVLive/index.mpd",
+    "keyId": "021bd4635e8653bca6830adaca183b14",
+    "key": "035ec746d6ee0d39cb7cb15963da8424",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Travel_XP_HD.png"
+  },
+  {
+    "name": "Travelxp HD Hindi",
+    "id": "562",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Travel_XP_MOB/WDVLive/index.mpd",
+    "keyId": "39aa887ebbc35db6bd10217aba5e016b",
+    "key": "a1862a47f6db0af137d0c69b3cb422bb",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Travel_XP.png"
+  },
+  {
+    "name": "Sony BBC Earth HD",
+    "id": "821",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/SonyBBCEarthHin_MOB/WDVLive/index.mpd",
+    "keyId": "f45e69507f0f5aa1a6e82374efb0af25",
+    "key": "f84348219837769feb5a26a7b1cd31dc",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyBBCEarthHin.png"
+  },
+  {
+    "name": "Sony BBC Earth HD English",
+    "id": "852",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/SonyBBCEarthEng_MOB/WDVLive/index.mpd",
+    "keyId": "1552919e6aab593486923334022a0adc",
+    "key": "5365d8f2afcfbfeccfbff08db7f671fe",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyBBCEarthEng.png"
+  },{
+    "name": "Investigation Discovery English",
+    "id": "3452",
+    "category": "Telugu",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDEnglish_MOB/WDVLive/index.mpd",
+    "keyId": "4b962057a46e5a0a9ba877a71b3e4bc8",
+    "key": "3d7327305c44a64dee1bf6f9a3618bf8",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IDEnglish.png"
+  },
+  {
+    "name": "National Geographic HD",
+    "id": "1335",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/National_Geographic_HD_MOB/WDVLive/index.mpd",
+    "keyId": "4b006dd7965e5777a7fa33dd636c2e5d",
+    "key": "179f796bdf11b750bebd469a3aeae1d0",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/National_Geographic_HD.png"
+  },
+  {
+    "name": "Nat Geo Wild HD",
+    "id": "1332",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Nat_Geo_Wild_HD_MOB/WDVLive/index.mpd",
+    "keyId": "45fc661aa1af51c98950c43329391d18",
+    "key": "c2677c874886e78d24b3fb656c5734e0",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Nat_Geo_Wild_HD.png"
+  },
+  {
+    "name": "Wild Earth",
+    "id": "2437",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Wild_Earth_MOB/WDVLive/index.mpd",
+    "keyId": "1f085238887f54919b2200490bdbd752",
+    "key": "80437df07147ec86080be4424fadf259",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Wild_Earth.png"
+  },
+  {
+    "name": "Animal Planet Hindi",
+    "id": "566",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/AnimalPlanetHin_MOB/WDVLive/index.mpd",
+    "keyId": "36a58e03204353d8a081ca60edce2fff",
+    "key": "fb8bd1208c9055648d83ed963764c783",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AnimalPlanetHin.png"
+  },
+  {
+    "name": "Animal Planet HD Hindi",
+    "id": "3451",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/AnimalPlanetHDHin_MOB/WDVLive/index.mpd",
+    "keyId": "6920695b57925f3a94588dfee72e8b1c",
+    "key": "9b5192a1a4b5b408291ba2fe104d6ac8",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AnimalPlanetHDHin.png"
+  },
+  {
+    "name": "Food Food",
+    "id": "561",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Food_Food_MOB/WDVLive/index.mpd",
+    "keyId": "e66075d32ada52f1a8160bc1c7e86375",
+    "key": "1bd48d53d027a73a9b8f69469f8be19f",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Food_Food.png"
+  },
+  {
+    "name": "Foodxp",
+    "id": "1955",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Food_XP_MOB/WDVLive/index.mpd",
+    "keyId": "45d56f9cf3be5ce28ab83983ca534af2",
+    "key": "8323cffa74d904bdf1dfe19899d10c2d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Food_XP.png"
+  }
+    
 
 ]

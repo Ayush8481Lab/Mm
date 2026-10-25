@@ -2855,7 +2855,224 @@
     "keyId": "45d56f9cf3be5ce28ab83983ca534af2",
     "key": "8323cffa74d904bdf1dfe19899d10c2d",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Food_XP.png"
+  },
+  {
+    "name": "Animal Planet English",
+    "id": "567",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/AnimalPlanetEng_MOB/WDVLive/index.mpd",
+    "keyId": "1450e9d1c9a55f1286de4248af9cea63",
+    "key": "0166ba733e295ded7095629c33790c0e",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AnimalPlanetEng.png"
+  },
+  {
+    "name": "Animal Planet HD English",
+    "id": "286",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/AnimalPlanetHDEng_MOB/WDVLive/index.mpd",
+    "keyId": "aafd067e9c3e50c4b25c239373b92103",
+    "key": "4a3162f66c9bb5e24d05873bf7aa05f2",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/AnimalPlanetHDEng.png"
+  },
+  {
+    "name": "Discovery English",
+    "id": "242",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Discovery_Channel_Eng_MOB/WDVLive/index.mpd",
+    "keyId": "1025acf964795689982726e2d16a73c5",
+    "key": "d88575df3e3d1adb7a82da65f0000aa6",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Discovery_Channel_Eng.png"
+  },
+  {
+    "name": "Discovery HD English",
+    "id": "463",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DiscoveryHDEng_MOB/WDVLive/index.mpd",
+    "keyId": "a2a9c24afabd5fe0aa2ce9d4fa09f892",
+    "key": "8d1869108cc2ee010b756662ee8ec65e",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DiscoveryHDEng.png"
+  },
+  {
+    "name": "Discovery Science English",
+    "id": "568",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DiscoveryScienceEng_MOB/WDVLive/index.mpd",
+    "keyId": "62b9ef8c1ca65d6d8d7fdd982edfeab1",
+    "key": "f9b3e80925fa7227a45322d53c8dd269",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DiscoveryScienceEng.png"
+  },
+  {
+    "name": "Investigation Discovery HD English",
+    "id": "3435",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDHDEnglish_MOB/WDVLive/index.mpd",
+    "keyId": "5555bb6e75ad57dba4725a22dc693f84",
+    "key": "3a99fd02b7c677cfafcda9018372b6ae",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/IDHDEnglish.png"
+  },
+  {
+    "name": "India Science",
+    "id": "1433",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/India_Science_MOB/WDVLive/index.mpd",
+    "keyId": "7e8acc81c5f05bc690ef2e4f01de6eff",
+    "key": "5af061873991f217416524d79b4968d8",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/India_Science.png"
+  },
+  {
+    "name": "DocuBay",
+    "id": "3402",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DocuBay_MOB/WDVLive/index.mpd",
+    "keyId": "c59370bdd4505d7b9a2d4390306b470b",
+    "key": "c21191a3483b6b75a81bd7a1c85f53d4",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DocuBay.png"
+  },
+  {
+    "name": "INWILD",
+    "id": "3389",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Inwild/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Inwild.png"
+  },
+  {
+    "name": "DD bharati",
+    "id": "580",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DD_bharati_MOB/WDVLive/index.mpd",
+    "keyId": "8432e9d1184f58829a77b9b5a48fd06b",
+    "key": "a416934cede1d9c1ba0c8ec1018583e1",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DD_bharati.png"
+  },
+  {
+    "name": "DD Kisan",
+    "id": "583",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/DD_Kisan_MOB/WDVLive/index.mpd",
+    "keyId": "d6eee813c6e35f9fbb8d7a787c131f6b",
+    "key": "800b6e082f92c548d9638375dea7a0a1",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/DD_Kisan.png"
+  },
+  {
+    "name": "TLC English",
+    "id": "574",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TLCEnglish_MOB/WDVLive/index.mpd",
+    "keyId": "3c7c24510783535b881316714dbcf969",
+    "key": "65c80b05551424532dae2c2da73ef7d8",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TLCEnglish.png"
+  },
+  {
+    "name": "TLC HD English",
+    "id": "479",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/TLCHDEnglish_MOB/WDVLive/index.mpd",
+    "keyId": "a7a544c972e7520fbe89f80191c21a7b",
+    "key": "f7e753d587b7e33814e6eeb2a4c97d99",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TLCHDEnglish.png"
+  },
+  {
+    "name": "GOOD TiMES",
+    "id": "560",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/NDTV_Good_Times_MOB/WDVLive/index.mpd",
+    "keyId": "9e19a0d2ae5e5123b03fd29fcb7e6e16",
+    "key": "ced94c8516a1983cd2550f42a064f624",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/NDTV_Good_Times.png"
+  },
+  {
+    "name": "FTV HD",
+    "id": "1598",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/FTV_HD_MOB/WDVLive/index.mpd",
+    "keyId": "0e167f8e872e53adba53613c37db3579",
+    "key": "589b58b08bfe3e35eea5f63fac093f87",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/FTV_HD.png"
+  },
+  {
+    "name": "Fashion India",
+    "id": "2031",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Fashion_India_MOB/WDVLive/index.mpd",
+    "keyId": "dfe4c4317a8f5f089a53acf7f0a2ab83",
+    "key": "f45a2f112e14ca593282bb7dcfbb3081",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Fashion_India.png"
+  },
+  {
+    "name": "Luxe TV",
+    "id": "1736",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Luxe_TV_MOB/WDVLive/index.mpd",
+    "keyId": "e8b0b960d29658969d74da596e2787e1",
+    "key": "9b4051847231c9e1fd717df5aa5e0eea",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Luxe_TV.png"
+  },
+  {
+    "name": "Gusto TV",
+    "id": "3213",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Gusto_TV_MOB/WDVLive/index.mpd",
+    "keyId": "59495102153652f3b6d3bcec8ce2e7c8",
+    "key": "19fe6657f3a896712b2e2feafa9a1686",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gusto_TV.png"
+  },
+  {
+    "name": "INTRAVEL",
+    "id": "3392",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Intravel/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Intravel.png"
+  },
+  {
+    "name": "Holidaycapes by Stingray",
+    "id": "3287",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/holidayscapes/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/holidayscapes.png"
+  },
+  {
+    "name": "Stingray Naturescape",
+    "id": "3285",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/naturescape-a003s-dhaka/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/naturescape-a003s-dhaka.png"
+  },
+  {
+    "name": "Stingray Cozy Cafe",
+    "id": "3481",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/cozycafe-400ads_cafe001-tokyo/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/cozycafe-400ads_cafe001-tokyo.png"
+  },
+  {
+    "name": "Stingray The Spa",
+    "id": "3323",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/ose-122ads-montreal/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/ose-122ads-montreal.png"
+  },
+  {
+    "name": "ZenLIFE by Stingray",
+    "id": "3286",
+    "category": "Infotainment",
+    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/zenlife-zen001-seoul/HLSPartner/index.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/zenlife-zen001-seoul.png"
   }
+    
     
 
 ]

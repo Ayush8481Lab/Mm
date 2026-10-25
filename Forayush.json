@@ -2772,8 +2772,8 @@
     "id": "821",
     "category": "Infotainment",
     "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/SonyBBCEarthHin_MOB/WDVLive/index.mpd",
-    "keyId": "f45e69507f0f5aa1a6e82374efb0af25",
-    "key": "f84348219837769feb5a26a7b1cd31dc",
+    "keyId": "0d533dd92ca057ce85910fbb98be77d5",   
+    "key": "442690c7c5852ca7c63b63d483ab6bc3",   
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyBBCEarthHin.png"
   },
   {
@@ -2787,7 +2787,7 @@
   },{
     "name": "Investigation Discovery English",
     "id": "3452",
-    "category": "Telugu",
+    "category": "Infotainment",
     "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/IDEnglish_MOB/WDVLive/index.mpd",
     "keyId": "4b962057a46e5a0a9ba877a71b3e4bc8",
     "key": "3d7327305c44a64dee1bf6f9a3618bf8",

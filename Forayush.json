@@ -104,7 +104,8 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Gold_Thrills_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"gcIDhifQ3CvmmH9RVpP16Q\",\"kid\":\"eLpqGnfQUTyJwPg_o21WEA\"},{\"kty\":\"oct\",\"k\":\"6m1aaMfUUzcZswfntHAcOA\",\"kid\":\"xEgicMwOWT6EcHtPV_aLag\"},{\"kty\":\"oct\",\"k\":\"0QUiAwjHE_nprxGQVCJ29g\",\"kid\":\"9dLhGBCgXAKOUr0Jm0IsbA\"},{\"kty\":\"oct\",\"k\":\"kYlxb9HQGTscxFRuVuo7pg\",\"kid\":\"Z28vlXXTXS6UepmKd7AcAw\"},{\"kty\":\"oct\",\"k\":\"W0NYj0zwOeXlTT5tipSFUA\",\"kid\":\"mbvxUTdIXcK6PaTw4KaemA\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Gold_Thrills.png"
-  },{
+  },
+  {
     "name": "And Pictures",
     "id": "185",
     "category": "Movies",
@@ -130,7 +131,6 @@
     "key": "bba5064a2c162761bb92a15170c88b75",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyMAX2.png"
   },
-  
   {
     "name": "Anmol Cinema",
     "id": "415",
@@ -406,7 +406,8 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Utsav_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"8n7QtKFja3SBIO2bsE2neg\",\"kid\":\"eieKHQejVXa2bOTimFPS4A\"},{\"kty\":\"oct\",\"k\":\"qDg9rZp1WClUjoUx6sN31w\",\"kid\":\"47E4zdGCWgmjCziF1mwKeg\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/34/40/302086_1753186825045_l_medium.jpg"
-  },{
+  },
+  {
     "name": "Colors Rishtey",
     "id": "279",
     "category": "Shows",
@@ -520,7 +521,8 @@
     "keyId": "fc9f48f9ec80513c9687deb1a6fd061c",
     "key": "15d9d6704bbf6beb20190a2bc232603f",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Unique_Tv.png"
-  },{
+  },
+  {
     "name": "EPIC TV",
     "id": "3382",
     "category": "Entertainment",
@@ -528,7 +530,8 @@
     "keyId": "0384122132e151639aafddeb8bd1a50b",
     "key": "f9be8660035eecbca5ae015adb73fe7b",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/EPIC_TV.png"
-  },{
+  },
+  {
     "name": "Star Bharat HD",
     "id": "931",
     "category": "Entertainment",
@@ -536,7 +539,8 @@
     "keyId": "ad6f73e2f7f15ed9b095576e43fe405f",
     "key": "38d5d669d5ee96f18dc890636753da3b",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Bharat_HD.png"
-  },{
+  },
+  {
     "name": "EPIC Bharat",
     "id": "3383",
     "category": "Entertainment",
@@ -650,7 +654,8 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Sports_3_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"9pEBtxhy3Pss0Zh9N3PA9A\",\"kid\":\"KQRzLI-1Xr6qD1kxaRaZfg\"},{\"kty\":\"oct\",\"k\":\"iMVjcSYsG76EPBdHILvesA\",\"kid\":\"LwQM5kDuV5eLC8u5da8ApA\"},{\"kty\":\"oct\",\"k\":\"yuGdFx-xAVqJNC5RhfjMew\",\"kid\":\"b79mlv8wUXaDN6NNoOZuA\"},{\"kty\":\"oct\",\"k\":\"jtdX7aK3QChbz5qP2SY0Ig\",\"kid\":\"wZts_qAxUL6GiVTReXXBg\"},{\"kty\":\"oct\",\"k\":\"92fExZ-_6vhHVJlKDtXciw\",\"kid\":\"gtx9uBTvUWWj2TEC9ApRQg\"}],\"type\":\"temporary\"}",
     "logo": "https://img.media.jio.com/tvpimages/78/2/302117_1749666092192_l_medium.jpg"
-  },{
+  },
+  {
     "name": "Unite8 Sports 1 HD",
     "id": "9624886",
     "category": "SPORTS",
@@ -1453,7 +1458,6 @@
     "key": "35030fa506bf92866f369da6d6e917fa",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sangeet_Bhojpuri.png"
   },
-  
   {
     "name": "9x Jhakaas",
     "id": "441",
@@ -1479,13 +1483,13 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Pravah_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"UonNcfOEz7pP05hfCLAxzg\",\"kid\":\"sd0pTmLiXkWh4SfxZYC4Ww\"},{\"kty\":\"oct\",\"k\":\"jHSZWUziNFEhkO2aElwK3w\",\"kid\":\"CYu0j0-IWBCiE_YJw2-56g\"},{\"kty\":\"oct\",\"k\":\"LfkZ2FW0nDaw3WEMPIkEFg\",\"kid\":\"gYrNwBxRUFa9SjmBsSDcrA\"},{\"kty\":\"oct\",\"k\":\"kJuK004WplflVRNuEkQW3Q\",\"kid\":\"nkgAdMehVTCImog_5SypWA\"},{\"kty\":\"oct\",\"k\":\"6_SEi3-OnL5Snuok4vscfQ\",\"kid\":\"JG1_NgJ6XK6OSrgRaqUAZQ\"}],\"type\":\"temporary\"}",
     "logo": "https://upload.wikimedia.org/wikipedia/commons/a/a3/Star_Pravah_2023.png"
-  },{
+  },
+  {
     "name": "Star Pravah HD",
     "id": "336",
     "category": "Marathi",
-    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Pravah_HD_MOB/WDVLive/index.mpd",
-    "keyId": "fb288091038b58b8839d202640bfe46f",
-    "key": "99bad05f52b77e9c2460545f631140dd",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Pravah_HD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"KCT1kYe1Lbyn0b94QQZErg\",\"kid\":\"94zCl1O-WqeWFngNIjTbrg\"},{\"kty\":\"oct\",\"k\":\"iRWNl-tqz6OunrEcg82DPw\",\"kid\":\"blQSB5rQWCCP_nhxnBFYiw\"},{\"kty\":\"oct\",\"k\":\"4LD_IEHdYjbU0qGQk1kocw\",\"kid\":\"bF5TAhvvVJqhL-GJpCrAVg\"},{\"kty\":\"oct\",\"k\":\"vIlUaa1WKyOPtSmiXRqdpQ\",\"kid\":\"vZp8qAPxVHqMdh3pvfrxzw\"},{\"kty\":\"oct\",\"k\":\"C9JwVX3p2bROhDFDXxe8iw\",\"kid\":\"tFqOGspjVSWhLEzdjwDA4w\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_HD.png"
   },
   {
@@ -1495,14 +1499,13 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Pravah_Picture_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"M2cbAtzunfrKfDentcyBoQ\",\"kid\":\"6r-jcFBuVG-ANTXlFdblkQ\"},{\"kty\":\"oct\",\"k\":\"XQym4S7peCudLR-F6jpkkA\",\"kid\":\"sBE9YGBSXROdxXIwejFyIw\"},{\"kty\":\"oct\",\"k\":\"Ly5bq_4tXjHutoPBJXLRfg\",\"kid\":\"NhZ24_3TV0O8rQ0kDUt1xQ\"},{\"kty\":\"oct\",\"k\":\"QZe5PCdfxzkR7ZBWGNfgqw\",\"kid\":\"tC7E5EmwX-qjqYAnzFpeQg\"},{\"kty\":\"oct\",\"k\":\"P9DjgKNEDUbfP3EU2MqsLQ\",\"kid\":\"FW-GRTY17Wc2MfSOIOLZlw\"},{\"kty\":\"oct\",\"k\":\"CptY06pCTAI8coVng-2kyA\",\"kid\":\"iI6Dj2aF5cXvf_Z9QPGgJQ\"},{\"kty\":\"oct\",\"k\":\"3-pnrLxLUTzVI3BJXDNUxw\",\"kid\":\"A80ePuArVDq9JFQPv3hzHw\"},{\"kty\":\"oct\",\"k\":\"JkGj1crjpHl76QS2KeO25w\",\"kid\":\"VK8-0xDBDThpdYwtVefAUQ\"},{\"kty\":\"oct\",\"k\":\"dgWZ9ui_EJ1_bOvTY3bwkQ\",\"kid\":\"Z8d6y4jhlqg68Mm7TAIbNg\"},{\"kty\":\"oct\",\"k\":\"ytCjxiTivCVIq-xEryhWdg\",\"kid\":\"DnskAUi2W--TLf_K1T3ujg\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_Picture.png"
-  }, 
+  },
   {
-    "name": "Star Pravah Picture HD",
+    "name": "Star Pravah Pictures HD",
     "id": "3100",
     "category": "Marathi",
-    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Pravah_Picture_HD_MOB/WDVLive/index.mpd",
-    "keyId": "0cb8027f563f5f32b27900a4a15c065f",
-    "key": "b29afa97e86a3df924dec4ba47bd84eb",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Pravah_Picture_HD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"IPu2psQYw-A97iPkeI_iKg\",\"kid\":\"3ffy_knoWae7WwT3LcM4uA\"},{\"kty\":\"oct\",\"k\":\"CRzQ85GHvl82ZVeSg-kr8g\",\"kid\":\"mBKh33D9Xym4Vfj5t4pGSA\"},{\"kty\":\"oct\",\"k\":\"6WVFD_hE9UompqmpoUHJ-w\",\"kid\":\"2b1FCxtDVIGUjPiihg7Vng\"},{\"kty\":\"oct\",\"k\":\"Y_b3fxzBPxSI8gD1BdfXdQ\",\"kid\":\"ToXXbQ-1XaW9YMr_mCtzyQ\"},{\"kty\":\"oct\",\"k\":\"GRJHN1LH02-wkv1n8okOFg\",\"kid\":\"04iSzES-WACvBgcJCjh7uQ\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Pravah_Picture_HD.png"
   },
   {
@@ -1561,7 +1564,7 @@
     "id": "1358",
     "category": "Marathi",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeTalkiesHD_BTS/WDVLive/index.mpd",
-        "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"fgnwFTes3uDa063mpuCjHQ\",\"kid\":\"eE1lEepNWUGj-TFL8_pLkA\"},{\"kty\":\"oct\",\"k\":\"ObMnL4YMPMHzXCt0ZTM3CQ\",\"kid\":\"Tg8HOaOvVumYgNVXQfbZPQ\"},{\"kty\":\"oct\",\"k\":\"TksogeS1Bh1cyL3J1H0Omg\",\"kid\":\"mfcFhaYzVK-gA9WFZrDEDQ\"},{\"kty\":\"oct\",\"k\":\"CieaIJbmCyizLCPwYgUbOw\",\"kid\":\"NEMH7uZhXgajYZStQpDERQ\"},{\"kty\":\"oct\",\"k\":\"AWi-vx0Ni4EwxtFux8Gn7A\",\"kid\":\"PaFaW5ptW1elTDppNCEw1A\"}],\"type\":\"temporary\"}",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"fgnwFTes3uDa063mpuCjHQ\",\"kid\":\"eE1lEepNWUGj-TFL8_pLkA\"},{\"kty\":\"oct\",\"k\":\"ObMnL4YMPMHzXCt0ZTM3CQ\",\"kid\":\"Tg8HOaOvVumYgNVXQfbZPQ\"},{\"kty\":\"oct\",\"k\":\"TksogeS1Bh1cyL3J1H0Omg\",\"kid\":\"mfcFhaYzVK-gA9WFZrDEDQ\"},{\"kty\":\"oct\",\"k\":\"CieaIJbmCyizLCPwYgUbOw\",\"kid\":\"NEMH7uZhXgajYZStQpDERQ\"},{\"kty\":\"oct\",\"k\":\"AWi-vx0Ni4EwxtFux8Gn7A\",\"kid\":\"PaFaW5ptW1elTDppNCEw1A\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeetalkies/channel_list/1920x1080list8db83dea9fb7450aa0d1bf6a4e5f30f5.png"
   },
   {
@@ -1779,12 +1782,11 @@
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/TV9_Telugu_News.png"
   },
   {
-    "name": "ETV Andhra pradesh",
+    "name": "ETV Andhra Pradesh",
     "id": "614",
     "category": "Telugu",
-    "url": "https://d1t0ftvgxmmgk0.cloudfront.net/cdbded927dea40ab8cda857b3d12db0e/etvBBJRQ.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Andhra_pradesh_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"sljMEaUBzBlpFMPpwag3cQ\",\"kid\":\"oVhos10sUfmS2_Gp0nrvfw\"},{\"kty\":\"oct\",\"k\":\"QMDpYVk20puN8Nqm9xIzoA\",\"kid\":\"nLUdDo2rUAiwpd3E4cmNqw\"},{\"kty\":\"oct\",\"k\":\"wE-C-NZUd02MXvqlLj5-gQ\",\"kid\":\"Wkd6YJjAXHeV9hmEUjdU5A\"},{\"kty\":\"oct\",\"k\":\"BuHnjN_MXRLqm-c2UFeKiw\",\"kid\":\"ELlMR_i0WlGJ10MDH3hPRg\"},{\"kty\":\"oct\",\"k\":\"A4gZap6WqoEbv2if_PS63w\",\"kid\":\"C0oD8C61VZqV-tAJzadOpA\"}],\"type\":\"temporary\"}",
     "logo": "https://etv-win-image.akamaized.net/etvwin/live/channel/47688/etv-andhra-pradesh-320x240.jpg"
   },
   {
@@ -1817,9 +1819,8 @@
     "name": "ETV Telugu",
     "id": "629",
     "category": "Telugu",
-    "url": "https://dct5k6kkx3ead.cloudfront.net/168cd1fc909247829442a468a6fe076b/etvULY69.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Telugu_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"5sr83vw9SADw2J4dNCjvhA\",\"kid\":\"080bKwyzVviP2DXEp03Wfg\"},{\"kty\":\"oct\",\"k\":\"todgHAF1KUj-bWGrzqbNSA\",\"kid\":\"Bu7GSZJDVSq2A1dYQhNNWg\"},{\"kty\":\"oct\",\"k\":\"QccSH6EZsq9-l1flSz_2UQ\",\"kid\":\"AY3AEZcIWxC6Bk2TgUOcPA\"},{\"kty\":\"oct\",\"k\":\"Iu0IUAYoBfOxGpQV1WDguQ\",\"kid\":\"3ylCq3n7Vxm3pQRONirsNA\"},{\"kty\":\"oct\",\"k\":\"nn0cv7SfLMtMN7Rf8U2Cug\",\"kid\":\"y0ozm7pXWdyV42V9GmrSXw\"}],\"type\":\"temporary\"}",
     "logo": "https://i.ibb.co/K34XQRP/ETVnew-Logo.png"
   },
   {
@@ -1831,16 +1832,22 @@
     "key": "cd9f07a43e89b32bf3af1bfc7e6c84b2",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_TV_HD.png"
   },
-  
   {
-    "name": "ETV Cinema HD",
-    "id": "1665",
+    "name": "ETV Cinema",
+    "id": "252",
     "category": "Telugu",
-    "url": "https://d1z9okhs5q5o80.cloudfront.net/e8903f8e970841deb594cc7c7f11bc8a/etv6N316.m3u8",
-    "keyId": "null",
-    "key": "null",
-    "logo": "https://i.ibb.co/chW8CJSc/unnamed-2.jpg"
-  },  {
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Cinema_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"xqDdwqsXzXb-oMJqvF4fPA\",\"kid\":\"nk1IZrh2WtiKlM8425AJaw\"},{\"kty\":\"oct\",\"k\":\"3uh5U4s61EdjJdWJmRrgrQ\",\"kid\":\"PX_ldYzEU1W9AWn4ijJi7Q\"},{\"kty\":\"oct\",\"k\":\"z2MgobOdbDnWHHLM9eYJLw\",\"kid\":\"bqMKC6C8UMW0VwkMsS6IQg\"},{\"kty\":\"oct\",\"k\":\"QdwyvQF8lzMighvnRpFwPA\",\"kid\":\"GAdd20E9W6WalqK3qZbZyg\"},{\"kty\":\"oct\",\"k\":\"VwDRmH5kEDQBuzwyYv_A9g\",\"kid\":\"MCbwuHV7XTufr5ERPUrMkw\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/77/40/301694_1753177924576_l_medium.jpg"
+  },{
+  "name": "ETV Cinema HD",
+  "id": "1665",
+  "category": "Telugu",
+  "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Cinema_HD_BTS/WDVLive/index.mpd",
+  "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"uP60c3i7HUqFu8F_J8ixig\",\"kid\":\"qpVb9tgEUnyWr5_tYGM4ew\"},{\"kty\":\"oct\",\"k\":\"Y_XV2OtYkYKOX2RlLAXxHw\",\"kid\":\"ktv5sUJfVgCAMvpCy82HCQ\"},{\"kty\":\"oct\",\"k\":\"-EKtb63LnN4GYffpv8z9sA\",\"kid\":\"cN6knfLdV6O68eKfj4PB-A\"},{\"kty\":\"oct\",\"k\":\"mtGbTe5X8mIN8rC7DZw9Zg\",\"kid\":\"kQFVG5dvURGNuJDNqSLpFQ\"},{\"kty\":\"oct\",\"k\":\"6lphHcZcqvmggLYJ9X2QuQ\",\"kid\":\"mlw_onUKUTii5zyxuJKgYQ\"}],\"type\":\"temporary\"}",
+  "logo": "https://img.media.jio.com/tvpimages/51/63/301703_1753177812682_l_medium.jpg"
+  },
+  {
     "name": "Star Maa Movies",
     "id": "1111",
     "category": "Telugu",
@@ -1883,30 +1890,43 @@
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_Movies_HD.png"
   },
   {
-    "name": "ETV Abhiruchi",
+    "name": "ETV Music",
     "id": "565",
     "category": "Telugu",
-    "url": "https://diy3vq1irs76a.cloudfront.net/78e9244a64104ef48987207cea0cf20b/index.m3u8",
-    "keyId": "null",
-    "key": "null",
-    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/channel/ad1d0bdebbe763e34bd6af14fc856589.png"
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Abhiruchi_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"a9eNTK-iv3QomX1-SHYi_g\",\"kid\":\"DDY5JtQ-XDuf2KP1XOoTeg\"},{\"kty\":\"oct\",\"k\":\"ZxFeeUNc2GVJ1AGv3IGung\",\"kid\":\"pdYM-QuLWoGT4Jg4f2QSGA\"},{\"kty\":\"oct\",\"k\":\"sMP9n5DZC5k8w-OHGPNoow\",\"kid\":\"CfAfKQIWWnaAeOodIQx1-A\"},{\"kty\":\"oct\",\"k\":\"RyR8XEcq4kWz_9blfvkXVQ\",\"kid\":\"2QPepG7pUYKmsbUmHiy6Bg\"},{\"kty\":\"oct\",\"k\":\"_JolO1Io_QR4ztwb-7Lv3g\",\"kid\":\"S1xC-qCqViePGE8aIU71hg\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/47/30/301695_1787769113861_l_medium.jpg"
   },
   {
     "name": "ETV Life",
     "id": "570",
     "category": "Telugu",
-    "url": "https://d15mjojxgag4el.cloudfront.net/b149e4ea70324b9d9c1fbc11e09e6459/index.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Life_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"hZ4dgVt1ypGNUpz27YiQ7w\",\"kid\":\"QJfc-lldWcKkMl_lkiQOkw\"},{\"kty\":\"oct\",\"k\":\"jOrex6OwRU8a771SPiMY2Q\",\"kid\":\"0zap_HkbVaGUDDnz_zQwKQ\"},{\"kty\":\"oct\",\"k\":\"ccKOy5MYVS3-MXEdjfk93w\",\"kid\":\"dC8iUcyFXxGrpHczz3VnUA\"},{\"kty\":\"oct\",\"k\":\"5L9zb8TVwkhb6psrzzAK_Q\",\"kid\":\"Z8HtdKkRVNaAeP88BnsJPQ\"},{\"kty\":\"oct\",\"k\":\"xqDHg-whPaaUncL6jjwtmA\",\"kid\":\"PXFvnu_lXtqgtuZ_Nh-lOg\"}],\"type\":\"temporary\"}",
     "logo": "https://i.ibb.co/QFbs9mZC/channels4-profile.jpg"
+  },
+  {
+    "name": "ETV HD",
+    "id": "1973",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_HD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"BHjeagWt7Lpq3wO1FvRkcA\",\"kid\":\"jUhtkjIwVRuyHCuC2DU4rQ\"},{\"kty\":\"oct\",\"k\":\"5OWfqGBRjd16RXlVawr2_A\",\"kid\":\"UaFRahnXWUml-L3ap0NqCw\"},{\"kty\":\"oct\",\"k\":\"k2Ym1Vx5PU5Qu7GO1bHYJA\",\"kid\":\"cd2eE_xNWuyVh4507d8-hw\"},{\"kty\":\"oct\",\"k\":\"3vr4wQKmXVe530lSxabq0Q\",\"kid\":\"YbepZExGWKqgvzJO5SAOQw\"},{\"kty\":\"oct\",\"k\":\"bozqyx_sDSlpobIupEF70w\",\"kid\":\"ThoMCImNXkmNb_rON8Isrg\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/32/32/301701_1753177987178_l_medium.jpg"
+  },
+  {
+    "name": "ETV Plus",
+    "id": "692",
+    "category": "Telugu",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Plus_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"6ljpr6dKw6TSsRZ9tPBG3g\",\"kid\":\"HBZDKIDkUT6wjrAuleod4w\"},{\"kty\":\"oct\",\"k\":\"nSxIGK5pZI7L_n4DdPOu-A\",\"kid\":\"jJh9wdy2Wv-_8SW6qXvT6w\"},{\"kty\":\"oct\",\"k\":\"A6EYH--yYhPl8kG_UOd6dg\",\"kid\":\"yrqKkw3BVwCh5b6J_BeOBg\"},{\"kty\":\"oct\",\"k\":\"VC8nnf5DgHYDNMc9SQE0xg\",\"kid\":\"xvfIfBZ2WDGnmdmcx4Y7tg\"},{\"kty\":\"oct\",\"k\":\"q474CYfC2Ywahxd606d0aQ\",\"kid\":\"Pb7dNgJyU0O-82azWkfn7Q\"}],\"type\":\"temporary\"}",
+    "logo": "https://img.media.jio.com/tvpimages/3/29/301700_1753182072619_l_medium.jpg"
   },
   {
     "name": "ETV Plus HD",
     "id": "2956",
     "category": "Telugu",
-    "url": "https://d2qbg25361k63d.cloudfront.net/7d95c8f44ab14e1196e5c2df9189b33a/etvL76H6.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Plus_HD_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"qQp0pJDDOkTXgfxqZ7C-nQ\",\"kid\":\"ICJ844NbU0i7TfClopcaFw\"},{\"kty\":\"oct\",\"k\":\"ktxCrLiRK43_O9jTdSviFQ\",\"kid\":\"Dk6_sFMKV6eol3etpCwNAA\"},{\"kty\":\"oct\",\"k\":\"WlZuPwsaNr002Skwzki45w\",\"kid\":\"uttb3WqXWZ-H7I5Ky8vYiQ\"},{\"kty\":\"oct\",\"k\":\"U1MWzX8RobADcu5u6i_GUA\",\"kid\":\"9Pv8j2i3UGCsDMP73VmxHw\"},{\"kty\":\"oct\",\"k\":\"QRoSY_iJ4J7nt-Nisf1uBg\",\"kid\":\"yXEXz0ssVU2xGS1B7H1l4w\"}],\"type\":\"temporary\"}",
     "logo": "https://i.ibb.co/wr83fbq0/unnamed-1.jpg"
   },
   {
@@ -2003,9 +2023,8 @@
     "name": "ETV Telangana",
     "id": "630",
     "category": "Telugu",
-    "url": "https://d2iclbsmm559pr.cloudfront.net/7dda7e8e5e4a49ff9ac6e6e78a5e6ae0/etv0NXKE.m3u8",
-    "keyId": "null",
-    "key": "null",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ETV_Telangana_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"N7akmDbkbMdUo6cvy-c3aQ\",\"kid\":\"cCgySHHLWgOLH658CsklTA\"},{\"kty\":\"oct\",\"k\":\"kzBvRClH5R-tqh02VM6ySA\",\"kid\":\"jILzlrDQVSGou6W8IpNexQ\"},{\"kty\":\"oct\",\"k\":\"Nw2swSVdlNgvJF5-Dt0gqQ\",\"kid\":\"PcC9avadWQiRIlj5jmU2eA\"},{\"kty\":\"oct\",\"k\":\"iGKZ1J-UfLHhG0p0penfGA\",\"kid\":\"8kSLI9DZUXCjc1y1tkUqmw\"},{\"kty\":\"oct\",\"k\":\"m4rF75owLWVbLpL1tZ8zeQ\",\"kid\":\"B73mlTfbUmyg4H-6Fp_Rig\"}],\"type\":\"temporary\"}",
     "logo": "https://etv-win-image.akamaized.net/etvwin/live/channel/18492/etv-telangana-320x240.jpg"
   },
   {
@@ -2289,7 +2308,6 @@
     "key": "4bc2a11372933c408bc27b11d832d836",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Gemini_Comedy.png"
   },
-  
   {
     "name": "Mahaa Max",
     "id": "3143",
@@ -2649,8 +2667,6 @@
     "keyId": "c413d334b2825a16bce176b426db953e",
     "key": "3c4ac4012b39a55a94618381ed00c4b4",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Vissa_TV.png"
-  }
+  },
 
-  ]
-    
-
+]

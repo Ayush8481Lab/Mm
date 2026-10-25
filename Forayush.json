@@ -703,24 +703,6 @@
     "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten2_HD.png"
   },
   {
-    "name": "SONY TEN 4 HD",
-    "id": "1775",
-    "category": "SPORTS",
-    "url": "https://dishmt.slivcdn.com/hls/live/2020589/ten4hd/master.m3u8",
-    "keyId": "null",
-    "key": "null",
-    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_4_HD_Telugu.png"
-  },
-  {
-    "name": "SONY TEN 4",
-    "id": "1774",
-    "category": "SPORTS",
-    "url": "https://dishmt.slivcdn.com/hls/live/2020437/ten4sd/master.m3u8",
-    "keyId": "null",
-    "key": "null",
-    "logo": "https://jiotvimages.cdn.jio.com/dare_images/images/Ten_4_Tamil.png"
-  },
-  {
     "name": "SONY TEN 5",
     "id": "525",
     "category": "SPORTS",
@@ -1835,7 +1817,7 @@
     "name": "ETV Telugu",
     "id": "629",
     "category": "Telugu",
-    "url": "https://d1rznlx03muoan.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_HD_H264_cloud_in/index.m3u8",
+    "url": "https://dct5k6kkx3ead.cloudfront.net/168cd1fc909247829442a468a6fe076b/etvULY69.m3u8",
     "keyId": "null",
     "key": "null",
     "logo": "https://i.ibb.co/K34XQRP/ETVnew-Logo.png"
@@ -1854,7 +1836,7 @@
     "name": "ETV Cinema HD",
     "id": "1665",
     "category": "Telugu",
-    "url": "https://d27zlkxhgwrfgo.cloudfront.net/v1/master/9d43eacaed199f8d5883927e7aef514a8a08e108/ETV_CINEMA_H264_cloud_in/index.m3u8",
+    "url": "https://d1z9okhs5q5o80.cloudfront.net/e8903f8e970841deb594cc7c7f11bc8a/etv6N316.m3u8",
     "keyId": "null",
     "key": "null",
     "logo": "https://i.ibb.co/chW8CJSc/unnamed-2.jpg"
@@ -2084,7 +2066,8 @@
     "id": "1129",
     "category": "Telugu",
     "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Maa_Music_MOB/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"REmTjZg8J8x-FUulEmCqJA\",\"kid\":\"1m4KnKwoUxGch7N9XdfSXQ\"}],\"type\":\"temporary\"}",
+    "keyId": "d66e0a9cac2853119c87b37d5dd7d25d",
+    "key": "4449938d983c27cc7e154ba51260aa24",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_Music.png"
   },
   {

@@ -398,6 +398,14 @@
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/ZeeAnmol_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"ihNFwL53oJwTDh9Au13Otg\",\"kid\":\"6PyZrciLVSqfpBkFQzoJuA\"},{\"kty\":\"oct\",\"k\":\"uAGueZHAY7V_vaa07JUgrw\",\"kid\":\"hhfzDHJhWw-TH2lwfFr5qw\"}],\"type\":\"temporary\"}",
     "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeanmol/channel_list/1920x1080listef6865f9714b40139037d98300559cd7.png"
+  },{
+    "name": "Zee Dil Se",
+    "id": "IN2100003OJ",
+    "category": "Shows",
+    "url": "https://amg00862-amg00862c6-amgplt0016.playout.now3.amagi.tv/playlist/amg00862-amg00862c6-amgplt0016/playlist.m3u8",
+    "keyId": "null",
+    "key": "null",
+    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeanmol/channel_list/1920x1080listef6865f9714b40139037d98300559cd7.png"
   },
   {
     "name": "Star Utsav",
@@ -532,12 +540,19 @@
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/EPIC_TV.png"
   },
   {
+    "name": "Star Bharat",
+    "id": "1127",
+    "category": "Entertainment",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Bharat_BTS/WDVLive/index.mpd",
+    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"zOg8yBQQWh4Nd0kmcEijvQ\",\"kid\":\"DGFSn0m6WAKHq6JKNsk3TQ\"},{\"kty\":\"oct\",\"k\":\"btfU-obkc7cMDFvavlGEXQ\",\"kid\":\"7q8Y6GsjUnGIFxggeBsTrA\"},{\"kty\":\"oct\",\"k\":\"cHIwB0wGTr4AWxqPf37nhQ\",\"kid\":\"pDVjTdSGV6CBCGJHwHj_oA\"},{\"kty\":\"oct\",\"k\":\"rc_bhWxu5y2QcnzQLY25cw\",\"kid\":\"szR4iGcDWEKgyYAkfyVwDg\"},{\"kty\":\"oct\",\"k\":\"YRWgYUdsZlT2eWkFDuAi7Q\",\"kid\":\"sZVLl8GGXeS6yl_iaP-DCQ\"}],\"type\":\"temporary\"}",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Bharat_HD.png"
+  },
+  {
     "name": "Star Bharat HD",
     "id": "931",
     "category": "Entertainment",
-    "url": "https://jiotvmblive.cdn.jio.com/bpk-tv/Star_Bharat_HD_MOB/WDVLive/index.mpd",
-    "keyId": "ad6f73e2f7f15ed9b095576e43fe405f",
-    "key": "38d5d669d5ee96f18dc890636753da3b",
+    "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Bharat_HD_BTS/WDVLive/index.mpd",
+  "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"9CrwP5HwyLRmQ_SFrKa1tw\",\"kid\":\"sS51TVP4XDOLXvrnqpP-DA\"},{\"kty\":\"oct\",\"k\":\"hSEuA3RKH3grksFlv-9IqA\",\"kid\":\"bLAGQtQ4WSC500W5Y90S0Q\"},{\"kty\":\"oct\",\"k\":\"1_MFjb0PlVzLzLRs0PP_qw\",\"kid\":\"FePeKcM5Vt6x1JTvHBnWnQ\"},{\"kty\":\"oct\",\"k\":\"YRHQT1b3gcpq8t2syctrqQ\",\"kid\":\"6o6fppOFVkqYky5-s263gw\"},{\"kty\":\"oct\",\"k\":\"xKl1bHltG3DY4fKIsowyjQ\",\"kid\":\"cdeDP2EWVcawZ-7Gyg-cTw\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Bharat_HD.png"
   },
   {

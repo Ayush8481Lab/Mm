@@ -405,7 +405,7 @@
     "url": "https://amg00862-amg00862c6-amgplt0016.playout.now3.amagi.tv/playlist/amg00862-amg00862c6-amgplt0016/playlist.m3u8",
     "keyId": "null",
     "key": "null",
-    "logo": "https://akamaividz2.zee5.com/image/upload/w_1197,h_674,c_scale,f_webp,q_auto:eco/resources/0-9-zeeanmol/channel_list/1920x1080listef6865f9714b40139037d98300559cd7.png"
+    "logo": "https://tvpnlogopus.samsungcloud.tv/platform/image/sourcelogo/vc/00/02/34/IN2100003OJ_20260901T053445SQUARE.png"
   },
   {
     "name": "Star Utsav",
@@ -545,7 +545,7 @@
     "category": "Entertainment",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Star_Bharat_BTS/WDVLive/index.mpd",
     "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"zOg8yBQQWh4Nd0kmcEijvQ\",\"kid\":\"DGFSn0m6WAKHq6JKNsk3TQ\"},{\"kty\":\"oct\",\"k\":\"btfU-obkc7cMDFvavlGEXQ\",\"kid\":\"7q8Y6GsjUnGIFxggeBsTrA\"},{\"kty\":\"oct\",\"k\":\"cHIwB0wGTr4AWxqPf37nhQ\",\"kid\":\"pDVjTdSGV6CBCGJHwHj_oA\"},{\"kty\":\"oct\",\"k\":\"rc_bhWxu5y2QcnzQLY25cw\",\"kid\":\"szR4iGcDWEKgyYAkfyVwDg\"},{\"kty\":\"oct\",\"k\":\"YRWgYUdsZlT2eWkFDuAi7Q\",\"kid\":\"sZVLl8GGXeS6yl_iaP-DCQ\"}],\"type\":\"temporary\"}",
-    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Bharat_HD.png"
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Star_Bharat.png"
   },
   {
     "name": "Star Bharat HD",
@@ -1867,7 +1867,7 @@
     "id": "1111",
     "category": "Telugu",
     "url": "https://jiotvpllive.cdn.jio.com/bpk-tv/Maa_Movies_BTS/WDVLive/index.mpd",
-    "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"nwY4jEi_uUz_l5fiWEfR0Q\",\"kid\":\"9MAiBT81W0udygCTRj17oA\"}],\"type\":\"temporary\"}",
+ "license": "{\"keys\":[{\"kty\":\"oct\",\"k\":\"mYPjyKD8lkqr1FnRlLguLw\",\"kid\":\"JzpsBkCUWDK6i-3pvsgkfQ\"},{\"kty\":\"oct\",\"k\":\"DNO9yeXUOiK9pDHuGrI92A\",\"kid\":\"WHzRpLNuXyWztBdyd3MvzA\"},{\"kty\":\"oct\",\"k\":\"smo4NCW5dM8Nvg1EibxydQ\",\"kid\":\"dw1iP5D-V2-R4nvtq-5Nsg\"},{\"kty\":\"oct\",\"k\":\"2_t8m6smstRGV2vrqLSWlg\",\"kid\":\"eG7mMYqiVYK-f9qlO0PNBQ\"},{\"kty\":\"oct\",\"k\":\"UX_vm-hFdctj9vHaNnFP7A\",\"kid\":\"12i4uPEtXm6ZJcb5NnyPrw\"}],\"type\":\"temporary\"}",
     "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Maa_Movies.png"
   },
   {

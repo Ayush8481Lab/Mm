@@ -1,0 +1,110 @@
+[
+  {
+    "name": "Sony Max HD",
+    "id": "476",
+    "category": "Movies",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/SonyMAX_MOB/WDVCatchup/index.mpd",
+    "keyId": "9d2bfb4c9aa45ac488bd92ec0e351217",
+    "key": "c980b395f0be528c4233417ef6305274",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyMAX.png"
+  },
+  {
+    "name": "Sony MAX1",
+    "id": "3418",
+    "category": "Movies",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/SonyMAX1_MOB/WDVCatchup/index.mpd",
+    "keyId": "7d1893ecbbef5872a37dfadbbc304bb9",
+    "key": "dcbcecbf01a838c3336d732a40296efb",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyMAX1.png"
+  },
+  {
+    "name": "Sony MAX2",
+    "id": "483",
+    "category": "Movies",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/SonyMAX2_MOB/WDVCatchup/index.mpd",
+    "keyId": "18e4c354db7c506d996698caeced99d0",
+    "key": "bba5064a2c162761bb92a15170c88b75",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyMAX2.png"
+  },
+  {
+    "name": "Sony Wah",
+    "id": "1393",
+    "category": "Movies",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/SonyWAH_MOB/WDVCatchup/index.mpd",
+    "keyId": "336eb0b114415971a745af85368c8a7c",
+    "key": "4dc9974ddfec2c6da275acd6d617661b",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/SonyWAH.png"
+  },
+  {
+    "name": "Sony Max",
+    "id": "289",
+    "category": "Movies",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/Sony_Max_SD_MOB/WDVCatchup/index.mpd",
+    "keyId": "6b10cbf1a7e157918c13d61dc00eba49",
+    "key": "31f3aa0d7a85fa5a868fb5b3931ad9b3",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Sony_Max_SD.png"
+  },
+  {
+    "name": "Unique TV",
+    "id": "3022",
+    "category": "Entertainment",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/Unique_Tv_MOB/WDVCatchup/index.mpd",
+    "keyId": "fc9f48f9ec80513c9687deb1a6fd061c",
+    "key": "15d9d6704bbf6beb20190a2bc232603f",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Unique_Tv.png"
+  },
+  {
+    "name": "EPIC TV",
+    "id": "3382",
+    "category": "Entertainment",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/EPIC_TV_MOB/WDVCatchup/index.mpd",
+    "keyId": "0384122132e151639aafddeb8bd1a50b",
+    "key": "f9be8660035eecbca5ae015adb73fe7b",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/EPIC_TV.png"
+  },
+  {
+    "name": "EPIC Bharat",
+    "id": "3383",
+    "category": "Entertainment",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/Nazara_MOB/WDVCatchup/index.mpd",
+    "keyId": "531f0c69be995cc88d05324b15af383f",
+    "key": "d8492685fcdc3d1367e86cfc5b685e07",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Nazara.png"
+  },
+  {
+    "name": "E 24",
+    "id": "591",
+    "category": "Music",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/E_24_MOB/WDVCatchup/index.mpd",
+    "keyId": "00ca7fea402a577f9fa7acf42f44af0b",
+    "key": "f2513e4d0a1ad05a97cc36e550cb799d",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/E_24.png"
+  },
+  {
+    "name": "ZOOM",
+    "id": "592",
+    "category": "Music",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/Zoom_MOB/WDVCatchup/index.mpd",
+    "keyId": "1a144ade8f5357dd81862285cd921c5b",
+    "key": "b0c84f4255ba4f8082c9b13089ddb9cc",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Zoom.png"
+  },
+  {
+    "name": "Merchant Records",
+    "id": "2064",
+    "category": "Music",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/Merchant_Records_MOB/WDVCatchup/index.mpd",
+    "keyId": "abfb2f881f5155d2a91ee8b93846ff6c",
+    "key": "fbc8bd7e0b893cbe0fe6d1683a20c9d6",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/Merchant_Records.png"
+  },
+  {
+    "name": "YRF Music",
+    "id": "2753",
+    "category": "Music",
+    "url": "https://jiotvcod.cdn.jio.com/bpk-tv/YRF_Music_MOB/WDVCatchup/index.mpd",
+    "keyId": "bc1fc677aac354d7ad95625feaa6860d",
+    "key": "f2b14b0de7761859e9a3caa196b6c239",
+    "logo": "https://jiotv.catchup.cdn.jio.com/dare_images/images/YRF_Music.png"
+  }
+]

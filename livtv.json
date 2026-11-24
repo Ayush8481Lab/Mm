@@ -713,7 +713,7 @@
     "name": "Unite8 Sports 1 HD",
     "id": "9624886",
     "category": "SPORTS",
-    "url": "https://d2o8pibksxtln6.cloudfront.net/live/media/Unite8_Sports_1_HD/dash/Unite8_Sports_1_HD.mpd",
+    "url": "https://d1iwj24qiokrul.cloudfront.net/live/media/Unite8_Sports_1_HD/dash/Unite8_Sports_1_HD.mpd",
     "licenseurl": "https://jiotvegp.vercel.app/api/Zee?id=HE_E_10079",
     "logo": "https://imagesv2.dsp1.ott.kaltura.com/Service.svc/GetImage/p/5093/entry_id/396cbd0f0e8d492db65b304859af478d/version/0"
   },
@@ -721,16 +721,9 @@
     "name": "Unite8 Sports 2 HD",
     "id": "9624884",
     "category": "SPORTS",
-    "url": "https://d2o8pibksxtln6.cloudfront.net/live/media/Unite8_Sports_2_HD/dash/Unite8_Sports_2_HD.mpd",
+    "url": "https://d1iwj24qiokrul.cloudfront.net/live/media/Unite8_Sports_2_HD/dash/Unite8_Sports_2_HD.mpd",
     "licenseurl": "https://jiotvegp.vercel.app/api/Zee?id=HE_E_10078",
     "logo": "https://imagesv2.dsp1.ott.kaltura.com/Service.svc/GetImage/p/5093/entry_id/03fc75c46d9a4b8daff3ef58d77c5bc7/version/0"
-  },{
-    "name": "Unite8 Sports 1 HD",
-    "id": "9624886",
-    "category": "SPORTS",
-    "url": "https://delta45tatasky.akamaized.net/out/i/554.mpd",
-    "licenseurl": "https://tataplay.live.ott.irdeto.com/Widevine/getlicense?CrmId=tatasky&AccountId=tatasky&ContentId=400000975",
-    "logo": "https://imagesv2.dsp1.ott.kaltura.com/Service.svc/GetImage/p/5093/entry_id/396cbd0f0e8d492db65b304859af478d/version/0"
   },
   {
     "name": "SONY TEN 1 HD",
@@ -1659,7 +1652,7 @@
     "name": "Fakt Marathi",
     "id": "9487064",
     "category": "Marathi",
-    "url": "https://d2o8pibksxtln6.cloudfront.net/live/media/Fakt_Marathi/dash_fta/Fakt_Marathi.mpd",
+    "url": "https://d1iwj24qiokrul.cloudfront.net/live/media/Fakt_Marathi/dash_fta/Fakt_Marathi.mpd",
     "licenseurl": "https://jiotvegp.vercel.app/api/Zee?id=HE_F_10060",
     "logo": "https://upload.wikimedia.org/wikipedia/hi/1/10/Fakt_Marathi_Tv.jpg"
   },

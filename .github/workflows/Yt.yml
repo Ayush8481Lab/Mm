@@ -1,0 +1,97 @@
+name: Download YouTube Video (480p)
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: "YouTube video URL"
+        required: true
+        default: "https://youtu.be/NQJK_uZQlXw"
+      max_height:
+        description: "Max video height (480 = 480p)"
+        required: false
+        default: "480"
+
+permissions:
+  contents: read
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # yt-dlp needs a JS runtime to solve YouTube's challenges
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install yt-dlp and ffmpeg
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade "yt-dlp[default]"
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          yt-dlp --version
+          ffmpeg -version | head -n 1
+
+      # Optional: add a repo secret named YT_COOKIES (Netscape cookies.txt)
+      # to bypass "Sign in to confirm you're not a bot" errors on GitHub IPs
+      - name: Prepare cookies (optional)
+        env:
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          if [ -n "$YT_COOKIES" ]; then
+            printf '%s\n' "$YT_COOKIES" > cookies.txt
+            echo "Cookies file created."
+          else
+            echo "No YT_COOKIES secret set, continuing without cookies."
+          fi
+
+      - name: Download video (480p + audio, muxed to MP4)
+        env:
+          VIDEO_URL: ${{ inputs.video_url }}
+          MAX_HEIGHT: ${{ inputs.max_height }}
+        run: |
+          mkdir -p downloads
+
+          COOKIE_ARGS=""
+          if [ -f cookies.txt ]; then
+            COOKIE_ARGS="--cookies cookies.txt"
+          fi
+
+          yt-dlp \
+            --no-playlist \
+            --js-runtimes node \
+            --remote-components ejs:github \
+            $COOKIE_ARGS \
+            -f "bv*[height<=${MAX_HEIGHT}]+ba/b[height<=${MAX_HEIGHT}]" \
+            --merge-output-format mp4 \
+            --restrict-filenames \
+            --retries 10 \
+            --fragment-retries 10 \
+            -o "downloads/%(title).100B [%(id)s].%(ext)s" \
+            "$VIDEO_URL"
+
+      - name: Verify output (resolution + audio stream)
+        run: |
+          ls -lh downloads
+          for f in downloads/*.mp4; do
+            echo "== $f =="
+            ffprobe -v error -show_entries stream=codec_type,codec_name,width,height \
+              -of default=noprint_wrappers=1 "$f"
+          done
+
+      - name: Upload video as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: youtube-video-480p
+          path: downloads/*.mp4
+          if-no-files-found: error
+          retention-days: 7

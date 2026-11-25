@@ -11,13 +11,20 @@ on:
         description: "Max video height (480 = 480p)"
         required: false
         default: "480"
+      runner:
+        description: "Where to run (self-hosted uses your own IP and avoids most bot checks)"
+        type: choice
+        default: ubuntu-latest
+        options:
+          - ubuntu-latest
+          - self-hosted
 
 permissions:
   contents: read
 
 jobs:
   download:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 30
 
     steps:
@@ -26,51 +33,56 @@ jobs:
         with:
           python-version: "3.12"
 
-      # yt-dlp needs a JS runtime to solve YouTube's challenges
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      # Deno is the JS runtime yt-dlp uses by default for YouTube
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
         with:
-          node-version: "20"
+          deno-version: v2.x
 
       - name: Install yt-dlp and ffmpeg
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade "yt-dlp[default]"
-          sudo apt-get update -y
-          sudo apt-get install -y ffmpeg
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y ffmpeg
+          fi
           yt-dlp --version
-          ffmpeg -version | head -n 1
+          deno --version | head -n 1
 
-      # Optional: add a repo secret named YT_COOKIES (Netscape cookies.txt)
-      # to bypass "Sign in to confirm you're not a bot" errors on GitHub IPs
-      - name: Prepare cookies (optional)
+      # Optional secret YT_COOKIES (Netscape format, exported while LOGGED IN)
+      - name: Prepare and validate cookies
         env:
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          if [ -n "$YT_COOKIES" ]; then
-            printf '%s\n' "$YT_COOKIES" > cookies.txt
-            echo "Cookies file created."
+          if [ -z "$YT_COOKIES" ]; then
+            echo "::warning::No YT_COOKIES secret set. GitHub-hosted runners are usually blocked by YouTube without cookies."
+            exit 0
+          fi
+          printf '%s\n' "$YT_COOKIES" > cookies.txt
+          if grep -qE "SAPISID|__Secure-3PSID|LOGIN_INFO" cookies.txt; then
+            echo "Login cookies detected."
           else
-            echo "No YT_COOKIES secret set, continuing without cookies."
+            echo "::warning::Cookies contain no login cookies (SAPISID / __Secure-3PSID / LOGIN_INFO). You were probably logged out when exporting, so the bot check will likely still fail."
           fi
 
       - name: Download video (480p + audio, muxed to MP4)
         env:
           VIDEO_URL: ${{ inputs.video_url }}
           MAX_HEIGHT: ${{ inputs.max_height }}
+          # Optional: repo secret PROXY_URL, e.g. http://user:pass@host:port
+          PROXY_URL: ${{ secrets.PROXY_URL }}
         run: |
           mkdir -p downloads
 
-          COOKIE_ARGS=""
-          if [ -f cookies.txt ]; then
-            COOKIE_ARGS="--cookies cookies.txt"
-          fi
+          EXTRA_ARGS=()
+          [ -f cookies.txt ] && EXTRA_ARGS+=(--cookies cookies.txt)
+          [ -n "$PROXY_URL" ] && EXTRA_ARGS+=(--proxy "$PROXY_URL")
 
           yt-dlp \
             --no-playlist \
-            --js-runtimes node \
             --remote-components ejs:github \
-            $COOKIE_ARGS \
+            "${EXTRA_ARGS[@]}" \
             -f "bv*[height<=${MAX_HEIGHT}]+ba/b[height<=${MAX_HEIGHT}]" \
             --merge-output-format mp4 \
             --restrict-filenames \
@@ -78,6 +90,10 @@ jobs:
             --fragment-retries 10 \
             -o "downloads/%(title).100B [%(id)s].%(ext)s" \
             "$VIDEO_URL"
+
+      - name: Remove cookies
+        if: always()
+        run: rm -f cookies.txt
 
       - name: Verify output (resolution + audio stream)
         run: |

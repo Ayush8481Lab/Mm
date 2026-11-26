@@ -1,466 +1,659 @@
-name: Build TizenTube Android TV APK
+name: Build YouTube AdBlock TV APK
 
-# Single, standalone workflow. Drop this one file into .github/workflows/ of any repo
-# (the repo can be empty) and run it from the Actions tab. Nothing else is required.
-#
-# What it does
-#   1. Fetches the TizenTube source (https://github.com/reisxd/TizenTube) at build time.
-#   2. Builds a slim userscript from it containing ONLY:
-#        - AdBlock        (mods/features/adblock.js)
-#        - SponsorBlock   (mods/features/sponsorblock.js)
-#        - TizenTube UI   (mods/ui/*  - settings menu, theme, sidebar, player buttons ...)
-#   3. Generates a tiny Android TV app (WebView -> https://www.youtube.com/tv) that injects
-#      that userscript before the page runs, plus a network-level ad-host filter.
-#   4. Builds and signs a release APK and uploads it as an artifact (and optionally a release).
-#
-# Optional secrets (for a permanent signing key so updates install over old versions):
-#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD
-# Without them a keystore is generated once and kept in the Actions cache.
+# Self-contained: no other files needed in the repo.
+# Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
+#   1. adblock.js    - tiny ad-data stripper (runs at document start, before YouTube's scripts)
+#   2. tizentube.js  - the FULL TizenTube userscript built from reisxd/TizenTube (GPL-3.0):
+#                      player UI buttons, speed controls, chapters, SponsorBlock, DeArrow, settings...
+#   3. buffering.js  - clean buffering spinner (covers YouTube's stretched "Loading..." placeholder)
 
 on:
   workflow_dispatch:
-    inputs:
-      tizentube_ref:
-        description: "TizenTube git ref to build the UI/AdBlock/SponsorBlock from (commit SHA, tag or branch). Use 'main' for the latest upstream UI."
-        required: false
-        default: "f99945a84ff767bf14ad8c1146e8e3fd49a3d628"
-        type: string
-      ua_profile:
-        description: "User-Agent the WebView presents to YouTube TV. If the TV UI does not load, try another one."
-        required: false
-        default: "tizen"
-        type: choice
-        options:
-          - tizen
-          - cobalt
-          - ps5
-          - custom
-      custom_user_agent:
-        description: "Only used when ua_profile = custom"
-        required: false
-        default: ""
-        type: string
-      version_name:
-        description: "App versionName (blank = 1.0.<run number>)"
-        required: false
-        default: ""
-        type: string
-      publish_release:
-        description: "Also publish the APK as a GitHub Release"
-        required: false
-        default: false
-        type: boolean
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 permissions:
   contents: write
 
-concurrency:
-  group: tizentube-androidtv-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      TT_REPO: https://github.com/reisxd/TizenTube.git
-      TT_REF: ${{ inputs.tizentube_ref || 'f99945a84ff767bf14ad8c1146e8e3fd49a3d628' }}
-      UA_PROFILE: ${{ inputs.ua_profile || 'tizen' }}
-      CUSTOM_UA: ${{ inputs.custom_user_agent || '' }}
-      IN_VERSION: ${{ inputs.version_name || '' }}
-      PUBLISH_RELEASE: ${{ inputs.publish_release || startsWith(github.ref, 'refs/tags/') }}
-      HAS_KEYSTORE_SECRET: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-      APP_ID: com.tizentube.androidtv
-      GRADLE_VERSION: "8.11.1"
-      AGP_VERSION: "8.7.3"
-
+    timeout-minutes: 30
     steps:
-      # ------------------------------------------------------------------ setup
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Setup Java 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      - name: Setup Android SDK
-        run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" >/dev/null
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      - name: Setup Gradle ${{ env.GRADLE_VERSION }}
+      - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: ${{ env.GRADLE_VERSION }}
+          gradle-version: '8.9'
 
-      # ------------------------------------------------------------ signing key
-      - name: Restore cached keystore (no secret configured)
-        if: env.HAS_KEYSTORE_SECRET == 'false'
-        id: cache-keystore
-        uses: actions/cache/restore@v4
-        with:
-          path: release.keystore
-          key: tizentube-keystore-${{ github.repository }}
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Generate keystore (no secret, none cached yet)
-        if: env.HAS_KEYSTORE_SECRET == 'false' && steps.cache-keystore.outputs.cache-hit != 'true'
+      # ---- Build the real TizenTube userscript (player UI etc.) from the repo ----
+      - name: Build TizenTube userscript
+        env:
+          TT_REF: f99945a   # commit you uploaded (v2.1.1-18-gf99945a). Change to 'main' for latest.
         run: |
-          keytool -genkeypair -v -keystore release.keystore -alias tizentube \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass tizentube -keypass tizentube \
-            -dname "CN=TizenTube, OU=TV, O=TizenTube"
+          git clone https://github.com/reisxd/TizenTube.git "$RUNNER_TEMP/TizenTube"
+          cd "$RUNNER_TEMP/TizenTube"
+          git checkout "$TT_REF" || echo "::warning::Could not check out $TT_REF, using default branch"
+          cd mods
+          npm ci || npm install
+          npm run build
+          test -s ../dist/userScript.js
 
-      - name: Save keystore to cache
-        if: env.HAS_KEYSTORE_SECRET == 'false' && steps.cache-keystore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: release.keystore
-          key: tizentube-keystore-${{ github.repository }}
+          # Wrap the bundle so it only starts once <head> and <body> exist
+          # (it touches document.head at load time, which does not exist yet at document start).
+          mkdir -p "$GITHUB_WORKSPACE/_tt_out"
+          OUT="$GITHUB_WORKSPACE/_tt_out/tizentube.js"
+          {
+            echo '(function(){'
+            echo 'if(window.__ttLoaded)return;window.__ttLoaded=true;'
+            echo 'function go(){'
+            cat ../dist/userScript.js
+            echo
+            echo '}'
+            echo 'if(document.head&&document.body){go();return;}'
+            echo 'var t=setInterval(function(){if(document.head&&document.body){clearInterval(t);go();}},10);'
+            echo '})();'
+          } > "$OUT"
+          ls -l "$OUT"
 
-      - name: Write keystore from secret
-        if: env.HAS_KEYSTORE_SECRET == 'true'
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
-
-      - name: Export signing credentials
+      - name: Generate Android project
         run: |
-          if [ "$HAS_KEYSTORE_SECRET" = "true" ]; then
-            echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}"             >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}"       >> "$GITHUB_ENV"
-          else
-            echo "KEYSTORE_PASSWORD=tizentube" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=tizentube"         >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=tizentube"      >> "$GITHUB_ENV"
-          fi
+          P="$GITHUB_WORKSPACE/_android"
+          J="$P/app/src/main/java/com/local/ytadblock/tv"
+          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable"
 
-      # ------------------------------------------------------- fetch TizenTube
-      - name: Fetch TizenTube source at requested ref
-        run: |
-          set -euo pipefail
-          git clone "$TT_REPO" tt-src
-          cd tt-src
-          git checkout "$TT_REF"
-          echo "Building from commit: $(git rev-parse HEAD)"
+          cp "$GITHUB_WORKSPACE/_tt_out/tizentube.js" "$P/app/src/main/assets/tizentube.js"
 
-      # ---------------------------------------------------- build userscript
-      - name: Build slim userscript (AdBlock + SponsorBlock + UI)
-        run: |
-          set -euo pipefail
-          cd tt-src
-          npm init -y >/dev/null 2>&1 || true
-          npm install --no-audit --no-fund esbuild@0.24.0
-          mkdir -p dist
-
-          node - <<'NODE'
-          import { readdirSync, writeFileSync } from 'node:fs';
-          const uiFiles = readdirSync('mods/ui').filter(f => f.endsWith('.js'));
-          if (uiFiles.length === 0) throw new Error('mods/ui is empty — upstream layout changed');
-          const imports = [
-            "import './mods/features/adblock.js';",
-            "import './mods/features/sponsorblock.js';",
-            ...uiFiles.map(f => `import './mods/ui/${f}';`),
-          ].join('\n');
-          writeFileSync('slim-entry.js', imports);
-          console.log('Entry imports:\n' + imports);
-          NODE
-
-          if ! npx esbuild slim-entry.js \
-                 --bundle --format=iife --target=es2020 --minify=false \
-                 --outfile=dist/slim-userscript.js; then
-            echo "::warning::esbuild bundling failed — falling back to plain concatenation"
-            cat mods/features/adblock.js \
-                mods/features/sponsorblock.js \
-                mods/ui/*.js > dist/slim-userscript.js
-          fi
-
-          echo "Userscript size: $(wc -c < dist/slim-userscript.js) bytes"
-
-      # ------------------------------------------------ scaffold Android app
-      - name: Scaffold Android TV WebView project
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          # User-Agent for the chosen profile
-          case "$UA_PROFILE" in
-            tizen)
-              UA='Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 76.0.3809.146/6.0 TV Safari/537.36' ;;
-            cobalt)
-              UA='Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Cobalt/22.lts.3.306369-gold (unlike Gecko) Starboard/14.lts.3.306369-gold, Version/22.0.0, TV Safari/537.36' ;;
-            ps5)
-              UA='Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15' ;;
-            custom)
-              UA="$CUSTOM_UA" ;;
-          esac
-          echo "UA_PROFILE=$UA_PROFILE"
-          echo "UA=$UA"
-
-          APP_VERSION="${IN_VERSION:-1.0.${GITHUB_RUN_NUMBER}}"
-          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
-
-          mkdir -p app/src/main/java/com/tizentube/androidtv \
-                   app/src/main/res/values \
-                   app/src/main/assets
-
-          # Inject userscript + ad-host list
-          cp tt-src/dist/slim-userscript.js app/src/main/assets/userscript.js
-          cat > app/src/main/assets/adhosts.txt <<'HOSTS'
-          googleads.g.doubleclick.net
-          pagead2.googlesyndication.com
-          static.doubleclick.net
-          googleadservices.com
-          www.googleadservices.com
-          securepubads.g.doubleclick.net
-          ad.doubleclick.net
-          tpc.googlesyndication.com
-          googleads4.g.doubleclick.net
-          app-measurement.com
-          HOSTS
-
-          # -------------------------------------------------------------- Manifest
-          cat > app/src/main/AndroidManifest.xml <<'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET"/>
-              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-              <uses-feature android:name="android.software.leanback" android:required="true"/>
-              <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
-              <application
-                  android:allowBackup="true"
-                  android:label="@string/app_name"
-                  android:theme="@style/AppTheme">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
-                      android:screenOrientation="landscape">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          XML
-
-          cat > app/src/main/res/values/strings.xml <<'XML'
-          <resources>
-              <string name="app_name">TizenTube</string>
-          </resources>
-          XML
-
-          cat > app/src/main/res/values/styles.xml <<'XML'
-          <resources>
-              <style name="AppTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
-                  <item name="android:windowBackground">@android:color/black</item>
-              </style>
-          </resources>
-          XML
-
-          # ------------------------------------------------------------- Kotlin
-          cat > app/src/main/java/com/tizentube/androidtv/Config.kt <<KOT
-          package com.tizentube.androidtv
-          object Config { const val USER_AGENT = "$UA" }
-          KOT
-
-          cat > app/src/main/java/com/tizentube/androidtv/AdBlock.kt <<'KOT'
-          package com.tizentube.androidtv
-          object AdBlock {
-              @Volatile var hosts: Set<String> = emptySet()
-          }
-          KOT
-
-          cat > app/src/main/java/com/tizentube/androidtv/MainActivity.kt <<'KOT'
-          package com.tizentube.androidtv
-
-          import android.annotation.SuppressLint
-          import android.os.Bundle
-          import android.webkit.WebResourceRequest
-          import android.webkit.WebResourceResponse
-          import android.webkit.WebView
-          import android.webkit.WebViewClient
-          import android.widget.FrameLayout
-          import androidx.appcompat.app.AppCompatActivity
-          import java.io.ByteArrayInputStream
-
-          class MainActivity : AppCompatActivity() {
-
-              private lateinit var webView: WebView
-
-              @SuppressLint("SetJavaScriptEnabled")
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-
-                  AdBlock.hosts = assets.open("adhosts.txt").bufferedReader().readLines()
-                      .map { it.trim() }.filter { it.isNotEmpty() }.toSet()
-
-                  val frame = FrameLayout(this)
-                  setContentView(frame)
-
-                  webView = WebView(this)
-                  frame.addView(
-                      webView,
-                      FrameLayout.LayoutParams.MATCH_PARENT,
-                      FrameLayout.LayoutParams.MATCH_PARENT
-                  )
-
-                  webView.settings.apply {
-                      javaScriptEnabled = true
-                      domStorageEnabled = true
-                      databaseEnabled = true
-                      mediaPlaybackRequiresUserGesture = false
-                      userAgentString = Config.USER_AGENT
-                      useWideViewPort = true
-                      loadWithOverviewMode = true
-                  }
-
-                  webView.webViewClient = object : WebViewClient() {
-                      override fun shouldInterceptRequest(
-                          view: WebView,
-                          request: WebResourceRequest
-                      ): WebResourceResponse? {
-                          val host = request.url.host ?: return null
-                          if (AdBlock.hosts.any { host == it || host.endsWith(".$it") }) {
-                              return WebResourceResponse(
-                                  "text/plain", "utf-8",
-                                  ByteArrayInputStream(ByteArray(0))
-                              )
-                          }
-                          return null
-                      }
-
-                      // Inject the userscript as early as we can.
-                      override fun onPageStarted(
-                          view: WebView,
-                          url: String?,
-                          favicon: android.graphics.Bitmap?
-                      ) {
-                          super.onPageStarted(view, url, favicon)
-                          val js = assets.open("userscript.js")
-                              .bufferedReader().use { it.readText() }
-                          view.evaluateJavascript(js, null)
-                      }
-                  }
-
-                  webView.loadUrl("https://www.youtube.com/tv")
-              }
-
-              @Deprecated("Deprecated in Java")
-              override fun onBackPressed() {
-                  if (this::webView.isInitialized && webView.canGoBack()) {
-                      webView.goBack()
-                  } else {
-                      @Suppress("DEPRECATION")
-                      super.onBackPressed()
-                  }
-              }
-          }
-          KOT
-
-          # ---------------------------------------------------- Gradle project
-          cat > settings.gradle.kts <<'GRADLE'
+          cat > "$P/settings.gradle" <<'EOF'
           pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
           }
           dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories { google(); mavenCentral() }
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
-          rootProject.name = "TizenTubeTV"
-          include(":app")
-          GRADLE
+          rootProject.name = "YtAdBlockTv"
+          include ':app'
+          EOF
 
-          cat > build.gradle.kts <<GRADLE
+          cat > "$P/build.gradle" <<'EOF'
           plugins {
-              id("com.android.application") version "$AGP_VERSION" apply false
-              id("org.jetbrains.kotlin.android") version "1.9.25" apply false
+              id 'com.android.application' version '8.5.2' apply false
           }
-          GRADLE
+          EOF
 
-          echo "version_name=$APP_VERSION" > version.properties
-          echo "version_code=$GITHUB_RUN_NUMBER" >> version.properties
+          cat > "$P/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
 
-          cat > app/build.gradle.kts <<GRADLE
-          import java.util.Properties
-
+          cat > "$P/app/build.gradle" <<'EOF'
           plugins {
-              id("com.android.application")
-              id("org.jetbrains.kotlin.android")
-          }
-
-          val vp = Properties().apply {
-              rootProject.file("version.properties").inputStream().use { load(it) }
+              id 'com.android.application'
           }
 
           android {
-              namespace = "$APP_ID"
-              compileSdk = 34
+              namespace 'com.local.ytadblock.tv'
+              compileSdk 34
 
               defaultConfig {
-                  applicationId = "$APP_ID"
-                  minSdk = 21
-                  targetSdk = 34
-                  versionCode = vp.getProperty("version_code").toInt()
-                  versionName = vp.getProperty("version_name")
+                  applicationId 'com.local.ytadblock.tv'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+                  versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "1")
               }
 
               signingConfigs {
-                  create("release") {
-                      storeFile     = rootProject.file("release.keystore")
-                      storePassword = System.getenv("KEYSTORE_PASSWORD")
-                      keyAlias      = System.getenv("KEY_ALIAS")
-                      keyPassword   = System.getenv("KEY_PASSWORD")
+                  release {
+                      storeFile file(System.getenv("KEYSTORE_PATH") ?: "release.jks")
+                      storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                      keyAlias System.getenv("KEY_ALIAS") ?: "key"
+                      keyPassword System.getenv("KEY_PASSWORD") ?: "android"
                   }
               }
 
               buildTypes {
-                  getByName("release") {
-                      isMinifyEnabled = false
-                      signingConfig = signingConfigs.getByName("release")
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.release
                   }
               }
 
               compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
               }
-              kotlinOptions { jvmTarget = "17" }
           }
 
           dependencies {
-              implementation("androidx.appcompat:appcompat:1.7.0")
+              implementation 'androidx.webkit:webkit:1.11.0'
           }
-          GRADLE
+          EOF
 
-      # ------------------------------------------------------------- compile
+          cat > "$P/app/src/main/AndroidManifest.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <uses-feature android:name="android.software.leanback" android:required="false" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+              <application
+                  android:allowBackup="false"
+                  android:label="YouTube AdBlock"
+                  android:icon="@drawable/ic_launcher"
+                  android:banner="@drawable/banner"
+                  android:hardwareAccelerated="true"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode|screenLayout|smallestScreenSize|layoutDirection">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > "$P/app/src/main/res/drawable/ic_launcher.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="96dp" android:height="96dp"
+              android:viewportWidth="96" android:viewportHeight="96">
+              <path android:fillColor="#FF0000" android:pathData="M0,0h96v96h-96z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M38,28L38,68L70,48z" />
+          </vector>
+          EOF
+
+          cat > "$P/app/src/main/res/drawable/banner.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="320dp" android:height="180dp"
+              android:viewportWidth="320" android:viewportHeight="180">
+              <path android:fillColor="#0F0F0F" android:pathData="M0,0h320v180h-320z" />
+              <path android:fillColor="#FF0000" android:pathData="M120,60h80a16,16 0 0 1 16,16v28a16,16 0 0 1 -16,16h-80a16,16 0 0 1 -16,-16v-28a16,16 0 0 1 16,-16z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M150,78L150,102L174,90z" />
+          </vector>
+          EOF
+
+          # ---- Script 1: strips ad data from YouTube responses (runs at document start) ----
+          cat > "$P/app/src/main/assets/adblock.js" <<'EOF'
+          (function () {
+            if (window.__ytAdBlockMin) return;
+            window.__ytAdBlockMin = true;
+
+            function prune(r) {
+              try {
+                if (!r || typeof r !== 'object' || Array.isArray(r)) return r;
+
+                if (r.adPlacements) r.adPlacements = [];
+                if (r.playerAds) r.playerAds = false;
+                if (r.adSlots) r.adSlots = [];
+
+                var shelves = r.contents && r.contents.tvBrowseRenderer &&
+                  r.contents.tvBrowseRenderer.content &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents;
+                if (Array.isArray(shelves)) {
+                  var list = r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer;
+                  list.contents = shelves.filter(function (s) { return !s.adSlotRenderer; });
+                  list.contents.forEach(function (s) {
+                    var h = s.shelfRenderer && s.shelfRenderer.content &&
+                      s.shelfRenderer.content.horizontalListRenderer;
+                    if (h && Array.isArray(h.items)) {
+                      h.items = h.items.filter(function (i) { return !i.adSlotRenderer; });
+                    }
+                  });
+                }
+
+                if (Array.isArray(r.entries)) {
+                  r.entries = r.entries.filter(function (e) {
+                    return !(e && e.command && e.command.reelWatchEndpoint &&
+                      e.command.reelWatchEndpoint.adClientParams &&
+                      e.command.reelWatchEndpoint.adClientParams.isAd);
+                  });
+                }
+              } catch (e) { /* never break the page */ }
+              return r;
+            }
+
+            var origParse = JSON.parse;
+            JSON.parse = function () {
+              return prune(origParse.apply(this, arguments));
+            };
+
+            if (window.Response && Response.prototype.json) {
+              var origJson = Response.prototype.json;
+              Response.prototype.json = function () {
+                return origJson.apply(this, arguments).then(prune);
+              };
+            }
+
+            var origStringify = JSON.stringify;
+            JSON.stringify = function (value, replacer, space) {
+              try {
+                var ctx = value && value.playbackContext && value.playbackContext.contentPlaybackContext;
+                if (ctx && !ctx.isInlinePlaybackNoAd) {
+                  var copy = origParse(origStringify(value));
+                  copy.playbackContext.contentPlaybackContext.isInlinePlaybackNoAd = true;
+                  return origStringify.call(this, copy, replacer, space);
+                }
+              } catch (e) { /* fall through */ }
+              return origStringify.call(this, value, replacer, space);
+            };
+
+            // YouTube TV keeps its own JSON reference in window._yttv; point it at ours.
+            window.addEventListener('load', function () {
+              try {
+                var y = window._yttv;
+                if (y) for (var k in y) {
+                  if (y[k] && y[k].JSON && y[k].JSON.parse) y[k].JSON.parse = JSON.parse;
+                }
+              } catch (e) { }
+            });
+          })();
+          EOF
+
+          # ---- Script 3: clean buffering UI. Covers YouTube's stretched "Loading..." placeholder ----
+          cat > "$P/app/src/main/assets/buffering.js" <<'EOF'
+          (function () {
+            if (window.__ttBuffering) return;
+            window.__ttBuffering = true;
+
+            var ID = 'tt-buffering-overlay';
+            var el = null, styled = false, mode = '', since = 0;
+
+            function build() {
+              if (!styled) {
+                var st = document.createElement('style');
+                st.textContent =
+                  '#' + ID + '{position:fixed;left:0;top:0;right:0;bottom:0;display:none;' +
+                  'align-items:center;justify-content:center;z-index:2147483647;' +
+                  'pointer-events:none;background:#000;}' +
+                  '#' + ID + '.mid{background:rgba(0,0,0,.25);}' +
+                  '#' + ID + ' .sp{width:64px;height:64px;box-sizing:border-box;' +
+                  'border:7px solid rgba(255,255,255,.22);border-top-color:#fff;border-radius:50%;' +
+                  'animation:ttspin .9s linear infinite;}' +
+                  '@keyframes ttspin{to{transform:rotate(360deg)}}';
+                (document.head || document.documentElement).appendChild(st);
+                styled = true;
+              }
+              el = document.createElement('div');
+              el.id = ID;
+              el.innerHTML = '<div class="sp"></div>';
+              el.style.display = mode ? 'flex' : 'none';
+              document.body.appendChild(el);
+            }
+
+            function pickVideo() {
+              var vids = document.getElementsByTagName('video');
+              var best = null, bestArea = 0;
+              for (var i = 0; i < vids.length; i++) {
+                var r = vids[i].getBoundingClientRect();
+                var a = r.width * r.height;
+                if (a > bestArea) { bestArea = a; best = vids[i]; }
+              }
+              return best;
+            }
+
+            function hook(v) {
+              if (v.__ttHook) return;
+              v.__ttHook = true;
+              v.addEventListener('playing', function () { v.__ttStarted = true; v.__ttGaveUp = false; });
+              v.addEventListener('emptied', function () { v.__ttStarted = false; v.__ttGaveUp = false; });
+            }
+
+            function tick() {
+              try {
+                if (!document.body) return;
+                if (!el || !document.body.contains(el)) build();
+
+                var want = '';
+                var v = pickVideo();
+                if (v) {
+                  hook(v);
+                  var src = v.currentSrc || v.src || '';
+                  if (v.__ttSrc !== src) { v.__ttSrc = src; v.__ttStarted = false; v.__ttGaveUp = false; }
+
+                  var r = v.getBoundingClientRect();
+                  var big = r.width >= window.innerWidth * 0.8 && r.height >= window.innerHeight * 0.8;
+
+                  // Only real, full-size player videos that have a source (ignores home previews).
+                  if (big && src && !v.error && !v.__ttGaveUp && !v.ended && v.readyState < 3) {
+                    if (!v.__ttStarted) want = 'init';          // first load: opaque, hides placeholder
+                    else if (!v.paused) want = 'mid';           // mid-playback stall: light spinner
+                  }
+
+                  if (want && mode && Date.now() - since > 30000) {   // watchdog: never get stuck
+                    v.__ttGaveUp = true;
+                    want = '';
+                  }
+                }
+
+                if (want !== mode) {
+                  mode = want;
+                  if (want) {
+                    since = Date.now();
+                    el.className = want === 'mid' ? 'mid' : '';
+                    el.style.display = 'flex';
+                  } else {
+                    el.style.display = 'none';
+                  }
+                }
+              } catch (e) { /* never break the page */ }
+            }
+
+            setInterval(tick, 250);
+          })();
+          EOF
+
+          cat > "$J/MainActivity.java" <<'EOF'
+          package com.local.ytadblock.tv;
+
+          import android.annotation.SuppressLint;
+          import android.app.Activity;
+          import android.graphics.Bitmap;
+          import android.graphics.Color;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.view.KeyEvent;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.webkit.CookieManager;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          import androidx.webkit.WebViewCompat;
+          import androidx.webkit.WebViewFeature;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.util.ArrayList;
+          import java.util.Collections;
+          import java.util.List;
+
+          public class MainActivity extends Activity {
+
+              private static final String START_URL = "https://www.youtube.com/tv";
+
+              // TV-style user agent so youtube.com serves the original TV (leanback) interface.
+              // If you ever get the desktop site or an "unsupported browser" page, change this.
+              private static final String TV_UA =
+                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
+                              + "85.0.4183.93/6.5 TV Safari/537.36";
+
+              // Injected in this order: ad stripper, full TizenTube player UI, buffering spinner.
+              private static final String[] SCRIPT_ASSETS = {"adblock.js", "tizentube.js", "buffering.js"};
+
+              private WebView web;
+              private final List<String> scripts = new ArrayList<>();
+              private boolean scriptAtDocumentStart = false;
+              private long lastBack = 0;
+
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private final Runnable cookieFlusher = new Runnable() {
+                  @Override
+                  public void run() {
+                      CookieManager.getInstance().flush();
+                      handler.postDelayed(this, 30000);
+                  }
+              };
+
+              @SuppressLint("SetJavaScriptEnabled")
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                  // Use the full screen, including behind a display cutout (removes the black side strip).
+                  if (Build.VERSION.SDK_INT >= 28) {
+                      getWindow().getAttributes().layoutInDisplayCutoutMode =
+                              WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                  }
+
+                  for (String name : SCRIPT_ASSETS) {
+                      String js = readAsset(name);
+                      if (!js.isEmpty()) scripts.add(js);
+                  }
+
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.BLACK);
+                  setContentView(web, new ViewGroup.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setUserAgentString(TV_UA);
+                  s.setLoadWithOverviewMode(true);
+                  s.setUseWideViewPort(true);
+
+                  // Cookies: accept first-party + third-party and persist them (keeps you signed in).
+                  CookieManager cookies = CookieManager.getInstance();
+                  cookies.setAcceptCookie(true);
+                  cookies.setAcceptThirdPartyCookie(web, true);
+
+                  // Preferred: run before any page script so nothing can capture JSON.parse first.
+                  if (!scripts.isEmpty()
+                          && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                      for (String js : scripts) {
+                          WebViewCompat.addDocumentStartJavaScript(
+                                  web, js, Collections.singleton("https://*.youtube.com"));
+                      }
+                      scriptAtDocumentStart = true;
+                  }
+
+                  web.setWebChromeClient(new WebChromeClient());
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                          String scheme = r.getUrl().getScheme();
+                          // true = block. Only http(s) stays inside the app.
+                          return !("https".equals(scheme) || "http".equals(scheme));
+                      }
+
+                      @Override
+                      public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                          // Fallback for old WebView versions without document-start scripts.
+                          // (Every script guards against running twice.)
+                          if (!scriptAtDocumentStart) {
+                              for (String js : scripts) v.evaluateJavascript(js, null);
+                          }
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView v, String url) {
+                          CookieManager.getInstance().flush();
+                      }
+
+                      @Override
+                      public boolean onRenderProcessGone(WebView v,
+                                                         android.webkit.RenderProcessGoneDetail d) {
+                          recreate();
+                          return true;
+                      }
+                  });
+
+                  if (savedInstanceState != null) {
+                      web.restoreState(savedInstanceState);
+                  } else {
+                      web.loadUrl(START_URL);
+                  }
+                  web.requestFocus();
+              }
+
+              private String readAsset(String name) {
+                  try (InputStream in = getAssets().open(name)) {
+                      ByteArrayOutputStream out = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int n;
+                      while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                      return out.toString("UTF-8");
+                  } catch (Exception e) {
+                      return "";
+                  }
+              }
+
+              @SuppressWarnings("deprecation")
+              private void hideSystemUi() {
+                  getWindow().getDecorView().setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                  | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                  | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                  | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                  | View.SYSTEM_UI_FLAG_FULLSCREEN
+                                  | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+              }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) hideSystemUi();
+              }
+
+              @Override
+              public boolean onKeyDown(int keyCode, KeyEvent event) {
+                  if (keyCode == KeyEvent.KEYCODE_BACK) {
+                      long now = System.currentTimeMillis();
+                      if (now - lastBack < 700) {      // double-press Back = exit app
+                          finish();
+                          return true;
+                      }
+                      lastBack = now;
+                      // YouTube TV expects Escape (keyCode 27) as "back".
+                      web.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));
+                      web.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));
+                      return true;
+                  }
+                  return super.onKeyDown(keyCode, event);
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle outState) {
+                  super.onSaveInstanceState(outState);
+                  web.saveState(outState);
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  web.onResume();
+                  web.resumeTimers();
+                  handler.removeCallbacks(cookieFlusher);
+                  handler.postDelayed(cookieFlusher, 30000);
+              }
+
+              @Override
+              protected void onPause() {
+                  handler.removeCallbacks(cookieFlusher);
+                  CookieManager.getInstance().flush();
+                  web.onPause();
+                  super.onPause();
+              }
+
+              @Override
+              protected void onStop() {
+                  CookieManager.getInstance().flush();
+                  super.onStop();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  handler.removeCallbacks(cookieFlusher);
+                  CookieManager.getInstance().flush();
+                  if (web != null) {
+                      ((ViewGroup) web.getParent()).removeView(web);
+                      web.destroy();
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+      - name: Prepare signing key
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KS_KEYPASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          KS="$GITHUB_WORKSPACE/_android/app/release.jks"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$KS"
+            echo "KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=${KS_KEYPASS:-$KS_PASS}" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No KEYSTORE_BASE64 secret set. Using a throwaway key: this APK cannot be installed over a previous build signed with a different key (uninstall first)."
+            keytool -genkeypair -v -keystore "$KS" -storepass android -keypass android \
+              -alias key -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=YtAdBlockTv, O=Local, C=US"
+            echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=key" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
+          fi
+          echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
+
       - name: Build release APK
-        run: gradle --no-daemon assembleRelease
+        run: gradle -p "$GITHUB_WORKSPACE/_android" assembleRelease --no-daemon --stacktrace
 
-      # ------------------------------------------------------------- upload
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp _android/app/build/outputs/apk/release/app-release.apk dist/YouTube-AdBlock-TV.apk
+          ls -l dist
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tizentube-androidtv-${{ github.run_number }}
-          path: app/build/outputs/apk/release/app-release.apk
-          if-no-files-found: error
+          name: YouTube-AdBlock-TV-apk
+          path: dist/YouTube-AdBlock-TV.apk
 
-      - name: Publish GitHub Release
-        if: env.PUBLISH_RELEASE == 'true'
+      - name: Publish GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ env.APP_VERSION }}
-          name: TizenTube Android TV ${{ env.APP_VERSION }}
-          generate_release_notes: true
-          files: app/build/outputs/apk/release/app-release.apk
+          files: dist/YouTube-AdBlock-TV.apk

@@ -1,113 +1,462 @@
-name: Download YouTube Video (480p)
+name: Build YouTube AdBlock TV APK
+
+# Self-contained: no other files needed in the repo.
+# Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
+# and injects ONLY an ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0).
 
 on:
   workflow_dispatch:
-    inputs:
-      video_url:
-        description: "YouTube video URL"
-        required: true
-        default: "https://youtu.be/NQJK_uZQlXw"
-      max_height:
-        description: "Max video height (480 = 480p)"
-        required: false
-        default: "480"
-      runner:
-        description: "Where to run (self-hosted uses your own IP and avoids most bot checks)"
-        type: choice
-        default: ubuntu-latest
-        options:
-          - ubuntu-latest
-          - self-hosted
+  push:
+    tags:
+      - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  download:
-    runs-on: ${{ inputs.runner }}
+  build:
+    runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          python-version: "3.12"
+          distribution: temurin
+          java-version: '17'
 
-      # Deno is the JS runtime yt-dlp uses by default for YouTube
-      - name: Set up Deno
-        uses: denoland/setup-deno@v2
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          deno-version: v2.x
+          gradle-version: '8.9'
 
-      - name: Install yt-dlp and ffmpeg
+      - name: Accept Android SDK licenses
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: Generate Android project
         run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade "yt-dlp[default]"
-          if ! command -v ffmpeg >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y ffmpeg
-          fi
-          yt-dlp --version
-          deno --version | head -n 1
+          P="$GITHUB_WORKSPACE/_android"
+          J="$P/app/src/main/java/com/local/ytadblock/tv"
+          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable"
 
-      # Optional secret YT_COOKIES (Netscape format, exported while LOGGED IN)
-      - name: Prepare and validate cookies
+          cat > "$P/settings.gradle" <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "YtAdBlockTv"
+          include ':app'
+          EOF
+
+          cat > "$P/build.gradle" <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF
+
+          cat > "$P/gradle.properties" <<'EOF'
+          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          android.nonTransitiveRClass=true
+          EOF
+
+          cat > "$P/app/build.gradle" <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.local.ytadblock.tv'
+              compileSdk 34
+
+              defaultConfig {
+                  applicationId 'com.local.ytadblock.tv'
+                  minSdk 21
+                  targetSdk 34
+                  versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+                  versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "1")
+              }
+
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("KEYSTORE_PATH") ?: "release.jks")
+                      storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                      keyAlias System.getenv("KEY_ALIAS") ?: "key"
+                      keyPassword System.getenv("KEY_PASSWORD") ?: "android"
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                      signingConfig signingConfigs.release
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+
+          dependencies {
+              implementation 'androidx.webkit:webkit:1.11.0'
+          }
+          EOF
+
+          cat > "$P/app/src/main/AndroidManifest.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <uses-feature android:name="android.software.leanback" android:required="false" />
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+              <application
+                  android:allowBackup="false"
+                  android:label="YouTube AdBlock"
+                  android:icon="@drawable/ic_launcher"
+                  android:banner="@drawable/banner"
+                  android:hardwareAccelerated="true"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode|screenLayout|smallestScreenSize|layoutDirection">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                      </intent-filter>
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > "$P/app/src/main/res/drawable/ic_launcher.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="96dp" android:height="96dp"
+              android:viewportWidth="96" android:viewportHeight="96">
+              <path android:fillColor="#FF0000" android:pathData="M0,0h96v96h-96z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M38,28L38,68L70,48z" />
+          </vector>
+          EOF
+
+          cat > "$P/app/src/main/res/drawable/banner.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="320dp" android:height="180dp"
+              android:viewportWidth="320" android:viewportHeight="180">
+              <path android:fillColor="#0F0F0F" android:pathData="M0,0h320v180h-320z" />
+              <path android:fillColor="#FF0000" android:pathData="M120,60h80a16,16 0 0 1 16,16v28a16,16 0 0 1 -16,16h-80a16,16 0 0 1 -16,-16v-28a16,16 0 0 1 16,-16z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M150,78L150,102L174,90z" />
+          </vector>
+          EOF
+
+          # ---- The ONLY injected script: strips ad data from YouTube responses ----
+          cat > "$P/app/src/main/assets/adblock.js" <<'EOF'
+          (function () {
+            if (window.__ytAdBlockMin) return;
+            window.__ytAdBlockMin = true;
+
+            function prune(r) {
+              try {
+                if (!r || typeof r !== 'object' || Array.isArray(r)) return r;
+
+                if (r.adPlacements) r.adPlacements = [];
+                if (r.playerAds) r.playerAds = false;
+                if (r.adSlots) r.adSlots = [];
+
+                var shelves = r.contents && r.contents.tvBrowseRenderer &&
+                  r.contents.tvBrowseRenderer.content &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer &&
+                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents;
+                if (Array.isArray(shelves)) {
+                  var list = r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer;
+                  list.contents = shelves.filter(function (s) { return !s.adSlotRenderer; });
+                  list.contents.forEach(function (s) {
+                    var h = s.shelfRenderer && s.shelfRenderer.content &&
+                      s.shelfRenderer.content.horizontalListRenderer;
+                    if (h && Array.isArray(h.items)) {
+                      h.items = h.items.filter(function (i) { return !i.adSlotRenderer; });
+                    }
+                  });
+                }
+
+                if (Array.isArray(r.entries)) {
+                  r.entries = r.entries.filter(function (e) {
+                    return !(e && e.command && e.command.reelWatchEndpoint &&
+                      e.command.reelWatchEndpoint.adClientParams &&
+                      e.command.reelWatchEndpoint.adClientParams.isAd);
+                  });
+                }
+              } catch (e) { /* never break the page */ }
+              return r;
+            }
+
+            var origParse = JSON.parse;
+            JSON.parse = function () {
+              return prune(origParse.apply(this, arguments));
+            };
+
+            if (window.Response && Response.prototype.json) {
+              var origJson = Response.prototype.json;
+              Response.prototype.json = function () {
+                return origJson.apply(this, arguments).then(prune);
+              };
+            }
+
+            var origStringify = JSON.stringify;
+            JSON.stringify = function (value, replacer, space) {
+              try {
+                var ctx = value && value.playbackContext && value.playbackContext.contentPlaybackContext;
+                if (ctx && !ctx.isInlinePlaybackNoAd) {
+                  var copy = origParse(origStringify(value));
+                  copy.playbackContext.contentPlaybackContext.isInlinePlaybackNoAd = true;
+                  return origStringify.call(this, copy, replacer, space);
+                }
+              } catch (e) { /* fall through */ }
+              return origStringify.call(this, value, replacer, space);
+            };
+
+            // YouTube TV keeps its own JSON reference in window._yttv; point it at ours.
+            window.addEventListener('load', function () {
+              try {
+                var y = window._yttv;
+                if (y) for (var k in y) {
+                  if (y[k] && y[k].JSON && y[k].JSON.parse) y[k].JSON.parse = JSON.parse;
+                }
+              } catch (e) { }
+            });
+          })();
+          EOF
+
+          cat > "$J/MainActivity.java" <<'EOF'
+          package com.local.ytadblock.tv;
+
+          import android.annotation.SuppressLint;
+          import android.app.Activity;
+          import android.graphics.Bitmap;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.KeyEvent;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.webkit.CookieManager;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          import androidx.webkit.WebViewCompat;
+          import androidx.webkit.WebViewFeature;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.util.Collections;
+
+          public class MainActivity extends Activity {
+
+              private static final String START_URL = "https://www.youtube.com/tv";
+
+              // TV-style user agent so youtube.com serves the original TV (leanback) interface.
+              // If you ever get the desktop site or an "unsupported browser" page, change this.
+              private static final String TV_UA =
+                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
+                              + "85.0.4183.93/6.5 TV Safari/537.36";
+
+              private WebView web;
+              private String adblockJs = "";
+              private boolean scriptAtDocumentStart = false;
+              private long lastBack = 0;
+
+              @SuppressLint("SetJavaScriptEnabled")
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                  adblockJs = readAsset("adblock.js");
+
+                  web = new WebView(this);
+                  web.setBackgroundColor(Color.BLACK);
+                  setContentView(web, new ViewGroup.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setUserAgentString(TV_UA);
+                  s.setLoadWithOverviewMode(true);
+                  s.setUseWideViewPort(true);
+
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.setAcceptCookie(true);
+                  cm.setAcceptThirdPartyCookie(web, true);
+
+                  // Preferred: run before any page script so nothing can capture JSON.parse first.
+                  if (!adblockJs.isEmpty()
+                          && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                      WebViewCompat.addDocumentStartJavaScript(
+                              web, adblockJs, Collections.singleton("https://*.youtube.com"));
+                      scriptAtDocumentStart = true;
+                  }
+
+                  web.setWebChromeClient(new WebChromeClient());
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                          String scheme = r.getUrl().getScheme();
+                          // true = block. Only http(s) stays inside the app.
+                          return !("https".equals(scheme) || "http".equals(scheme));
+                      }
+
+                      @Override
+                      public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                          // Fallback for old WebView versions without document-start scripts.
+                          if (!scriptAtDocumentStart && !adblockJs.isEmpty()) {
+                              v.evaluateJavascript(adblockJs, null);
+                          }
+                      }
+
+                      @Override
+                      public boolean onRenderProcessGone(WebView v,
+                                                         android.webkit.RenderProcessGoneDetail d) {
+                          recreate();
+                          return true;
+                      }
+                  });
+
+                  if (savedInstanceState != null) {
+                      web.restoreState(savedInstanceState);
+                  } else {
+                      web.loadUrl(START_URL);
+                  }
+                  web.requestFocus();
+              }
+
+              private String readAsset(String name) {
+                  try (InputStream in = getAssets().open(name)) {
+                      ByteArrayOutputStream out = new ByteArrayOutputStream();
+                      byte[] buf = new byte[4096];
+                      int n;
+                      while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                      return out.toString("UTF-8");
+                  } catch (Exception e) {
+                      return "";
+                  }
+              }
+
+              @Override
+              public boolean onKeyDown(int keyCode, KeyEvent event) {
+                  if (keyCode == KeyEvent.KEYCODE_BACK) {
+                      long now = System.currentTimeMillis();
+                      if (now - lastBack < 700) {      // double-press Back = exit app
+                          finish();
+                          return true;
+                      }
+                      lastBack = now;
+                      // YouTube TV expects Escape (keyCode 27) as "back".
+                      web.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));
+                      web.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));
+                      return true;
+                  }
+                  return super.onKeyDown(keyCode, event);
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle outState) {
+                  super.onSaveInstanceState(outState);
+                  web.saveState(outState);
+              }
+
+              @Override
+              protected void onResume() {
+                  super.onResume();
+                  web.onResume();
+                  web.resumeTimers();
+              }
+
+              @Override
+              protected void onPause() {
+                  CookieManager.getInstance().flush();
+                  web.onPause();
+                  super.onPause();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (web != null) {
+                      ((ViewGroup) web.getParent()).removeView(web);
+                      web.destroy();
+                  }
+                  super.onDestroy();
+              }
+          }
+          EOF
+
+      - name: Prepare signing key
         env:
-          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KS_KEYPASS: ${{ secrets.KEY_PASSWORD }}
         run: |
-          if [ -z "$YT_COOKIES" ]; then
-            echo "::warning::No YT_COOKIES secret set. GitHub-hosted runners are usually blocked by YouTube without cookies."
-            exit 0
-          fi
-          printf '%s\n' "$YT_COOKIES" > cookies.txt
-          if grep -qE "SAPISID|__Secure-3PSID|LOGIN_INFO" cookies.txt; then
-            echo "Login cookies detected."
+          KS="$GITHUB_WORKSPACE/_android/app/release.jks"
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$KS"
+            echo "KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=${KS_KEYPASS:-$KS_PASS}" >> "$GITHUB_ENV"
           else
-            echo "::warning::Cookies contain no login cookies (SAPISID / __Secure-3PSID / LOGIN_INFO). You were probably logged out when exporting, so the bot check will likely still fail."
+            echo "::warning::No KEYSTORE_BASE64 secret set. Using a throwaway key: this APK cannot be installed over a previous build signed with a different key (uninstall first)."
+            keytool -genkeypair -v -keystore "$KS" -storepass android -keypass android \
+              -alias key -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=YtAdBlockTv, O=Local, C=US"
+            echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=key" >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
           fi
+          echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
 
-      - name: Download video (480p + audio, muxed to MP4)
-        env:
-          VIDEO_URL: ${{ inputs.video_url }}
-          MAX_HEIGHT: ${{ inputs.max_height }}
-          # Optional: repo secret PROXY_URL, e.g. http://user:pass@host:port
-          PROXY_URL: ${{ secrets.PROXY_URL }}
+      - name: Build release APK
+        run: gradle -p "$GITHUB_WORKSPACE/_android" assembleRelease --no-daemon --stacktrace
+
+      - name: Collect APK
         run: |
-          mkdir -p downloads
+          mkdir -p dist
+          cp _android/app/build/outputs/apk/release/app-release.apk dist/YouTube-AdBlock-TV.apk
+          ls -l dist
 
-          EXTRA_ARGS=()
-          [ -f cookies.txt ] && EXTRA_ARGS+=(--cookies cookies.txt)
-          [ -n "$PROXY_URL" ] && EXTRA_ARGS+=(--proxy "$PROXY_URL")
-
-          yt-dlp \
-            --no-playlist \
-            --remote-components ejs:github \
-            "${EXTRA_ARGS[@]}" \
-            -f "bv*[height<=${MAX_HEIGHT}]+ba/b[height<=${MAX_HEIGHT}]" \
-            --merge-output-format mp4 \
-            --restrict-filenames \
-            --retries 10 \
-            --fragment-retries 10 \
-            -o "downloads/%(title).100B [%(id)s].%(ext)s" \
-            "$VIDEO_URL"
-
-      - name: Remove cookies
-        if: always()
-        run: rm -f cookies.txt
-
-      - name: Verify output (resolution + audio stream)
-        run: |
-          ls -lh downloads
-          for f in downloads/*.mp4; do
-            echo "== $f =="
-            ffprobe -v error -show_entries stream=codec_type,codec_name,width,height \
-              -of default=noprint_wrappers=1 "$f"
-          done
-
-      - name: Upload video as artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: youtube-video-480p
-          path: downloads/*.mp4
-          if-no-files-found: error
-          retention-days: 7
+          name: YouTube-AdBlock-TV-apk
+          path: dist/YouTube-AdBlock-TV.apk
+
+      - name: Publish GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/YouTube-AdBlock-TV.apk

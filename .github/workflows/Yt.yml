@@ -1,9 +1,12 @@
 name: Build YouTube AdBlock TV APK
 
 # Self-contained: no other files needed in the repo.
-# Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
-# and injects ONLY an ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-# plus a trimmed port of TizenTube's "fixed UI" (transparent player overlay + full-quality UI class).
+# Generates an Android TV app (WebView -> youtube.com/tv, original YouTube UI) that identifies
+# itself as a 2026 Samsung Tizen 10.0 TV, and injects:
+#   1. adblock.js   - small ad-data stripper, runs at document start (technique from TizenTube)
+#   2. tizentube.js - the COMPLETE TizenTube userscript built from reisxd/TizenTube (GPL-3.0):
+#                     every feature in the repo (ad block, SponsorBlock, DeArrow, chapters, speed
+#                     controls, fixed/glass UI, queueing, captions, settings menu, ...)
 
 on:
   workflow_dispatch:
@@ -25,6 +28,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -33,11 +41,43 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
+      # ---- Build the complete TizenTube userscript from the repo ----
+      - name: Build TizenTube userscript
+        env:
+          TT_REF: f99945a   # commit from your zip (v2.1.1-18-gf99945a). Use 'main' for the latest.
+        run: |
+          git clone https://github.com/reisxd/TizenTube.git "$RUNNER_TEMP/TizenTube"
+          cd "$RUNNER_TEMP/TizenTube"
+          git checkout "$TT_REF" || echo "::warning::Could not check out $TT_REF, using default branch"
+          cd mods
+          npm ci || npm install
+          npm run build
+          test -s ../dist/userScript.js
+
+          # The bundle touches document.head at load time, which does not exist yet when the
+          # WebView runs scripts at document start. Wrap it so it starts once head+body exist.
+          mkdir -p "$GITHUB_WORKSPACE/_tt_out"
+          OUT="$GITHUB_WORKSPACE/_tt_out/tizentube.js"
+          {
+            echo '(function(){'
+            echo 'if(window.__ttLoaded)return;window.__ttLoaded=true;'
+            echo 'function go(){'
+            cat ../dist/userScript.js
+            echo
+            echo '}'
+            echo 'if(document.head&&document.body){go();return;}'
+            echo 'var t=setInterval(function(){if(document.head&&document.body){clearInterval(t);go();}},10);'
+            echo '})();'
+          } > "$OUT"
+          ls -l "$OUT"
+
       - name: Generate Android project
         run: |
           P="$GITHUB_WORKSPACE/_android"
           J="$P/app/src/main/java/com/local/ytadblock/tv"
           mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable"
+
+          cp "$GITHUB_WORKSPACE/_tt_out/tizentube.js" "$P/app/src/main/assets/tizentube.js"
 
           cat > "$P/settings.gradle" <<'EOF'
           pluginManagement {
@@ -171,8 +211,7 @@ jobs:
           </vector>
           EOF
 
-          # ---- The injected script: strips ad data from YouTube responses ----
-          # ---- + TizenTube "fixed UI" port (second block at the bottom) ----
+          # ---- Script 1: strips ad data from YouTube responses (runs at document start) ----
           cat > "$P/app/src/main/assets/adblock.js" <<'EOF'
           (function () {
             if (window.__ytAdBlockMin) return;
@@ -250,168 +289,6 @@ jobs:
               } catch (e) { }
             });
           })();
-
-          // =====================================================================
-          // Ported from TizenTube (mods/ui/ui.css + mods/ui/ui.js "Fix UI issues"), as in the repo:
-          //   - all player CSS fixes (transparent overlay instead of the black bar, 2025 shadow,
-          //     shorts tile, progress bar layering, multiline subtitles)
-          //   - enableFixedUI: every tectonicConfig switch the repo sets
-          //   - removal of body.app-quality-root (YouTube's low-quality UI mode)
-          // Each switch below can be set to false to bisect a problem.
-          // =====================================================================
-          (function () {
-            if (window.__ytFixedUi) return;
-            window.__ytFixedUi = true;
-
-            var REMOVE_QUALITY_CLASS = true;
-            var CONFIG = {                       // same values TizenTube sets with enableFixedUI
-              featureSwitches: {
-                isLimitedMemory: false,
-                enableAnimations: true,
-                enableOnScrollLinearAnimation: true,
-                enableListAnimations: true,
-                supportsLongPress: true,
-                enableCaptionsPersistence: true
-              },
-              clientData: {
-                legacyApplicationQuality: 'full-animation'
-              }
-            };
-
-            var CSS = [
-              '/* Fixes transparency effect for the video player */',
-              '.ytLrWatchDefaultShadow,',
-              'div[idomkey="shadow"] {',
-              '  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.8) 90%) !important;',
-              '  background-color: rgba(0, 0, 0, 0.3) !important;',
-              '  display: block !important;',
-              '  height: 100% !important;',
-              '  pointer-events: none !important;',
-              '  position: absolute !important;',
-              '  width: 100% !important;',
-              '}',
-              '.ytLrWatchDefault2025Shadow {',
-              '  background-color: rgba(11, 11, 11, 0.5) !important;',
-              '}',
-              '.ytLrTileHeaderRendererShorts {',
-              '  background-image: none !important;',
-              '}',
-              '.ytLrOverlayPanelHeaderRendererSubtitle {',
-              '  white-space: pre-wrap !important;',
-              '}',
-              '.ytLrProgressBarPlayhead {',
-              '  z-index: 1 !important;',
-              '}',
-              '.ytLrProgressBarPlayed {',
-              '  z-index: 1 !important;',
-              '}'
-            ].join('\n');
-
-            try {   // constructable stylesheet: not blocked by the page's CSP
-              if (window.CSSStyleSheet && CSSStyleSheet.prototype.replaceSync && 'adoptedStyleSheets' in document) {
-                var sheet = new CSSStyleSheet();
-                sheet.replaceSync(CSS);
-                document.adoptedStyleSheets = Array.prototype.slice.call(document.adoptedStyleSheets).concat([sheet]);
-              } else {
-                throw new Error('no adoptedStyleSheets');
-              }
-            } catch (e) {
-              var styleTimer = setInterval(function () {
-                if (!document.head) return;
-                clearInterval(styleTimer);
-                var existing = document.querySelector('style[nonce]');
-                if (existing) {
-                  existing.textContent += CSS;
-                } else {
-                  var st = document.createElement('style');
-                  st.textContent = CSS;
-                  document.head.appendChild(st);
-                }
-              }, 20);
-            }
-
-            function applyConfig() {
-              var c = window.tectonicConfig;
-              if (!c || !c.featureSwitches || !c.clientData) return false;
-              try {
-                for (var k in CONFIG.featureSwitches) c.featureSwitches[k] = CONFIG.featureSwitches[k];
-                for (var j in CONFIG.clientData) c.clientData[j] = CONFIG.clientData[j];
-              } catch (e) { }
-              return true;
-            }
-            var tries = 0;
-            var cfgTimer = setInterval(function () {
-              if (applyConfig() || ++tries > 600) clearInterval(cfgTimer);
-            }, 100);
-            window.addEventListener('load', applyConfig);
-
-            if (REMOVE_QUALITY_CLASS) {
-              var bodyTimer = setInterval(function () {
-                var b = document.body;
-                if (!b) return;
-                clearInterval(bodyTimer);
-                function strip() {
-                  if (b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
-                }
-                strip();
-                new MutationObserver(strip).observe(b, { attributes: true, childList: false, subtree: false });
-              }, 20);
-            }
-
-            // Safety net: if the queue's "now playing" card is an opaque black block (thumbnail hidden),
-            // show the current video's own thumbnail on it. Does nothing when the card already shows
-            // its thumbnail (as in the original build).
-            var ICON_SEL = 'svg, [class*="Icon"], [class*="Playing"], [class*="Equalizer"], [class*="Bars"]';
-            function color(s) {
-              var m = /rgba?\(([^)]+)\)/.exec(s || '');
-              if (!m) return null;
-              var p = m[1].split(/[ ,\/]+/).filter(Boolean).map(parseFloat);
-              return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
-            }
-            function fixNowPlaying() {
-              var vm = /[?&#\/]v=([A-Za-z0-9_-]{11})/.exec(location.href);
-              if (!vm) return;
-              var id = vm[1], W = window.innerWidth, H = window.innerHeight;
-
-              var old = document.querySelectorAll('[data-tt-np]');   // clean up recycled nodes
-              for (var o = 0; o < old.length; o++) {
-                if (old[o].getAttribute('data-tt-np') !== id || !old[o].querySelector(ICON_SEL)) {
-                  old[o].removeAttribute('data-tt-np');
-                  old[o].style.removeProperty('background-image');
-                  old[o].style.removeProperty('background-color');
-                  old[o].style.removeProperty('background-size');
-                  old[o].style.removeProperty('background-position');
-                }
-              }
-
-              var seen = new Set(), ys = [0.88, 0.95];
-              for (var yi = 0; yi < ys.length; yi++) {
-                for (var x = W * 0.04; x < W * 0.96; x += W * 0.04) {
-                  var stack = document.elementsFromPoint(x, H * ys[yi]);
-                  for (var i = 0; i < stack.length; i++) {
-                    var el = stack[i];
-                    if (seen.has(el) || el.hasAttribute('data-tt-np')) continue;
-                    seen.add(el);
-                    var r = el.getBoundingClientRect(), ar = r.width / (r.height || 1);
-                    if (ar < 1.5 || ar > 2.1 || r.width < W * 0.15 || r.width > W * 0.4) continue;
-                    var c = color(getComputedStyle(el).backgroundColor);
-                    if (!c || c.a < 0.7 || c.r > 45 || c.g > 45 || c.b > 45) continue;
-                    if (!el.querySelector(ICON_SEL)) continue;
-                    el.setAttribute('data-tt-np', id);
-                    el.style.setProperty('background-color', 'rgba(0,0,0,.25)', 'important');
-                    el.style.setProperty('background-image',
-                      'linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.25)),url(https://i.ytimg.com/vi/' + id + '/hqdefault.jpg)',
-                      'important');
-                    el.style.setProperty('background-size', 'cover', 'important');
-                    el.style.setProperty('background-position', 'center', 'important');
-                  }
-                }
-              }
-            }
-            setInterval(function () {
-              try { if (!document.hidden) fixNowPlaying(); } catch (e) { }
-            }, 800);
-          })();
           EOF
 
           cat > "$J/MainActivity.java" <<'EOF'
@@ -443,15 +320,17 @@ jobs:
 
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // Fire TV Stick (Silk browser) user agent, as a Fire TV would send it.
-              // If you ever get the desktop site or an "unsupported browser" page, switch back to
-              // the old TV UA: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.5 TV Safari/537.36"
+              // Samsung Tizen 10.0 (2026 TVs) user agent, from Samsung's official UA list.
+              // If you ever get the desktop site or an "unsupported browser" page, try Tizen 9.0:
+              // "Mozilla/5.0 (SMART-TV; LINUX; Tizen 9.0) AppleWebKit/537.36 (KHTML, like Gecko) 120.0.6099.5/9.0 TV Safari/537.36"
               private static final String TV_UA =
-                      "Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36 (KHTML, like Gecko) "
-                              + "Silk/110.3.1 like Chrome/110.0.5481.154 Safari/537.36";
+                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 10.0) AppleWebKit/537.36 (KHTML, like Gecko) "
+                              + "130.0.6723.116/10.0 TV Safari/537.36";
 
               private WebView web;
-              private String adblockJs = "";
+              // Injected in this order: ad stripper, then the full TizenTube bundle.
+              private static final String[] SCRIPT_ASSETS = {"adblock.js", "tizentube.js"};
+              private final java.util.List<String> scripts = new java.util.ArrayList<>();
               private boolean scriptAtDocumentStart = false;
               private long lastBack = 0;
 
@@ -461,7 +340,10 @@ jobs:
                   super.onCreate(savedInstanceState);
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-                  adblockJs = readAsset("adblock.js");
+                  for (String name : SCRIPT_ASSETS) {
+                      String js = readAsset(name);
+                      if (!js.isEmpty()) scripts.add(js);
+                  }
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
@@ -481,10 +363,12 @@ jobs:
                   cm.setAcceptThirdPartyCookies(web, true);
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
-                  if (!adblockJs.isEmpty()
+                  if (!scripts.isEmpty()
                           && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-                      WebViewCompat.addDocumentStartJavaScript(
-                              web, adblockJs, Collections.singleton("https://*.youtube.com"));
+                      for (String js : scripts) {
+                          WebViewCompat.addDocumentStartJavaScript(
+                                  web, js, Collections.singleton("https://*.youtube.com"));
+                      }
                       scriptAtDocumentStart = true;
                   }
 
@@ -500,8 +384,9 @@ jobs:
                       @Override
                       public void onPageStarted(WebView v, String url, Bitmap favicon) {
                           // Fallback for old WebView versions without document-start scripts.
-                          if (!scriptAtDocumentStart && !adblockJs.isEmpty()) {
-                              v.evaluateJavascript(adblockJs, null);
+                          // (Every script guards against running twice.)
+                          if (!scriptAtDocumentStart) {
+                              for (String js : scripts) v.evaluateJavascript(js, null);
                           }
                       }
 

@@ -1,18 +1,12 @@
 name: Build YouTube AdBlock TV APK
 
 # Self-contained: no other files needed in the repo.
-# Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
-# and injects:
-#   1. adblock.js   - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-#   2. glass.js     - transparent-blur skin for the watch PLAYER controls (no black boxes behind text,
-#                     blur Description/Subscribe/buttons, seek bar + glider) and a dotted circular
-#                     loading spinner replacing "Loading..." on every page
-#   3. inspector.js - debug capture tool (only when DEBUG_TOOLS = true)
-#
-# DEBUG CAPTURE TOOL (set DEBUG_TOOLS=false in MainActivity.java to remove it):
-# a small "CAP" button at the top-right opens a menu to pick any item by tapping it,
-# dump the visible UI, save the complete page JS, or save the HTML + CSS.
-# Each capture is saved to Downloads/YTCapture and opens the Android share sheet.
+# Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
+#   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
+#   2. glass.js   - transparent-blur player controls, no black boxes behind text,
+#                   7-dot circular loading spinner instead of "Loading..."
+# Also: black screen while video loads (no WebView grey poster), "No internet - Retry" page,
+# app logos downloaded at build time (falls back to a built-in red icon if a download fails).
 
 on:
   workflow_dispatch:
@@ -46,7 +40,7 @@ jobs:
         run: |
           P="$GITHUB_WORKSPACE/_android"
           J="$P/app/src/main/java/com/local/ytadblock/tv"
-          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/xml"
+          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/drawable-nodpi"
 
           cat > "$P/settings.gradle" <<'EOF'
           pluginManagement {
@@ -119,7 +113,6 @@ jobs:
 
           dependencies {
               implementation 'androidx.webkit:webkit:1.11.0'
-              implementation 'androidx.core:core:1.13.1'
           }
           EOF
 
@@ -140,7 +133,7 @@ jobs:
                   android:banner="@drawable/banner"
                   android:hardwareAccelerated="true"
                   android:usesCleartextTraffic="false"
-                  android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+                  android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
 
                   <activity
                       android:name=".MainActivity"
@@ -156,51 +149,11 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
-
-                  <!-- Lets the capture tool share saved files through the Android share sheet -->
-                  <provider
-                      android:name="androidx.core.content.FileProvider"
-                      android:authorities="com.local.ytadblock.tv.fileprovider"
-                      android:exported="false"
-                      android:grantUriPermissions="true">
-                      <meta-data
-                          android:name="android.support.FILE_PROVIDER_PATHS"
-                          android:resource="@xml/file_paths" />
-                  </provider>
               </application>
           </manifest>
           EOF
 
-          cat > "$P/app/src/main/res/xml/file_paths.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <paths>
-              <external-files-path name="captures_ext" path="captures/" />
-              <files-path name="captures_int" path="captures/" />
-          </paths>
-          EOF
-
-          cat > "$P/app/src/main/res/drawable/ic_launcher.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="96dp" android:height="96dp"
-              android:viewportWidth="96" android:viewportHeight="96">
-              <path android:fillColor="#FF0000" android:pathData="M0,0h96v96h-96z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M38,28L38,68L70,48z" />
-          </vector>
-          EOF
-
-          cat > "$P/app/src/main/res/drawable/banner.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="320dp" android:height="180dp"
-              android:viewportWidth="320" android:viewportHeight="180">
-              <path android:fillColor="#0F0F0F" android:pathData="M0,0h320v180h-320z" />
-              <path android:fillColor="#FF0000" android:pathData="M120,60h80a16,16 0 0 1 16,16v28a16,16 0 0 1 -16,16h-80a16,16 0 0 1 -16,-16v-28a16,16 0 0 1 16,-16z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M150,78L150,102L174,90z" />
-          </vector>
-          EOF
-
-          # ---- Script 1: strips ad data from YouTube responses (unchanged) ----
+          # ---- Script 1: strips ad data from YouTube responses ----
           cat > "$P/app/src/main/assets/adblock.js" <<'EOF'
           (function () {
             if (window.__ytAdBlockMin) return;
@@ -280,41 +233,46 @@ jobs:
           })();
           EOF
 
-          # ---- Script 2: transparent-blur glass on the PLAYER controls + dotted loading spinner ----
-          # Class names on YouTube TV are obfuscated, so glass.js reads the real colour of small elements
-          # on the watch page and tags them (dark pill -> blur, white -> near-white). It runs from a
-          # MutationObserver so it is applied before the next paint. Menus / side panels (Settings) are skipped.
-          # "Loading..." text and buffering are replaced with a circular dotted spinner on every page.
+          # ---- Script 2: transparent-blur player controls + 7-dot loading spinner ----
+          # Class names on YouTube TV are obfuscated, so glass.js reads the real colour of small
+          # elements on the watch page and tags them (dark pill -> light transparent blur,
+          # white -> soft white). It runs from a MutationObserver, so it is applied before the
+          # next paint. Menus / side panels (Settings) are left untouched. No shadows anywhere.
           cat > "$P/app/src/main/assets/glass.js" <<'EOF'
           (function () {
             if (window.__ytGlass) return;
             window.__ytGlass = true;
 
             var CSS = [
-              /* no black boxes behind text on the watch page + soft shadow for readability */
+              /* no black boxes behind text on the watch page */
               'body.WEB_PAGE_TYPE_WATCH yt-formatted-string,',
               'body.WEB_PAGE_TYPE_WATCH span[idomkey]{',
-              '  background:transparent !important;background-color:transparent !important;',
-              '  text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 14px rgba(0,0,0,.55);}',
+              '  background:transparent !important;background-color:transparent !important;}',
 
-              /* plain transparent blur (original YouTube look, no shine) */
+              /* video area is always plain black (no grey poster) */
+              'video{background-color:#000 !important;}',
+
+              /* transparent glass: low opacity, low blur, no shadow */
               'html:not([data-ytg-probe]) [data-ytg="dark"]{',
-              '  background:rgba(255,255,255,.15) !important;',
-              '  -webkit-backdrop-filter:blur(20px) saturate(150%);backdrop-filter:blur(20px) saturate(150%);}',
+              '  background:rgba(255,255,255,.09) !important;',
+              '  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}',
               'html:not([data-ytg-probe]) [data-ytg="mid"]{',
-              '  background:rgba(255,255,255,.32) !important;',
-              '  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);}',
-              /* focused button / played bar / glider: original near-white */
+              '  background:rgba(255,255,255,.20) !important;',
+              '  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}',
               'html:not([data-ytg-probe]) [data-ytg="light"]{',
-              '  background:rgba(241,241,241,.95) !important;}',
+              '  background:rgba(255,255,255,.88) !important;}',
+              /* thin parts (seek bar track / buffered / played) */
+              'html:not([data-ytg-probe]) [data-ytg="tdark"]{background:rgba(255,255,255,.22) !important;}',
+              'html:not([data-ytg-probe]) [data-ytg="tmid"]{background:rgba(255,255,255,.36) !important;}',
+              'html:not([data-ytg-probe]) [data-ytg="tlight"]{background:rgba(255,255,255,.95) !important;}',
 
-              /* "Loading..." text is hidden, dotted spinner is drawn instead */
+              /* "Loading..." text hidden; 7-dot spinner drawn instead */
               '[data-ytg-loadtext]{color:transparent !important;-webkit-text-fill-color:transparent !important;text-shadow:none !important;}',
               '[data-ytg-hide]{visibility:hidden !important;}',
-              '#ytg-spin{position:fixed;width:44px;height:44px;z-index:2147483647;pointer-events:none;display:none;}',
-              '#ytg-spin i{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;',
-              '  border-radius:50%;background:#fff;opacity:.12;animation:ytg-fade 1.2s linear infinite;}',
-              '@keyframes ytg-fade{0%{opacity:1}100%{opacity:.12}}'
+              '#ytg-spin{position:fixed;width:60px;height:60px;z-index:2147483647;pointer-events:none;display:none;}',
+              '#ytg-spin i{position:absolute;left:50%;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;',
+              '  border-radius:50%;background:#fff;opacity:.15;animation:ytg-fade 1.05s linear infinite;}',
+              '@keyframes ytg-fade{0%{opacity:1}100%{opacity:.15}}'
             ].join('\n');
 
             var style = null;
@@ -336,7 +294,7 @@ jobs:
               return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
             }
 
-            function mark(el, state, thin) {
+            function mark(el, state) {
               if (state) {
                 if (el.getAttribute('data-ytg') !== state) el.setAttribute('data-ytg', state);
               } else if (el.hasAttribute('data-ytg')) {
@@ -347,7 +305,7 @@ jobs:
             var SKIP = { VIDEO: 1, IMG: 1, IMAGE: 1, 'YTLR-PLAYER': 1, SCRIPT: 1, STYLE: 1,
               'YT-FORMATTED-STRING': 1, SPAN: 1, SVG: 1, PATH: 1 };
 
-            // Anything inside a menu / dialog (e.g. the panel that opens after tapping Settings) is left untouched.
+            // Anything inside a menu / dialog (the panel that opens from Settings) is left untouched.
             var MENU_TAG = /menu|dialog|popup|modal|dropdown/i;
             var MENU_ROLE = /^(menu|menubar|dialog|alertdialog|listbox)$/i;
             function inMenu(el) {
@@ -365,14 +323,14 @@ jobs:
               return false;
             }
 
-            // ---------- glass on the player controls (watch page only) ----------
+            // ---------- transparent glass on the player controls (watch page only) ----------
             function pass() {
               if (document.hidden || !document.body || !isWatch()) return;
               var root = document.documentElement;
               var all = document.body.getElementsByTagName('*');
               var W = innerWidth, H = innerHeight;
-              // Glass rules are switched OFF while reading the real colours, then ON again in the same
-              // task, so the screen never shows the un-glassed state.
+              // Glass rules are switched OFF while the real colours are read, then ON again in the
+              // same task, so the screen never shows the un-glassed state.
               root.setAttribute('data-ytg-probe', '1');
               try {
                 var els = [], rects = [], panels = [], i, el, r, cs;
@@ -381,7 +339,7 @@ jobs:
                   if (SKIP[el.tagName.toUpperCase()]) { mark(el, null); continue; }
                   r = el.getBoundingClientRect();
                   els.push(el); rects.push(r);
-                  // a tall side panel (settings menu) -> remember its area, nothing inside it gets glass
+                  // tall side panel (Settings menu) -> nothing inside it gets glass
                   if (r.height >= H * 0.85 && r.width >= 180 && r.width <= W * 0.7 && r.right > 0 && r.left < W) {
                     cs = getComputedStyle(el);
                     var pb = parse(cs.backgroundColor);
@@ -404,32 +362,32 @@ jobs:
                   var bg = parse(cs.backgroundColor);
                   if (!bg || bg.a < 0.05) { mark(el, null); continue; }
                   var lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) / 255;
-                  var state = lum < 0.55 ? 'dark' : (bg.a < 0.6 ? 'mid' : 'light');
+                  var base = lum < 0.55 ? 'dark' : (bg.a < 0.6 ? 'mid' : 'light');
                   var p = el.parentElement;
-                  if (!thin && state === 'dark' && p && p.getAttribute('data-ytg') === 'dark') {
+                  if (!thin && base === 'dark' && p && p.getAttribute('data-ytg') === 'dark') {
                     mark(el, null); continue;
                   }
                   if (inMenu(el)) { mark(el, null); continue; }
-                  mark(el, state);
+                  mark(el, (thin ? 't' : '') + base);
                 }
               } finally {
                 root.removeAttribute('data-ytg-probe');
               }
             }
 
-            // ---------- dotted circular spinner instead of "Loading…" (every page) ----------
+            // ---------- 7-dot circular spinner instead of "Loading..." (every page) ----------
             var spin = null;
             function ensureSpin() {
               if (spin && spin.isConnected) return spin;
               spin = document.createElement('div');
               spin.id = 'ytg-spin';
-              for (var i = 0; i < 12; i++) {
+              for (var i = 0; i < 7; i++) {
                 var d = document.createElement('i');
-                d.style.transform = 'rotate(' + (i * 30) + 'deg) translateY(-17px)';
-                d.style.animationDelay = (i * 0.1 - 1.2).toFixed(1) + 's';
+                d.style.transform = 'rotate(' + (i * 360 / 7).toFixed(2) + 'deg) translateY(-22px)';
+                d.style.animationDelay = (i * 0.15 - 1.05).toFixed(2) + 's';
                 spin.appendChild(d);
               }
-              document.documentElement.appendChild(spin);   // outside <body>, so it never triggers the observer
+              document.documentElement.appendChild(spin);   // outside <body>: never triggers the observer
               return spin;
             }
 
@@ -473,8 +431,8 @@ jobs:
               }
 
               if (target) {
-                s.style.left = Math.round(target.left + target.width / 2 - 22) + 'px';
-                s.style.top = Math.round(target.top + target.height / 2 - 22) + 'px';
+                s.style.left = Math.round(target.left + target.width / 2 - 30) + 'px';
+                s.style.top = Math.round(target.top + target.height / 2 - 30) + 'px';
                 s.style.display = 'block';
               } else {
                 s.style.display = 'none';
@@ -511,279 +469,28 @@ jobs:
           })();
           EOF
 
-          # ---- Script 3: capture / inspector helpers (passive until a menu button is used) ----
-          cat > "$P/app/src/main/assets/inspector.js" <<'EOF'
-          (function () {
-            if (window.__cap) return;
-            var cap = window.__cap = {};
-            var picking = false;
-
-            function pad(n) { return (n < 10 ? '0' : '') + n; }
-            function stamp() {
-              var d = new Date();
-              return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' +
-                pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-            }
-            function toast(m) { try { if (window.YTCap) YTCap.toast(String(m)); } catch (e) { } }
-            function send(name, text) {
-              if (!window.YTCap) return;
-              YTCap.begin();
-              var n = 200000;
-              for (var i = 0; i < text.length; i += n) YTCap.chunk(text.slice(i, i + n));
-              YTCap.end(name);
-            }
-            function safeJson(o, space) {
-              var seen = new WeakSet();
-              try {
-                return JSON.stringify(o, function (k, v) {
-                  if (typeof v === 'function') return '[fn]';
-                  if (v && typeof v === 'object') {
-                    if (v.nodeType) return '[node]';
-                    if (seen.has(v)) return '[circular]';
-                    seen.add(v);
-                  }
-                  return v;
-                }, space);
-              } catch (e) { return '"[unserializable: ' + e + ']"'; }
-            }
-
-            function cls(el) {
-              var c = el.getAttribute && el.getAttribute('class');
-              return c ? c.trim() : '';
-            }
-            function sel(el) {
-              var s = (el.tagName || '?').toLowerCase();
-              if (el.id) s += '#' + el.id;
-              var c = cls(el).split(/\s+/).filter(Boolean).slice(0, 6).join('.');
-              if (c) s += '.' + c;
-              var k = el.getAttribute && el.getAttribute('idomkey');
-              if (k) s += '[idomkey="' + k + '"]';
-              return s;
-            }
-            function r1(n) { return Math.round(n * 10) / 10; }
-
-            var PROPS = ['backgroundColor', 'backgroundImage', 'color', 'opacity', 'borderRadius', 'boxShadow',
-              'display', 'position', 'zIndex', 'visibility', 'filter', 'transform', 'mixBlendMode',
-              'overflow', 'width', 'height'];
-
-            function info(el) {
-              var r = el.getBoundingClientRect(), cs = getComputedStyle(el), st = {};
-              PROPS.forEach(function (p) {
-                var v = cs[p];
-                if (v && v !== 'none' && v !== 'normal' && v !== 'auto') st[p] = String(v).slice(0, 220);
-              });
-              var bf = cs.backdropFilter || cs.webkitBackdropFilter;
-              if (bf && bf !== 'none') st.backdropFilter = bf;
-              var attrs = {};
-              if (el.attributes) for (var i = 0; i < el.attributes.length; i++) {
-                var a = el.attributes[i];
-                if (a.name === 'class' || a.name === 'style') continue;
-                attrs[a.name] = String(a.value).slice(0, 80);
-              }
-              var inline = el.getAttribute && el.getAttribute('style');
-              return {
-                selector: sel(el),
-                tag: (el.tagName || '').toLowerCase(),
-                id: el.id || undefined,
-                class: cls(el) || undefined,
-                idomkey: (el.getAttribute && el.getAttribute('idomkey')) || undefined,
-                rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
-                attrs: attrs,
-                inlineStyle: inline ? inline.slice(0, 300) : undefined,
-                text: ((el.innerText || '') + '').trim().slice(0, 80) || undefined,
-                computed: st
-              };
-            }
-            function chain(el) {
-              var out = [], n = 0;
-              while (el && el.nodeType === 1 && n++ < 12) { out.push(sel(el)); el = el.parentElement; }
-              return out;
-            }
-            function header() {
-              var v = document.querySelector('video');
-              return {
-                captured: new Date().toISOString(),
-                url: location.href,
-                userAgent: navigator.userAgent,
-                viewport: [innerWidth, innerHeight, window.devicePixelRatio],
-                bodyClass: document.body ? document.body.className : '',
-                video: v ? {
-                  rect: (function () { var r = v.getBoundingClientRect(); return [r1(r.left), r1(r.top), r1(r.width), r1(r.height)]; })(),
-                  currentTime: v.currentTime, duration: v.duration, readyState: v.readyState,
-                  paused: v.paused, playbackRate: v.playbackRate,
-                  src: (v.currentSrc || v.src || '').slice(0, 80)
-                } : null
-              };
-            }
-            function flash(el) {
-              try {
-                var r = el.getBoundingClientRect(), d = document.createElement('div');
-                d.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;border:3px solid #0f0;' +
-                  'background:rgba(0,255,0,.15);left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
-                  'px;height:' + r.height + 'px';
-                document.documentElement.appendChild(d);
-                setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 1500);
-              } catch (e) { }
-            }
-
-            // ---- 1. Pick: tap an item, capture everything stacked at that point ----
-            function capturePoint(x, y) {
-              var stack = document.elementsFromPoint(x, y).slice(0, 14);
-              if (!stack.length) { toast('Nothing found at that point'); return; }
-              flash(stack[0]);
-              var out = header();
-              out.type = 'element-pick';
-              out.point = [Math.round(x), Math.round(y)];
-              out.ancestorsOfTop = chain(stack[0]);
-              out.topOuterHTML = (stack[0].outerHTML || '').slice(0, 1500);
-              out.stackTopToBottom = stack.map(info);
-              out.tectonicConfig = window.tectonicConfig ? JSON.parse(safeJson(window.tectonicConfig)) : null;
-              send('element_' + stamp() + '.txt', safeJson(out, 1));
-            }
-            cap.pick = function () {
-              if (picking) return;
-              picking = true;
-              toast('Tap the item you want to capture');
-              var types = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click'];
-              var done = false;
-              function handler(e) {
-                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                if (done) return;
-                if (e.type === 'pointerup' || e.type === 'touchend' || e.type === 'mouseup' || e.type === 'click') {
-                  var t = (e.changedTouches && e.changedTouches[0]) || e;
-                  if (typeof t.clientX !== 'number') return;
-                  done = true;
-                  capturePoint(t.clientX, t.clientY);
-                  setTimeout(function () {
-                    types.forEach(function (n) { window.removeEventListener(n, handler, true); });
-                    picking = false;
-                  }, 600);
-                }
-              }
-              types.forEach(function (n) { window.addEventListener(n, handler, true); });
-            };
-
-            // ---- 2. Dump visible UI: every visible, styled element (use after showing the controls) ----
-            cap.dumpUi = function () {
-              var lines = [], all = document.body.getElementsByTagName('*'), W = innerWidth, H = innerHeight;
-              for (var i = 0; i < all.length && lines.length < 1800; i++) {
-                var el = all[i], r = el.getBoundingClientRect();
-                if (r.width < 8 || r.height < 8 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) continue;
-                var cs = getComputedStyle(el);
-                if (cs.visibility === 'hidden' || cs.display === 'none') continue;
-                var bg = cs.backgroundColor, bgi = cs.backgroundImage, bf = cs.backdropFilter || cs.webkitBackdropFilter;
-                var hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
-                var hasImg = bgi && bgi !== 'none';
-                var hasBf = bf && bf !== 'none';
-                var ownText = '';
-                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) ownText += c.nodeValue;
-                ownText = ownText.trim().slice(0, 40);
-                if (!hasBg && !hasImg && !hasBf && !ownText && el.tagName !== 'VIDEO' && el.tagName !== 'IMG') continue;
-                lines.push(sel(el) + ' | rect=' + [r1(r.left), r1(r.top), r1(r.width), r1(r.height)].join(',') +
-                  (hasBg ? ' | bg=' + bg : '') + (hasImg ? ' | bgimg=' + bgi.slice(0, 90) : '') +
-                  (hasBf ? ' | backdrop=' + bf : '') +
-                  (cs.opacity !== '1' ? ' | opacity=' + cs.opacity : '') +
-                  (cs.borderRadius !== '0px' ? ' | radius=' + cs.borderRadius : '') +
-                  (cs.zIndex !== 'auto' ? ' | z=' + cs.zIndex : '') +
-                  (ownText ? ' | text="' + ownText + '"' : ''));
-              }
-              var text = 'YTCAP visible-UI dump\n' + safeJson(header(), 1) + '\n\n' + lines.join('\n') + '\n';
-              send('ui_' + stamp() + '.txt', text);
-            };
-
-            // ---- 3. Full HTML + all CSS ----
-            cap.dumpDom = function () {
-              var out = ['<!-- YTCAP DOM dump ' + new Date().toISOString() + ' | ' + location.href + ' -->',
-                document.documentElement.outerHTML, '', '/* ===== CSS (all stylesheets) ===== */'];
-              function addSheet(ss, label) {
-                try {
-                  var rules = ss.cssRules, parts = [];
-                  for (var i = 0; i < rules.length; i++) parts.push(rules[i].cssText);
-                  out.push('\n/* --- ' + label + ' (' + rules.length + ' rules) --- */\n' + parts.join('\n'));
-                } catch (e) { out.push('\n/* --- ' + label + ' unreadable (cross-origin) --- */'); }
-              }
-              for (var i = 0; i < document.styleSheets.length; i++) {
-                var ss = document.styleSheets[i];
-                addSheet(ss, ss.href || ('inline #' + i));
-              }
-              try { (document.adoptedStyleSheets || []).forEach(function (ss, i) { addSheet(ss, 'adopted #' + i); }); } catch (e) { }
-              send('dom_' + stamp() + '.txt', out.join('\n'));
-            };
-
-            // ---- 4. Complete JS: inline scripts + every external script the page loaded ----
-            cap.dumpJs = function () {
-              toast('Collecting page JS, please wait...');
-              var urls = [], seen = {};
-              function add(u) { if (u && !seen[u]) { seen[u] = 1; urls.push(u); } }
-              [].forEach.call(document.scripts, function (s) { if (s.src) add(s.src); });
-              try {
-                performance.getEntriesByType('resource').forEach(function (e) {
-                  if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) add(e.name);
-                });
-              } catch (e) { }
-
-              var out = ['/* YTCAP JS dump ' + new Date().toISOString() + ' */',
-                '/* url: ' + location.href + ' */',
-                '/* ua: ' + navigator.userAgent + ' */',
-                '/* body class: ' + (document.body ? document.body.className : '') + ' */',
-                '/* window._yttv keys: ' + (window._yttv ? Object.keys(window._yttv).join(',') : 'none') + ' */',
-                '/* tectonicConfig: */', safeJson(window.tectonicConfig, 1)];
-              [].forEach.call(document.scripts, function (s, i) {
-                if (!s.src && s.textContent) {
-                  out.push('\n/* ===== inline script #' + i + ' (' + s.textContent.length + ' chars) ===== */\n' + s.textContent);
-                }
-              });
-
-              var total = 0, idx = 0;
-              function next() {
-                if (idx >= urls.length) {
-                  out.push('\n/* total external chars: ' + total + ' in ' + urls.length + ' files */');
-                  send('js_' + stamp() + '.txt', out.join('\n'));
-                  return;
-                }
-                var u = urls[idx++];
-                if (total > 14000000) {
-                  out.push('\n/* ===== ' + u + ' SKIPPED (size cap reached) ===== */');
-                  return next();
-                }
-                fetch(u, { credentials: 'include' })
-                  .then(function (r) { return r.text().then(function (t) { return { s: r.status, t: t }; }); })
-                  .then(function (r) {
-                    total += r.t.length;
-                    out.push('\n/* ===== ' + u + ' [' + r.s + ', ' + r.t.length + ' chars] ===== */\n' + r.t);
-                  })
-                  .catch(function (e) { out.push('\n/* ===== ' + u + ' FAILED: ' + e + ' ===== */'); })
-                  .then(next);
-              }
-              next();
-            };
-          })();
-          EOF
-
           cat > "$J/MainActivity.java" <<'EOF'
           package com.local.ytadblock.tv;
 
           import android.annotation.SuppressLint;
           import android.app.Activity;
-          import android.content.ContentValues;
-          import android.content.Intent;
           import android.graphics.Bitmap;
           import android.graphics.Color;
-          import android.net.Uri;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.ConnectivityManager;
+          import android.net.Network;
+          import android.net.NetworkCapabilities;
+          import android.net.NetworkRequest;
           import android.os.Build;
           import android.os.Bundle;
-          import android.os.Environment;
-          import android.os.Handler;
-          import android.os.Looper;
-          import android.provider.MediaStore;
           import android.view.Gravity;
           import android.view.KeyEvent;
           import android.view.View;
           import android.view.ViewGroup;
           import android.view.WindowManager;
           import android.webkit.CookieManager;
-          import android.webkit.JavascriptInterface;
           import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceError;
           import android.webkit.WebResourceRequest;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
@@ -791,48 +498,38 @@ jobs:
           import android.widget.FrameLayout;
           import android.widget.LinearLayout;
           import android.widget.TextView;
-          import android.widget.Toast;
 
-          import androidx.core.content.FileProvider;
           import androidx.webkit.WebViewCompat;
           import androidx.webkit.WebViewFeature;
 
           import java.io.ByteArrayOutputStream;
-          import java.io.File;
-          import java.io.FileOutputStream;
           import java.io.InputStream;
-          import java.io.OutputStream;
-          import java.nio.charset.StandardCharsets;
           import java.util.ArrayList;
           import java.util.Collections;
           import java.util.List;
 
           public class MainActivity extends Activity {
 
-              // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
-              private static final boolean DEBUG_TOOLS = true;
-
-              // Set to false to go back to the original YouTube look (no liquid glass).
-              private static final boolean GLASS_UI = true;
-
               private static final String START_URL = "https://www.youtube.com/tv";
 
               // TV-style user agent so youtube.com serves the original TV (leanback) interface.
-              // If you ever get the desktop site or an "unsupported browser" page, change this.
               private static final String TV_UA =
                       "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
                               + "85.0.4183.93/6.5 TV Safari/537.36";
 
               private WebView web;
               private FrameLayout root;
-              private LinearLayout panel;
+              private LinearLayout offlineView;
+              private TextView offlineTitle;
+              private TextView retryBtn;
+              private ConnectivityManager.NetworkCallback netCb;
               private final List<String> scripts = new ArrayList<>();
               private boolean scriptAtDocumentStart = false;
+              private boolean loadFailed = false;
+              private String failedUrl = null;
               private long lastBack = 0;
-              private File lastCapture = null;
-              private final Handler ui = new Handler(Looper.getMainLooper());
 
-              @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+              @SuppressLint("SetJavaScriptEnabled")
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
@@ -840,20 +537,16 @@ jobs:
 
                   String ad = readAsset("adblock.js");
                   if (!ad.isEmpty()) scripts.add(ad);
-                  if (GLASS_UI) {
-                      String glass = readAsset("glass.js");
-                      if (!glass.isEmpty()) scripts.add(glass);
-                  }
-                  if (DEBUG_TOOLS) {
-                      String insp = readAsset("inspector.js");
-                      if (!insp.isEmpty()) scripts.add(insp);
-                  }
+                  String glass = readAsset("glass.js");
+                  if (!glass.isEmpty()) scripts.add(glass);
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
                   root = new FrameLayout(this);
+                  root.setBackgroundColor(Color.BLACK);
                   root.addView(web, new FrameLayout.LayoutParams(
                           ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  buildOfflineView();
                   setContentView(root, new ViewGroup.LayoutParams(
                           ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -869,12 +562,6 @@ jobs:
                   cm.setAcceptCookie(true);
                   cm.setAcceptThirdPartyCookies(web, true);
 
-                  if (DEBUG_TOOLS) {
-                      WebView.setWebContentsDebuggingEnabled(true);   // chrome://inspect from a PC
-                      web.addJavascriptInterface(new CapBridge(), "YTCap");
-                      buildDebugUi();
-                  }
-
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!scripts.isEmpty()
                           && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -885,7 +572,23 @@ jobs:
                       scriptAtDocumentStart = true;
                   }
 
-                  web.setWebChromeClient(new WebChromeClient());
+                  web.setWebChromeClient(new WebChromeClient() {
+                      // Plain black instead of the grey "play" poster WebView shows while a video loads.
+                      @Override
+                      public Bitmap getDefaultVideoPoster() {
+                          Bitmap b = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                          b.eraseColor(Color.BLACK);
+                          return b;
+                      }
+
+                      @Override
+                      public View getVideoLoadingProgressView() {
+                          View v = new View(MainActivity.this);
+                          v.setBackgroundColor(Color.BLACK);
+                          return v;
+                      }
+                  });
+
                   web.setWebViewClient(new WebViewClient() {
                       @Override
                       public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
@@ -903,6 +606,23 @@ jobs:
                       }
 
                       @Override
+                      public void onPageFinished(WebView v, String url) {
+                          if (!loadFailed && url != null && url.startsWith("http")) hideOffline();
+                      }
+
+                      @SuppressLint("NewApi")
+                      @Override
+                      public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
+                          if (r != null && r.isForMainFrame()) showOffline(r.getUrl().toString());
+                      }
+
+                      @SuppressWarnings("deprecation")
+                      @Override
+                      public void onReceivedError(WebView v, int code, String desc, String failingUrl) {
+                          if (Build.VERSION.SDK_INT < 23) showOffline(failingUrl);
+                      }
+
+                      @Override
                       public boolean onRenderProcessGone(WebView v,
                                                          android.webkit.RenderProcessGoneDetail d) {
                           recreate();
@@ -910,12 +630,16 @@ jobs:
                       }
                   });
 
+                  registerNetworkWatcher();
+
                   if (savedInstanceState != null) {
                       web.restoreState(savedInstanceState);
                   } else {
                       web.loadUrl(START_URL);
                   }
                   web.requestFocus();
+
+                  if (!isOnline()) showOffline(START_URL);
               }
 
               private String readAsset(String name) {
@@ -931,211 +655,140 @@ jobs:
               }
 
               // ------------------------------------------------------------------
-              // Debug capture UI: small "CAP" button -> menu
+              // No internet / load failed -> "Retry" page (instead of WebView's error page)
               // ------------------------------------------------------------------
               private int dp(int v) {
                   return Math.round(v * getResources().getDisplayMetrics().density);
               }
 
-              private TextView menuButton(String label, View.OnClickListener l) {
-                  TextView t = new TextView(this);
-                  t.setText(label);
-                  t.setTextColor(Color.WHITE);
-                  t.setTextSize(14);
-                  t.setPadding(dp(14), dp(10), dp(14), dp(10));
-                  t.setBackgroundColor(0xE6202020);
-                  t.setFocusable(false);
-                  t.setOnClickListener(l);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+              private void styleRetry(boolean focused) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setCornerRadius(dp(26));
+                  g.setColor(focused ? 0xFFF1F1F1 : 0x33FFFFFF);
+                  retryBtn.setBackground(g);
+                  retryBtn.setTextColor(focused ? Color.BLACK : Color.WHITE);
+              }
+
+              private void buildOfflineView() {
+                  offlineView = new LinearLayout(this);
+                  offlineView.setOrientation(LinearLayout.VERTICAL);
+                  offlineView.setGravity(Gravity.CENTER);
+                  offlineView.setBackgroundColor(Color.BLACK);
+                  offlineView.setClickable(true);          // swallow touches meant for the WebView
+                  offlineView.setVisibility(View.GONE);
+
+                  offlineTitle = new TextView(this);
+                  offlineTitle.setText("No internet connection");
+                  offlineTitle.setTextColor(Color.WHITE);
+                  offlineTitle.setTextSize(22);
+                  offlineTitle.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
                           ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                  lp.topMargin = dp(4);
-                  t.setLayoutParams(lp);
-                  return t;
-              }
+                  tp.bottomMargin = dp(8);
+                  offlineView.addView(offlineTitle, tp);
 
-              private void runJs(String js) {
-                  web.evaluateJavascript(
-                          "try{" + js + "}catch(e){window.YTCap&&YTCap.toast('Capture error: '+e)}", null);
-              }
+                  TextView msg = new TextView(this);
+                  msg.setText("Check your connection and try again");
+                  msg.setTextColor(0xFFAAAAAA);
+                  msg.setTextSize(14);
+                  msg.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  mp.bottomMargin = dp(28);
+                  offlineView.addView(msg, mp);
 
-              private void buildDebugUi() {
-                  LinearLayout box = new LinearLayout(this);
-                  box.setOrientation(LinearLayout.VERTICAL);
-                  box.setGravity(Gravity.END);
-
-                  panel = new LinearLayout(this);
-                  panel.setOrientation(LinearLayout.VERTICAL);
-                  panel.setVisibility(View.GONE);
-
-                  TextView bubble = menuButton("CAP", new View.OnClickListener() {
+                  retryBtn = new TextView(this);
+                  retryBtn.setText("Retry");
+                  retryBtn.setTextSize(16);
+                  retryBtn.setGravity(Gravity.CENTER);
+                  retryBtn.setPadding(dp(40), dp(12), dp(40), dp(12));
+                  retryBtn.setFocusable(true);
+                  retryBtn.setFocusableInTouchMode(true);
+                  retryBtn.setOnFocusChangeListener(new View.OnFocusChangeListener() {
                       @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+                      public void onFocusChange(View v, boolean hasFocus) {
+                          styleRetry(hasFocus);
                       }
                   });
-                  bubble.setAlpha(0.55f);
+                  retryBtn.setOnClickListener(new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          retry();
+                      }
+                  });
+                  styleRetry(false);
+                  offlineView.addView(retryBtn, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-                  panel.addView(menuButton("1. Pick item (then tap it)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          runJs("window.__cap.pick()");
-                      }
-                  }));
-                  panel.addView(menuButton("2. Dump visible UI (in 5 s)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          Toast.makeText(MainActivity.this,
-                                  "Capturing in 5 seconds - show the screen you want", Toast.LENGTH_LONG).show();
-                          ui.postDelayed(new Runnable() {
-                              @Override
-                              public void run() {
-                                  runJs("window.__cap.dumpUi()");
-                              }
-                          }, 5000);
-                      }
-                  }));
-                  panel.addView(menuButton("3. Save complete page JS", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          runJs("window.__cap.dumpJs()");
-                      }
-                  }));
-                  panel.addView(menuButton("4. Save HTML + CSS", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          runJs("window.__cap.dumpDom()");
-                      }
-                  }));
-                  panel.addView(menuButton("5. Share last capture", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          shareFile(lastCapture);
-                      }
-                  }));
-
-                  box.addView(bubble);
-                  box.addView(panel);
-
-                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                          Gravity.TOP | Gravity.END);
-                  lp.setMargins(0, dp(8), dp(8), 0);
-                  root.addView(box, lp);
+                  root.addView(offlineView, new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
               }
 
-              /** Receives capture text from inspector.js in chunks, then saves + shares it. */
-              private class CapBridge {
-                  private final StringBuilder buf = new StringBuilder();
+              private void showOffline(String url) {
+                  failedUrl = url;
+                  loadFailed = true;
+                  offlineTitle.setText(isOnline() ? "Couldn't load YouTube" : "No internet connection");
+                  retryBtn.setText("Retry");
+                  offlineView.setVisibility(View.VISIBLE);
+                  web.clearFocus();
+                  retryBtn.requestFocus();
+              }
 
-                  @JavascriptInterface
-                  public synchronized void begin() {
-                      buf.setLength(0);
-                  }
-
-                  @JavascriptInterface
-                  public synchronized void chunk(String s) {
-                      buf.append(s);
-                  }
-
-                  @JavascriptInterface
-                  public void end(String name) {
-                      final String text;
-                      synchronized (this) {
-                          text = buf.toString();
-                          buf.setLength(0);
-                      }
-                      final String fileName = name.replaceAll("[^A-Za-z0-9._-]", "_");
-                      new Thread(new Runnable() {
-                          @Override
-                          public void run() {
-                              saveCapture(fileName, text);
-                          }
-                      }).start();
-                  }
-
-                  @JavascriptInterface
-                  public void toast(final String msg) {
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
-                          }
-                      });
+              private void hideOffline() {
+                  if (offlineView.getVisibility() == View.VISIBLE) {
+                      offlineView.setVisibility(View.GONE);
+                      web.requestFocus();
                   }
               }
 
-              private void saveCapture(String name, String text) {
-                  try {
-                      byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-                      File base = getExternalFilesDir(null);
-                      if (base == null) base = getFilesDir();
-                      File dir = new File(base, "captures");
-                      dir.mkdirs();
-                      final File f = new File(dir, name);
-                      try (FileOutputStream o = new FileOutputStream(f)) {
-                          o.write(bytes);
-                      }
-                      lastCapture = f;
-                      String where = f.getAbsolutePath();
-                      if (copyToDownloads(name, bytes)) where = "Downloads/YTCapture/" + name;
-                      final String msg = "Saved " + (bytes.length / 1024) + " KB: " + where;
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
-                              shareFile(f);
-                          }
-                      });
-                  } catch (final Exception e) {
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              Toast.makeText(MainActivity.this, "Save failed: " + e, Toast.LENGTH_LONG).show();
-                          }
-                      });
-                  }
-              }
-
-              @SuppressLint("NewApi")
-              private boolean copyToDownloads(String name, byte[] bytes) {
-                  if (Build.VERSION.SDK_INT < 29) return false;
-                  try {
-                      ContentValues v = new ContentValues();
-                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
-                      v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
-                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YTCapture");
-                      Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-                      if (u == null) return false;
-                      try (OutputStream os = getContentResolver().openOutputStream(u)) {
-                          if (os == null) return false;
-                          os.write(bytes);
-                      }
-                      return true;
-                  } catch (Exception e) {
-                      return false;
-                  }
-              }
-
-              private void shareFile(File f) {
-                  if (f == null || !f.exists()) {
-                      Toast.makeText(this, "No capture saved yet", Toast.LENGTH_SHORT).show();
+              private void retry() {
+                  if (!isOnline()) {
+                      retryBtn.setText("Still offline - Retry");
                       return;
                   }
+                  retryBtn.setText("Retrying...");
+                  loadFailed = false;
+                  web.loadUrl(failedUrl != null && failedUrl.startsWith("http") ? failedUrl : START_URL);
+              }
+
+              @SuppressWarnings("deprecation")
+              private boolean isOnline() {
                   try {
-                      Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
-                      Intent i = new Intent(Intent.ACTION_SEND);
-                      i.setType("text/plain");
-                      i.putExtra(Intent.EXTRA_STREAM, uri);
-                      i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
-                      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                      startActivity(Intent.createChooser(i, "Send capture"));
+                      ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                      if (cm == null) return true;
+                      if (Build.VERSION.SDK_INT >= 23) {
+                          Network n = cm.getActiveNetwork();
+                          if (n == null) return false;
+                          NetworkCapabilities c = cm.getNetworkCapabilities(n);
+                          return c != null && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+                      }
+                      android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
+                      return ni != null && ni.isConnected();
                   } catch (Exception e) {
-                      Toast.makeText(this, "Cannot share: " + e, Toast.LENGTH_LONG).show();
+                      return true;
+                  }
+              }
+
+              /** When the connection comes back while the Retry page is showing, reload automatically. */
+              private void registerNetworkWatcher() {
+                  try {
+                      ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
+                      if (cm == null) return;
+                      netCb = new ConnectivityManager.NetworkCallback() {
+                          @Override
+                          public void onAvailable(Network network) {
+                              runOnUiThread(new Runnable() {
+                                  @Override
+                                  public void run() {
+                                      if (offlineView.getVisibility() == View.VISIBLE) retry();
+                                  }
+                              });
+                          }
+                      };
+                      cm.registerNetworkCallback(new NetworkRequest.Builder()
+                              .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), netCb);
+                  } catch (Exception e) {
+                      netCb = null;
                   }
               }
 
@@ -1144,6 +797,10 @@ jobs:
               @Override
               public boolean onKeyDown(int keyCode, KeyEvent event) {
                   if (keyCode == KeyEvent.KEYCODE_BACK) {
+                      if (offlineView.getVisibility() == View.VISIBLE) {   // Retry page: Back = exit
+                          finish();
+                          return true;
+                      }
                       long now = System.currentTimeMillis();
                       if (now - lastBack < 700) {      // double-press Back = exit app
                           finish();
@@ -1180,6 +837,12 @@ jobs:
 
               @Override
               protected void onDestroy() {
+                  try {
+                      if (netCb != null) {
+                          ((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE))
+                                  .unregisterNetworkCallback(netCb);
+                      }
+                  } catch (Exception ignored) { }
                   if (web != null) {
                       ((ViewGroup) web.getParent()).removeView(web);
                       web.destroy();
@@ -1188,6 +851,75 @@ jobs:
               }
           }
           EOF
+
+      - name: Fetch app logos
+        run: |
+          P="$GITHUB_WORKSPACE/_android"
+          RES="$P/app/src/main/res"
+          TMP="$(mktemp -d)"
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
+          BANNER_URL="https://www.gstatic.com/youtube/img/promos/growth/YTP_logo_social_1200x630.png"
+          ICON_URL="https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png"
+
+          if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+          fi
+          IM="convert"
+          if command -v magick >/dev/null 2>&1; then IM="magick"; fi
+
+          BANNER_OK=0
+          ICON_OK=0
+
+          # Landscape logo -> Android TV banner (640x360, padded with the image's own corner colour)
+          if curl -fsSL --retry 3 --max-time 60 -A "$UA" -o "$TMP/banner_src.png" "$BANNER_URL"; then
+            BG="$($IM "$TMP/banner_src.png" -format '%[pixel:p{4,4}]' info: 2>/dev/null || true)"
+            case "$BG" in
+              ""|none|*transparent*|srgba*,0\)|rgba*,0\)) BG="#0F0F0F" ;;
+            esac
+            if $IM "$TMP/banner_src.png" -background "$BG" -alpha remove -alpha off \
+                 -resize 640x360 -gravity center -extent 640x360 "$RES/drawable-nodpi/banner.png"; then
+              BANNER_OK=1
+            fi
+          fi
+
+          # Square logo -> launcher icon (256x256 on white)
+          if curl -fsSL --retry 3 --max-time 60 -A "$UA" -o "$TMP/icon_src.png" "$ICON_URL"; then
+            if $IM "$TMP/icon_src.png" -background white -alpha remove -alpha off \
+                 -resize 190x190 -gravity center -extent 256x256 "$RES/drawable-nodpi/ic_launcher.png"; then
+              ICON_OK=1
+            fi
+          fi
+
+          # Built-in fallbacks so the build never fails because of a download
+          if [ "$ICON_OK" != "1" ]; then
+            echo "::warning::Could not fetch/convert the square logo - using built-in icon."
+            cat > "$RES/drawable/ic_launcher.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="96dp" android:height="96dp"
+              android:viewportWidth="96" android:viewportHeight="96">
+              <path android:fillColor="#FF0000" android:pathData="M0,0h96v96h-96z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M38,28L38,68L70,48z" />
+          </vector>
+          EOF
+          fi
+
+          if [ "$BANNER_OK" != "1" ]; then
+            echo "::warning::Could not fetch/convert the landscape logo - using built-in banner."
+            cat > "$RES/drawable/banner.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="320dp" android:height="180dp"
+              android:viewportWidth="320" android:viewportHeight="180">
+              <path android:fillColor="#0F0F0F" android:pathData="M0,0h320v180h-320z" />
+              <path android:fillColor="#FF0000" android:pathData="M120,60h80a16,16 0 0 1 16,16v28a16,16 0 0 1 -16,16h-80a16,16 0 0 1 -16,-16v-28a16,16 0 0 1 16,-16z" />
+              <path android:fillColor="#FFFFFF" android:pathData="M150,78L150,102L174,90z" />
+          </vector>
+          EOF
+          fi
+
+          echo "banner ok=$BANNER_OK icon ok=$ICON_OK"
+          ls -l "$RES/drawable" "$RES/drawable-nodpi"
 
       - name: Prepare signing key
         env:

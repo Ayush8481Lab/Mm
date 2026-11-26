@@ -2,7 +2,11 @@ name: Build YouTube AdBlock TV APK
 
 # Self-contained: no other files needed in the repo.
 # Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
-# and injects ONLY an ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0).
+# and injects:
+#   1. adblock.js   - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
+#   2. glass.js     - LIQUID GLASS skin for the watch page: no black boxes behind text,
+#                     glass Description/Subscribe/action buttons, glass seek bar + glider
+#   3. inspector.js - debug capture tool (only when DEBUG_TOOLS = true)
 #
 # DEBUG CAPTURE TOOL (set DEBUG_TOOLS=false in MainActivity.java to remove it):
 # a small "CAP" button at the top-right opens a menu to pick any item by tapping it,
@@ -275,7 +279,127 @@ jobs:
           })();
           EOF
 
-          # ---- Script 2: capture / inspector helpers (passive until a menu button is used) ----
+          # ---- Script 2 (NEW): LIQUID GLASS skin for the watch page ----
+          # Class names on YouTube TV are obfuscated and change, so this does NOT rely on them.
+          # Instead it looks at every small element on the watch page, reads its REAL colour
+          # (rules are switched off for a split second while reading, so focus changes are seen),
+          # and tags it:  dark grey pill -> glass,  white (focused / played bar / glider) -> bright glass.
+          # Black boxes behind title / channel / views / time text are simply made transparent.
+          cat > "$P/app/src/main/assets/glass.js" <<'EOF'
+          (function () {
+            if (window.__ytGlass) return;
+            window.__ytGlass = true;
+
+            var CSS = [
+              /* 1. no black boxes behind any text on the watch page + soft shadow for readability */
+              'body.WEB_PAGE_TYPE_WATCH yt-formatted-string,',
+              'body.WEB_PAGE_TYPE_WATCH span[idomkey]{',
+              '  background:transparent !important;background-color:transparent !important;',
+              '  text-shadow:0 1px 3px rgba(0,0,0,.85),0 0 14px rgba(0,0,0,.55);}',
+
+              /* 2. dark grey pills (Description, Subscribe, like group, CC/settings...) -> liquid glass */
+              'html:not([data-ytg-probe]) [data-ytg="dark"]{',
+              '  background:linear-gradient(135deg,rgba(255,255,255,.30) 0%,rgba(255,255,255,.10) 55%,rgba(255,255,255,.18) 100%) !important;',
+              '  -webkit-backdrop-filter:blur(22px) saturate(190%) brightness(1.12);',
+              '  backdrop-filter:blur(22px) saturate(190%) brightness(1.12);',
+              '  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.60),inset 0 -1.5px 1px rgba(255,255,255,.14),',
+              '    inset 0 0 0 1px rgba(255,255,255,.18),0 6px 20px rgba(0,0,0,.30) !important;}',
+
+              /* 3. translucent light parts (buffered part of the seek bar) */
+              'html:not([data-ytg-probe]) [data-ytg="mid"]{',
+              '  background:linear-gradient(135deg,rgba(255,255,255,.42) 0%,rgba(255,255,255,.20) 100%) !important;',
+              '  -webkit-backdrop-filter:blur(14px) saturate(170%);backdrop-filter:blur(14px) saturate(170%);',
+              '  box-shadow:inset 0 1px 1px rgba(255,255,255,.55),inset 0 0 0 1px rgba(255,255,255,.14) !important;}',
+
+              /* 4. white parts (focused button, played part of seek bar, glider) -> bright glass */
+              'html:not([data-ytg-probe]) [data-ytg="light"]{',
+              '  background:linear-gradient(135deg,rgba(255,255,255,.95) 0%,rgba(255,255,255,.66) 100%) !important;',
+              '  -webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);',
+              '  box-shadow:inset 0 1.5px 1px #fff,inset 0 -1px 1px rgba(255,255,255,.35),',
+              '    0 0 18px rgba(255,255,255,.40),0 4px 14px rgba(0,0,0,.25) !important;}',
+
+              /* 5. thin elements (seek bar track / fill): lighter shadows so they stay slim */
+              'html:not([data-ytg-probe]) [data-ytg][data-ytg-thin]{',
+              '  box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 0 8px rgba(255,255,255,.28) !important;}',
+              'html:not([data-ytg-probe]) [data-ytg="dark"][data-ytg-thin]{',
+              '  box-shadow:inset 0 1px 0 rgba(255,255,255,.45),inset 0 0 0 1px rgba(255,255,255,.12) !important;}'
+            ].join('\n');
+
+            var style = null;
+            function inject() {
+              if (style && style.isConnected) return;
+              if (!style) { style = document.createElement('style'); style.id = 'yt-glass-css'; }
+              style.textContent = CSS;
+              (document.head || document.documentElement).appendChild(style);
+            }
+
+            function parse(c) {
+              var m = c && c.match(/rgba?\(([^)]+)\)/);
+              if (!m) return null;
+              var p = m[1].split(',').map(parseFloat);
+              return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+            }
+
+            function mark(el, state, thin) {
+              if (state) {
+                if (el.getAttribute('data-ytg') !== state) el.setAttribute('data-ytg', state);
+                if (thin) { if (!el.hasAttribute('data-ytg-thin')) el.setAttribute('data-ytg-thin', '1'); }
+                else if (el.hasAttribute('data-ytg-thin')) el.removeAttribute('data-ytg-thin');
+              } else if (el.hasAttribute('data-ytg')) {
+                el.removeAttribute('data-ytg');
+                el.removeAttribute('data-ytg-thin');
+              }
+            }
+
+            var SKIP = { VIDEO: 1, IMG: 1, IMAGE: 1, 'YTLR-PLAYER': 1, SCRIPT: 1, STYLE: 1,
+              'YT-FORMATTED-STRING': 1, SPAN: 1, SVG: 1, PATH: 1 };
+
+            function pass() {
+              if (document.hidden || !document.body) return;
+              if (!/WEB_PAGE_TYPE_WATCH/.test(document.body.className)) return;
+              var root = document.documentElement;
+              var all = document.body.getElementsByTagName('*');
+              var W = innerWidth, H = innerHeight;
+              // Switch glass rules OFF, read the real colours, switch ON again - all in one task,
+              // so the screen never shows the un-glassed state.
+              root.setAttribute('data-ytg-probe', '1');
+              try {
+                for (var i = 0; i < all.length; i++) {
+                  var el = all[i];
+                  if (SKIP[el.tagName.toUpperCase()]) { mark(el, null); continue; }
+                  var r = el.getBoundingClientRect();
+                  if (r.width < 6 || r.height < 3 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) {
+                    mark(el, null); continue;
+                  }
+                  var thin = r.height <= 12;
+                  if (!thin && (r.height > 80 || r.width > 400)) { mark(el, null); continue; }
+                  var cs = getComputedStyle(el);
+                  if (cs.visibility === 'hidden' || cs.display === 'none' ||
+                      (cs.backgroundImage && cs.backgroundImage !== 'none')) { mark(el, null); continue; }
+                  var bg = parse(cs.backgroundColor);
+                  if (!bg || bg.a < 0.05) { mark(el, null); continue; }
+                  var lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) / 255;
+                  var state = lum < 0.55 ? 'dark' : (bg.a < 0.6 ? 'mid' : 'light');
+                  // avoid stacking glass on glass (a dark child inside a dark glass parent)
+                  var p = el.parentElement;
+                  if (!thin && state === 'dark' && p && p.getAttribute('data-ytg') === 'dark') {
+                    mark(el, null); continue;
+                  }
+                  mark(el, state, thin);
+                }
+              } finally {
+                root.removeAttribute('data-ytg-probe');
+              }
+            }
+
+            inject();
+            setInterval(function () {
+              try { inject(); pass(); } catch (e) { /* never break the page */ }
+            }, 400);
+          })();
+          EOF
+
+          # ---- Script 3: capture / inspector helpers (passive until a menu button is used) ----
           cat > "$P/app/src/main/assets/inspector.js" <<'EOF'
           (function () {
             if (window.__cap) return;
@@ -576,6 +700,9 @@ jobs:
               // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
               private static final boolean DEBUG_TOOLS = true;
 
+              // Set to false to go back to the original YouTube look (no liquid glass).
+              private static final boolean GLASS_UI = true;
+
               private static final String START_URL = "https://www.youtube.com/tv";
 
               // TV-style user agent so youtube.com serves the original TV (leanback) interface.
@@ -601,6 +728,10 @@ jobs:
 
                   String ad = readAsset("adblock.js");
                   if (!ad.isEmpty()) scripts.add(ad);
+                  if (GLASS_UI) {
+                      String glass = readAsset("glass.js");
+                      if (!glass.isEmpty()) scripts.add(glass);
+                  }
                   if (DEBUG_TOOLS) {
                       String insp = readAsset("inspector.js");
                       if (!insp.isEmpty()) scripts.add(insp);

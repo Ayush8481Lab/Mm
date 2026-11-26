@@ -3,7 +3,7 @@ name: Build YouTube AdBlock TV APK
 # Self-contained: no other files needed in the repo.
 # Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
 # and injects ONLY an ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-# plus a small UI helper (buffering spinner + black video poster).
+# plus a small UI helper (liquid-glass buffering dots + black video poster).
 
 on:
   workflow_dispatch:
@@ -251,49 +251,122 @@ jobs:
           })();
           EOF
 
-          # ---- Script 2: Apple TV-style buffering spinner + black video poster ----
+          # ---- Script 2: liquid-glass buffering dots (seek/mid-play only) + black video poster ----
           cat > "$P/app/src/main/assets/ui.js" <<'EOF'
           (function () {
             if (window.__ytUiHelper) return;
             window.__ytUiHelper = true;
 
-            // ---------- Buffering spinner ----------
-            var el, timer;
+            // ---------- Liquid-glass dots: ONLY for mid-playback buffering and seeking ----------
+            // Initial video loading is left completely untouched (no overlay).
+            var el, showTimer = 0, pending = false, visible = false;
+
             function make() {
               if (el || !document.documentElement) return;
-              var st = document.createElement('style');
-              st.textContent =
-                '@keyframes ytspin{to{transform:rotate(360deg)}}' +
-                '#yt-spin{position:fixed;left:50%;top:50%;width:88px;height:88px;margin:-44px 0 0 -44px;' +
-                'border-radius:50%;z-index:2147483647;pointer-events:none;display:none;' +
-                'background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px);' +
-                'align-items:center;justify-content:center}' +
-                '#yt-spin i{width:44px;height:44px;border-radius:50%;box-sizing:border-box;' +
-                'border:4px solid rgba(255,255,255,.25);border-top-color:#fff;animation:ytspin .9s linear infinite}';
+              var css = document.createElement('style');
+              css.textContent =
+                '@keyframes ytdot{0%,80%,100%{transform:scale(.6);opacity:.45}40%{transform:scale(1.25);opacity:1}}' +
+                '#yt-glass{position:fixed;left:50%;top:50%;height:64px;padding:0 28px;border-radius:32px;' +
+                'display:flex;align-items:center;justify-content:center;gap:13px;box-sizing:border-box;' +
+                'z-index:2147483647;pointer-events:none;opacity:0;visibility:hidden;' +
+                'transform:translate(-50%,-50%) scale(.82);' +
+                'transition:opacity .3s ease,transform .4s cubic-bezier(.2,.9,.3,1.25),visibility 0s linear .4s;' +
+                'background:linear-gradient(135deg,rgba(255,255,255,.30),rgba(255,255,255,.08));' +
+                '-webkit-backdrop-filter:blur(26px) saturate(180%);backdrop-filter:blur(26px) saturate(180%);' +
+                'border:1px solid rgba(255,255,255,.38);' +
+                'box-shadow:inset 0 1.5px 1px rgba(255,255,255,.6),inset 0 -10px 18px rgba(255,255,255,.07),' +
+                '0 12px 40px rgba(0,0,0,.38)}' +
+                '#yt-glass.on{opacity:1;visibility:visible;transform:translate(-50%,-50%) scale(1);' +
+                'transition:opacity .3s ease,transform .4s cubic-bezier(.2,.9,.3,1.25),visibility 0s}' +
+                '#yt-glass i{width:12px;height:12px;border-radius:50%;display:block;' +
+                'background:radial-gradient(circle at 35% 30%,#fff,rgba(255,255,255,.78));' +
+                'box-shadow:0 0 12px rgba(255,255,255,.55);' +
+                'animation:ytdot 1.2s ease-in-out infinite;animation-play-state:paused}' +
+                '#yt-glass.on i{animation-play-state:running}' +
+                '#yt-glass i:nth-child(2){animation-delay:.16s}' +
+                '#yt-glass i:nth-child(3){animation-delay:.32s}';
               el = document.createElement('div');
-              el.id = 'yt-spin';
-              el.appendChild(document.createElement('i'));
-              document.documentElement.appendChild(st);
+              el.id = 'yt-glass';
+              for (var i = 0; i < 3; i++) el.appendChild(document.createElement('i'));
+              document.documentElement.appendChild(css);
               document.documentElement.appendChild(el);
             }
-            function show() {
-              clearTimeout(timer);
-              timer = setTimeout(function () { make(); if (el) el.style.display = 'flex'; }, 250);
-            }
-            function hide() {
-              clearTimeout(timer);
-              if (el) el.style.display = 'none';
+
+            function reveal() {
+              make();
+              if (!el) return;
+              visible = true;
+              void el.offsetWidth;          // force reflow so the fade/scale-in transition runs
+              el.className = 'on';
             }
 
-            ['waiting', 'stalled', 'seeking', 'loadstart'].forEach(function (e) {
-              document.addEventListener(e, function (ev) {
-                if (ev.target && ev.target.tagName === 'VIDEO') show();
-              }, true);
+            function conceal() {
+              clearTimeout(showTimer);
+              pending = false;
+              if (el && visible) el.className = '';
+              visible = false;
+            }
+
+            function schedule(ms) {
+              if (pending || visible) return;
+              pending = true;
+              showTimer = setTimeout(function () { pending = false; reveal(); }, ms);
+            }
+
+            function isMain(v) {
+              try { return v.clientWidth >= window.innerWidth * 0.5; } catch (e) { return true; }
+            }
+
+            function state(v) {
+              return v.__yt || (v.__yt = { started: false, seeking: false, waiting: false });
+            }
+
+            function refresh(v) {
+              var s = state(v);
+              if (s.started && (s.seeking || s.waiting) && isMain(v)) schedule(s.seeking ? 120 : 350);
+              else conceal();
+            }
+
+            function on(names, fn) {
+              names.forEach(function (n) {
+                document.addEventListener(n, function (ev) {
+                  var v = ev.target;
+                  if (v && v.tagName === 'VIDEO') fn(v);
+                }, true);
+              });
+            }
+
+            // New source / finished: back to "initial load" mode, overlay stays hidden.
+            on(['loadstart', 'emptied', 'ended'], function (v) {
+              var s = state(v);
+              s.started = false; s.seeking = false; s.waiting = false;
+              refresh(v);
             });
-            ['playing', 'canplay', 'seeked', 'pause', 'ended', 'emptied'].forEach(function (e) {
-              document.addEventListener(e, function (ev) {
-                if (ev.target && ev.target.tagName === 'VIDEO') hide();
-              }, true);
+            // First real playback marks the video as "started"; from now on buffering/seeking show the dots.
+            on(['playing'], function (v) {
+              var s = state(v);
+              s.started = true; s.waiting = false;
+              refresh(v);
+            });
+            on(['seeking'], function (v) {
+              var s = state(v);
+              if (s.started) { s.seeking = true; refresh(v); }
+            });
+            on(['seeked'], function (v) {
+              state(v).seeking = false;
+              refresh(v);
+            });
+            on(['waiting', 'stalled'], function (v) {
+              var s = state(v);
+              if (s.started) { s.waiting = true; refresh(v); }
+            });
+            on(['canplay', 'canplaythrough', 'timeupdate'], function (v) {
+              var s = state(v);
+              if (s.waiting && v.readyState >= 3 && !v.seeking) { s.waiting = false; refresh(v); }
+            });
+            on(['pause'], function (v) {
+              state(v).waiting = false;
+              refresh(v);
             });
 
             // ---------- Black poster for every <video> (backup for WebView default poster) ----------
@@ -351,8 +424,8 @@ jobs:
               // TV-style user agent so youtube.com serves the original TV (leanback) interface.
               // If you ever get the desktop site or an "unsupported browser" page, change this.
               private static final String TV_UA =
-                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
-                              + "85.0.4183.93/6.5 TV Safari/537.36";
+                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 10.0) AppleWebKit/537.36 (KHTML, like Gecko) "
+                              + "130.0.6723.116/10.0 TV Safari/537.36";
 
               private WebView web;
               private String adblockJs = "";

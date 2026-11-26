@@ -421,11 +421,24 @@ jobs:
 
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // TV-style user agent so youtube.com serves the original TV (leanback) interface.
-              // If you ever get the desktop site or an "unsupported browser" page, change this.
-              private static final String TV_UA =
-                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 10.0) AppleWebKit/537.36 (KHTML, like Gecko) "
-                              + "130.0.6723.116/10.0 TV Safari/537.36";
+              // Fire TV Stick style user agent (Amazon: detect Fire TV by a model starting with "AFT").
+              // The Chrome version is read from the device's real WebView so the UA matches the engine.
+              // If you get the desktop site or an "unsupported browser" page, change this.
+              private static final String FIRE_UA_PREFIX =
+                      "Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233; wv) AppleWebKit/537.36 "
+                              + "(KHTML, like Gecko) Version/4.0 Chrome/";
+              private static final String FIRE_UA_SUFFIX = " Safari/537.36";
+              private static final String FALLBACK_CHROME = "120.0.0.0";
+
+              private static String buildFireUa(String defaultUa) {
+                  String chrome = FALLBACK_CHROME;
+                  try {
+                      java.util.regex.Matcher m =
+                              java.util.regex.Pattern.compile("Chrome/([0-9.]+)").matcher(defaultUa);
+                      if (m.find()) chrome = m.group(1);
+                  } catch (Exception ignored) { }
+                  return FIRE_UA_PREFIX + chrome + FIRE_UA_SUFFIX;
+              }
 
               private WebView web;
               private String adblockJs = "";
@@ -453,7 +466,7 @@ jobs:
                   s.setJavaScriptEnabled(true);
                   s.setDomStorageEnabled(true);
                   s.setMediaPlaybackRequiresUserGesture(false);
-                  s.setUserAgentString(TV_UA);
+                  s.setUserAgentString(buildFireUa(s.getUserAgentString()));
                   s.setLoadWithOverviewMode(true);
                   s.setUseWideViewPort(true);
 

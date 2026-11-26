@@ -3,7 +3,7 @@ name: Build YouTube AdBlock TV APK
 # Self-contained: no other files needed in the repo.
 # Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
 # and injects ONLY an ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-# plus TizenTube's "fixed UI" bits (transparent player overlay + normal-quality UI mode).
+# plus a trimmed port of TizenTube's "fixed UI" (transparent player overlay + full-quality UI class).
 
 on:
   workflow_dispatch:
@@ -252,36 +252,35 @@ jobs:
           })();
 
           // =====================================================================
-          // Ported from TizenTube (mods/ui/ui.css + mods/ui/ui.js "Fix UI issues").
-          // 1) CSS "Fixes transparency effect for the video player": removes the solid black
-          //    bar/shadow behind the title and controls and makes it a translucent gradient.
-          // 2) "Fixed UI": YouTube switches the TV app into a low-quality mode
-          //    (isLimitedMemory / body.app-quality-root) on weak WebViews. That mode drops the
-          //    translucent "liquid glass" buttons (play/pause, subscribe...), the normal
-          //    buffering indicator and the loaded/played seek bar rendering.
-          //    TizenTube forces the full-quality mode; this does the same.
+          // Ported from TizenTube (mods/ui/ui.css + mods/ui/ui.js "Fix UI issues"),
+          // trimmed to ONLY what is needed so nothing else in the app changes.
+          //   - CSS: translucent player overlay instead of the solid black bar behind the title
+          //   - body.app-quality-root removal: YouTube's low-quality UI mode (opaque buttons,
+          //     no glass, plain buffering/seek bar). Removing it brings back the full-quality look.
+          // The tectonicConfig switches TizenTube also sets are OFF by default because they made
+          // "Playback speed" show Unavailable. Flip APPLY_QUALITY_CONFIG only if glass is missing.
           // =====================================================================
           (function () {
             if (window.__ytFixedUi) return;
             window.__ytFixedUi = true;
 
+            var REMOVE_QUALITY_CLASS = true;    // main switch for the glass / buffering UI
+            var APPLY_QUALITY_CONFIG = false;   // TizenTube's tectonicConfig switches (can hide speed option)
+
+            // Only the real watch-page shadow classes; no generic idomkey="shadow" selector,
+            // so queue/tile thumbnails are never touched.
             var CSS = [
-              '.ytLrWatchDefaultShadow, div[idomkey="shadow"] {',
+              '.ytLrWatchDefaultShadow {',
               '  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.8) 90%) !important;',
               '  background-color: rgba(0, 0, 0, 0.3) !important;',
-              '  display: block !important;',
-              '  height: 100% !important;',
               '  pointer-events: none !important;',
-              '  position: absolute !important;',
-              '  width: 100% !important;',
               '}',
               '.ytLrWatchDefault2025Shadow {',
               '  background-color: rgba(11, 11, 11, 0.5) !important;',
               '}'
             ].join('\n');
 
-            // Add the CSS. A constructable stylesheet is not blocked by the page's CSP.
-            try {
+            try {   // constructable stylesheet: not blocked by the page's CSP
               if (window.CSSStyleSheet && CSSStyleSheet.prototype.replaceSync && 'adoptedStyleSheets' in document) {
                 var sheet = new CSSStyleSheet();
                 sheet.replaceSync(CSS);
@@ -304,38 +303,88 @@ jobs:
               }, 20);
             }
 
-            // Force full-quality UI mode (same switches TizenTube sets when enableFixedUI is on).
-            function patchConfig() {
-              var c = window.tectonicConfig;
-              if (!c || !c.featureSwitches || !c.clientData) return false;
-              try {
-                c.featureSwitches.isLimitedMemory = false;
-                c.clientData.legacyApplicationQuality = 'full-animation';
-                c.featureSwitches.enableAnimations = true;
-                c.featureSwitches.enableOnScrollLinearAnimation = true;
-                c.featureSwitches.enableListAnimations = true;
-                c.featureSwitches.supportsLongPress = true;
-                c.featureSwitches.enableCaptionsPersistence = true;
-              } catch (e) { }
-              return true;
+            if (APPLY_QUALITY_CONFIG) {
+              var tries = 0;
+              var cfgTimer = setInterval(function () {
+                var c = window.tectonicConfig;
+                if (c && c.featureSwitches && c.clientData) {
+                  try {
+                    c.featureSwitches.isLimitedMemory = false;
+                    c.clientData.legacyApplicationQuality = 'full-animation';
+                  } catch (e) { }
+                  clearInterval(cfgTimer);
+                } else if (++tries > 600) {
+                  clearInterval(cfgTimer);
+                }
+              }, 100);
             }
-            var tries = 0;
-            var cfgTimer = setInterval(function () {
-              if (patchConfig() || ++tries > 600) clearInterval(cfgTimer);
-            }, 100);
-            window.addEventListener('load', patchConfig);
 
-            // "Fix UI issues, again": YouTube keeps re-adding this low-quality class to <body>.
-            var bodyTimer = setInterval(function () {
-              var b = document.body;
-              if (!b) return;
-              clearInterval(bodyTimer);
-              function strip() {
-                if (b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
+            if (REMOVE_QUALITY_CLASS) {
+              var bodyTimer = setInterval(function () {
+                var b = document.body;
+                if (!b) return;
+                clearInterval(bodyTimer);
+                function strip() {
+                  if (b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
+                }
+                strip();
+                new MutationObserver(strip).observe(b, { attributes: true, attributeFilter: ['class'] });
+              }, 20);
+            }
+
+            // Safety net: if the queue's "now playing" card is an opaque black block (thumbnail hidden),
+            // show the current video's own thumbnail on it. Does nothing when the card already shows
+            // its thumbnail (as in the original build).
+            var ICON_SEL = 'svg, [class*="Icon"], [class*="Playing"], [class*="Equalizer"], [class*="Bars"]';
+            function color(s) {
+              var m = /rgba?\(([^)]+)\)/.exec(s || '');
+              if (!m) return null;
+              var p = m[1].split(/[ ,\/]+/).filter(Boolean).map(parseFloat);
+              return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+            }
+            function fixNowPlaying() {
+              var vm = /[?&#\/]v=([A-Za-z0-9_-]{11})/.exec(location.href);
+              if (!vm) return;
+              var id = vm[1], W = window.innerWidth, H = window.innerHeight;
+
+              var old = document.querySelectorAll('[data-tt-np]');   // clean up recycled nodes
+              for (var o = 0; o < old.length; o++) {
+                if (old[o].getAttribute('data-tt-np') !== id || !old[o].querySelector(ICON_SEL)) {
+                  old[o].removeAttribute('data-tt-np');
+                  old[o].style.removeProperty('background-image');
+                  old[o].style.removeProperty('background-color');
+                  old[o].style.removeProperty('background-size');
+                  old[o].style.removeProperty('background-position');
+                }
               }
-              strip();
-              new MutationObserver(strip).observe(b, { attributes: true, childList: false, subtree: false });
-            }, 20);
+
+              var seen = new Set(), ys = [0.88, 0.95];
+              for (var yi = 0; yi < ys.length; yi++) {
+                for (var x = W * 0.04; x < W * 0.96; x += W * 0.04) {
+                  var stack = document.elementsFromPoint(x, H * ys[yi]);
+                  for (var i = 0; i < stack.length; i++) {
+                    var el = stack[i];
+                    if (seen.has(el) || el.hasAttribute('data-tt-np')) continue;
+                    seen.add(el);
+                    var r = el.getBoundingClientRect(), ar = r.width / (r.height || 1);
+                    if (ar < 1.5 || ar > 2.1 || r.width < W * 0.15 || r.width > W * 0.4) continue;
+                    var c = color(getComputedStyle(el).backgroundColor);
+                    if (!c || c.a < 0.7 || c.r > 45 || c.g > 45 || c.b > 45) continue;
+                    if (!el.querySelector(ICON_SEL)) continue;
+                    el.setAttribute('data-tt-np', id);
+                    el.style.setProperty('background-color', 'rgba(0,0,0,.25)', 'important');
+                    el.style.setProperty('background-image',
+                      'linear-gradient(rgba(0,0,0,.25),rgba(0,0,0,.25)),url(https://i.ytimg.com/vi/' + id + '/hqdefault.jpg)',
+                      'important');
+                    el.style.setProperty('background-size', 'cover', 'important');
+                    el.style.setProperty('background-position', 'center', 'important');
+                  }
+                }
+              }
+            }
+            setInterval(function () {
+              try { if (!document.hidden) fixNowPlaying(); } catch (e) { }
+            }, 800);
           })();
           EOF
 

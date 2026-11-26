@@ -1,12 +1,13 @@
 name: Build YouTube AdBlock TV APK
 
 # Self-contained: no other files needed in the repo.
-# Generates an Android TV app (WebView -> youtube.com/tv, original YouTube UI) that identifies
-# itself as a 2026 Samsung Tizen 10.0 TV, and injects:
-#   1. adblock.js   - small ad-data stripper, runs at document start (technique from TizenTube)
-#   2. tizentube.js - the COMPLETE TizenTube userscript built from reisxd/TizenTube (GPL-3.0):
-#                     every feature in the repo (ad block, SponsorBlock, DeArrow, chapters, speed
-#                     controls, fixed/glass UI, queueing, captions, settings menu, ...)
+# Generates a tiny Android TV app (WebView -> youtube.com/tv, original YouTube UI)
+# and injects ONLY an ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0).
+#
+# DEBUG CAPTURE TOOL (set DEBUG_TOOLS=false in MainActivity.java to remove it):
+# a small "CAP" button at the top-right opens a menu to pick any item by tapping it,
+# dump the visible UI, save the complete page JS, or save the HTML + CSS.
+# Each capture is saved to Downloads/YTCapture and opens the Android share sheet.
 
 on:
   workflow_dispatch:
@@ -28,11 +29,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -41,43 +37,11 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      # ---- Build the complete TizenTube userscript from the repo ----
-      - name: Build TizenTube userscript
-        env:
-          TT_REF: f99945a   # commit from your zip (v2.1.1-18-gf99945a). Use 'main' for the latest.
-        run: |
-          git clone https://github.com/reisxd/TizenTube.git "$RUNNER_TEMP/TizenTube"
-          cd "$RUNNER_TEMP/TizenTube"
-          git checkout "$TT_REF" || echo "::warning::Could not check out $TT_REF, using default branch"
-          cd mods
-          npm ci || npm install
-          npm run build
-          test -s ../dist/userScript.js
-
-          # The bundle touches document.head at load time, which does not exist yet when the
-          # WebView runs scripts at document start. Wrap it so it starts once head+body exist.
-          mkdir -p "$GITHUB_WORKSPACE/_tt_out"
-          OUT="$GITHUB_WORKSPACE/_tt_out/tizentube.js"
-          {
-            echo '(function(){'
-            echo 'if(window.__ttLoaded)return;window.__ttLoaded=true;'
-            echo 'function go(){'
-            cat ../dist/userScript.js
-            echo
-            echo '}'
-            echo 'if(document.head&&document.body){go();return;}'
-            echo 'var t=setInterval(function(){if(document.head&&document.body){clearInterval(t);go();}},10);'
-            echo '})();'
-          } > "$OUT"
-          ls -l "$OUT"
-
       - name: Generate Android project
         run: |
           P="$GITHUB_WORKSPACE/_android"
           J="$P/app/src/main/java/com/local/ytadblock/tv"
-          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable"
-
-          cp "$GITHUB_WORKSPACE/_tt_out/tizentube.js" "$P/app/src/main/assets/tizentube.js"
+          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/xml"
 
           cat > "$P/settings.gradle" <<'EOF'
           pluginManagement {
@@ -150,6 +114,7 @@ jobs:
 
           dependencies {
               implementation 'androidx.webkit:webkit:1.11.0'
+              implementation 'androidx.core:core:1.13.1'
           }
           EOF
 
@@ -186,8 +151,27 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+
+                  <!-- Lets the capture tool share saved files through the Android share sheet -->
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="com.local.ytadblock.tv.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+                  </provider>
               </application>
           </manifest>
+          EOF
+
+          cat > "$P/app/src/main/res/xml/file_paths.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths>
+              <external-files-path name="captures_ext" path="captures/" />
+              <files-path name="captures_int" path="captures/" />
+          </paths>
           EOF
 
           cat > "$P/app/src/main/res/drawable/ic_launcher.xml" <<'EOF'
@@ -211,7 +195,7 @@ jobs:
           </vector>
           EOF
 
-          # ---- Script 1: strips ad data from YouTube responses (runs at document start) ----
+          # ---- Script 1: strips ad data from YouTube responses (unchanged) ----
           cat > "$P/app/src/main/assets/adblock.js" <<'EOF'
           (function () {
             if (window.__ytAdBlockMin) return;
@@ -291,63 +275,343 @@ jobs:
           })();
           EOF
 
+          # ---- Script 2: capture / inspector helpers (passive until a menu button is used) ----
+          cat > "$P/app/src/main/assets/inspector.js" <<'EOF'
+          (function () {
+            if (window.__cap) return;
+            var cap = window.__cap = {};
+            var picking = false;
+
+            function pad(n) { return (n < 10 ? '0' : '') + n; }
+            function stamp() {
+              var d = new Date();
+              return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' +
+                pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+            }
+            function toast(m) { try { if (window.YTCap) YTCap.toast(String(m)); } catch (e) { } }
+            function send(name, text) {
+              if (!window.YTCap) return;
+              YTCap.begin();
+              var n = 200000;
+              for (var i = 0; i < text.length; i += n) YTCap.chunk(text.slice(i, i + n));
+              YTCap.end(name);
+            }
+            function safeJson(o, space) {
+              var seen = new WeakSet();
+              try {
+                return JSON.stringify(o, function (k, v) {
+                  if (typeof v === 'function') return '[fn]';
+                  if (v && typeof v === 'object') {
+                    if (v.nodeType) return '[node]';
+                    if (seen.has(v)) return '[circular]';
+                    seen.add(v);
+                  }
+                  return v;
+                }, space);
+              } catch (e) { return '"[unserializable: ' + e + ']"'; }
+            }
+
+            function cls(el) {
+              var c = el.getAttribute && el.getAttribute('class');
+              return c ? c.trim() : '';
+            }
+            function sel(el) {
+              var s = (el.tagName || '?').toLowerCase();
+              if (el.id) s += '#' + el.id;
+              var c = cls(el).split(/\s+/).filter(Boolean).slice(0, 6).join('.');
+              if (c) s += '.' + c;
+              var k = el.getAttribute && el.getAttribute('idomkey');
+              if (k) s += '[idomkey="' + k + '"]';
+              return s;
+            }
+            function r1(n) { return Math.round(n * 10) / 10; }
+
+            var PROPS = ['backgroundColor', 'backgroundImage', 'color', 'opacity', 'borderRadius', 'boxShadow',
+              'display', 'position', 'zIndex', 'visibility', 'filter', 'transform', 'mixBlendMode',
+              'overflow', 'width', 'height'];
+
+            function info(el) {
+              var r = el.getBoundingClientRect(), cs = getComputedStyle(el), st = {};
+              PROPS.forEach(function (p) {
+                var v = cs[p];
+                if (v && v !== 'none' && v !== 'normal' && v !== 'auto') st[p] = String(v).slice(0, 220);
+              });
+              var bf = cs.backdropFilter || cs.webkitBackdropFilter;
+              if (bf && bf !== 'none') st.backdropFilter = bf;
+              var attrs = {};
+              if (el.attributes) for (var i = 0; i < el.attributes.length; i++) {
+                var a = el.attributes[i];
+                if (a.name === 'class' || a.name === 'style') continue;
+                attrs[a.name] = String(a.value).slice(0, 80);
+              }
+              var inline = el.getAttribute && el.getAttribute('style');
+              return {
+                selector: sel(el),
+                tag: (el.tagName || '').toLowerCase(),
+                id: el.id || undefined,
+                class: cls(el) || undefined,
+                idomkey: (el.getAttribute && el.getAttribute('idomkey')) || undefined,
+                rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
+                attrs: attrs,
+                inlineStyle: inline ? inline.slice(0, 300) : undefined,
+                text: ((el.innerText || '') + '').trim().slice(0, 80) || undefined,
+                computed: st
+              };
+            }
+            function chain(el) {
+              var out = [], n = 0;
+              while (el && el.nodeType === 1 && n++ < 12) { out.push(sel(el)); el = el.parentElement; }
+              return out;
+            }
+            function header() {
+              var v = document.querySelector('video');
+              return {
+                captured: new Date().toISOString(),
+                url: location.href,
+                userAgent: navigator.userAgent,
+                viewport: [innerWidth, innerHeight, window.devicePixelRatio],
+                bodyClass: document.body ? document.body.className : '',
+                video: v ? {
+                  rect: (function () { var r = v.getBoundingClientRect(); return [r1(r.left), r1(r.top), r1(r.width), r1(r.height)]; })(),
+                  currentTime: v.currentTime, duration: v.duration, readyState: v.readyState,
+                  paused: v.paused, playbackRate: v.playbackRate,
+                  src: (v.currentSrc || v.src || '').slice(0, 80)
+                } : null
+              };
+            }
+            function flash(el) {
+              try {
+                var r = el.getBoundingClientRect(), d = document.createElement('div');
+                d.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;border:3px solid #0f0;' +
+                  'background:rgba(0,255,0,.15);left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
+                  'px;height:' + r.height + 'px';
+                document.documentElement.appendChild(d);
+                setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 1500);
+              } catch (e) { }
+            }
+
+            // ---- 1. Pick: tap an item, capture everything stacked at that point ----
+            function capturePoint(x, y) {
+              var stack = document.elementsFromPoint(x, y).slice(0, 14);
+              if (!stack.length) { toast('Nothing found at that point'); return; }
+              flash(stack[0]);
+              var out = header();
+              out.type = 'element-pick';
+              out.point = [Math.round(x), Math.round(y)];
+              out.ancestorsOfTop = chain(stack[0]);
+              out.topOuterHTML = (stack[0].outerHTML || '').slice(0, 1500);
+              out.stackTopToBottom = stack.map(info);
+              out.tectonicConfig = window.tectonicConfig ? JSON.parse(safeJson(window.tectonicConfig)) : null;
+              send('element_' + stamp() + '.txt', safeJson(out, 1));
+            }
+            cap.pick = function () {
+              if (picking) return;
+              picking = true;
+              toast('Tap the item you want to capture');
+              var types = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click'];
+              var done = false;
+              function handler(e) {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                if (done) return;
+                if (e.type === 'pointerup' || e.type === 'touchend' || e.type === 'mouseup' || e.type === 'click') {
+                  var t = (e.changedTouches && e.changedTouches[0]) || e;
+                  if (typeof t.clientX !== 'number') return;
+                  done = true;
+                  capturePoint(t.clientX, t.clientY);
+                  setTimeout(function () {
+                    types.forEach(function (n) { window.removeEventListener(n, handler, true); });
+                    picking = false;
+                  }, 600);
+                }
+              }
+              types.forEach(function (n) { window.addEventListener(n, handler, true); });
+            };
+
+            // ---- 2. Dump visible UI: every visible, styled element (use after showing the controls) ----
+            cap.dumpUi = function () {
+              var lines = [], all = document.body.getElementsByTagName('*'), W = innerWidth, H = innerHeight;
+              for (var i = 0; i < all.length && lines.length < 1800; i++) {
+                var el = all[i], r = el.getBoundingClientRect();
+                if (r.width < 8 || r.height < 8 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) continue;
+                var cs = getComputedStyle(el);
+                if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+                var bg = cs.backgroundColor, bgi = cs.backgroundImage, bf = cs.backdropFilter || cs.webkitBackdropFilter;
+                var hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+                var hasImg = bgi && bgi !== 'none';
+                var hasBf = bf && bf !== 'none';
+                var ownText = '';
+                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) ownText += c.nodeValue;
+                ownText = ownText.trim().slice(0, 40);
+                if (!hasBg && !hasImg && !hasBf && !ownText && el.tagName !== 'VIDEO' && el.tagName !== 'IMG') continue;
+                lines.push(sel(el) + ' | rect=' + [r1(r.left), r1(r.top), r1(r.width), r1(r.height)].join(',') +
+                  (hasBg ? ' | bg=' + bg : '') + (hasImg ? ' | bgimg=' + bgi.slice(0, 90) : '') +
+                  (hasBf ? ' | backdrop=' + bf : '') +
+                  (cs.opacity !== '1' ? ' | opacity=' + cs.opacity : '') +
+                  (cs.borderRadius !== '0px' ? ' | radius=' + cs.borderRadius : '') +
+                  (cs.zIndex !== 'auto' ? ' | z=' + cs.zIndex : '') +
+                  (ownText ? ' | text="' + ownText + '"' : ''));
+              }
+              var text = 'YTCAP visible-UI dump\n' + safeJson(header(), 1) + '\n\n' + lines.join('\n') + '\n';
+              send('ui_' + stamp() + '.txt', text);
+            };
+
+            // ---- 3. Full HTML + all CSS ----
+            cap.dumpDom = function () {
+              var out = ['<!-- YTCAP DOM dump ' + new Date().toISOString() + ' | ' + location.href + ' -->',
+                document.documentElement.outerHTML, '', '/* ===== CSS (all stylesheets) ===== */'];
+              function addSheet(ss, label) {
+                try {
+                  var rules = ss.cssRules, parts = [];
+                  for (var i = 0; i < rules.length; i++) parts.push(rules[i].cssText);
+                  out.push('\n/* --- ' + label + ' (' + rules.length + ' rules) --- */\n' + parts.join('\n'));
+                } catch (e) { out.push('\n/* --- ' + label + ' unreadable (cross-origin) --- */'); }
+              }
+              for (var i = 0; i < document.styleSheets.length; i++) {
+                var ss = document.styleSheets[i];
+                addSheet(ss, ss.href || ('inline #' + i));
+              }
+              try { (document.adoptedStyleSheets || []).forEach(function (ss, i) { addSheet(ss, 'adopted #' + i); }); } catch (e) { }
+              send('dom_' + stamp() + '.txt', out.join('\n'));
+            };
+
+            // ---- 4. Complete JS: inline scripts + every external script the page loaded ----
+            cap.dumpJs = function () {
+              toast('Collecting page JS, please wait...');
+              var urls = [], seen = {};
+              function add(u) { if (u && !seen[u]) { seen[u] = 1; urls.push(u); } }
+              [].forEach.call(document.scripts, function (s) { if (s.src) add(s.src); });
+              try {
+                performance.getEntriesByType('resource').forEach(function (e) {
+                  if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) add(e.name);
+                });
+              } catch (e) { }
+
+              var out = ['/* YTCAP JS dump ' + new Date().toISOString() + ' */',
+                '/* url: ' + location.href + ' */',
+                '/* ua: ' + navigator.userAgent + ' */',
+                '/* body class: ' + (document.body ? document.body.className : '') + ' */',
+                '/* window._yttv keys: ' + (window._yttv ? Object.keys(window._yttv).join(',') : 'none') + ' */',
+                '/* tectonicConfig: */', safeJson(window.tectonicConfig, 1)];
+              [].forEach.call(document.scripts, function (s, i) {
+                if (!s.src && s.textContent) {
+                  out.push('\n/* ===== inline script #' + i + ' (' + s.textContent.length + ' chars) ===== */\n' + s.textContent);
+                }
+              });
+
+              var total = 0, idx = 0;
+              function next() {
+                if (idx >= urls.length) {
+                  out.push('\n/* total external chars: ' + total + ' in ' + urls.length + ' files */');
+                  send('js_' + stamp() + '.txt', out.join('\n'));
+                  return;
+                }
+                var u = urls[idx++];
+                if (total > 14000000) {
+                  out.push('\n/* ===== ' + u + ' SKIPPED (size cap reached) ===== */');
+                  return next();
+                }
+                fetch(u, { credentials: 'include' })
+                  .then(function (r) { return r.text().then(function (t) { return { s: r.status, t: t }; }); })
+                  .then(function (r) {
+                    total += r.t.length;
+                    out.push('\n/* ===== ' + u + ' [' + r.s + ', ' + r.t.length + ' chars] ===== */\n' + r.t);
+                  })
+                  .catch(function (e) { out.push('\n/* ===== ' + u + ' FAILED: ' + e + ' ===== */'); })
+                  .then(next);
+              }
+              next();
+            };
+          })();
+          EOF
+
           cat > "$J/MainActivity.java" <<'EOF'
           package com.local.ytadblock.tv;
 
           import android.annotation.SuppressLint;
           import android.app.Activity;
+          import android.content.ContentValues;
+          import android.content.Intent;
           import android.graphics.Bitmap;
           import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Build;
           import android.os.Bundle;
+          import android.os.Environment;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.MediaStore;
+          import android.view.Gravity;
           import android.view.KeyEvent;
+          import android.view.View;
           import android.view.ViewGroup;
           import android.view.WindowManager;
           import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebChromeClient;
           import android.webkit.WebResourceRequest;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
 
+          import androidx.core.content.FileProvider;
           import androidx.webkit.WebViewCompat;
           import androidx.webkit.WebViewFeature;
 
           import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileOutputStream;
           import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.nio.charset.StandardCharsets;
+          import java.util.ArrayList;
           import java.util.Collections;
+          import java.util.List;
 
           public class MainActivity extends Activity {
 
+              // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
+              private static final boolean DEBUG_TOOLS = true;
+
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // Samsung Tizen 10.0 (2026 TVs) user agent, from Samsung's official UA list.
-              // If you ever get the desktop site or an "unsupported browser" page, try Tizen 9.0:
-              // "Mozilla/5.0 (SMART-TV; LINUX; Tizen 9.0) AppleWebKit/537.36 (KHTML, like Gecko) 120.0.6099.5/9.0 TV Safari/537.36"
+              // TV-style user agent so youtube.com serves the original TV (leanback) interface.
+              // If you ever get the desktop site or an "unsupported browser" page, change this.
               private static final String TV_UA =
-                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 10.0) AppleWebKit/537.36 (KHTML, like Gecko) "
-                              + "130.0.6723.116/10.0 TV Safari/537.36";
+                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
+                              + "85.0.4183.93/6.5 TV Safari/537.36";
 
               private WebView web;
-              // Injected in this order: ad stripper, then the full TizenTube bundle.
-              private static final String[] SCRIPT_ASSETS = {"adblock.js", "tizentube.js"};
-              private final java.util.List<String> scripts = new java.util.ArrayList<>();
+              private FrameLayout root;
+              private LinearLayout panel;
+              private final List<String> scripts = new ArrayList<>();
               private boolean scriptAtDocumentStart = false;
               private long lastBack = 0;
+              private File lastCapture = null;
+              private final Handler ui = new Handler(Looper.getMainLooper());
 
-              @SuppressLint("SetJavaScriptEnabled")
+              @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-                  for (String name : SCRIPT_ASSETS) {
-                      String js = readAsset(name);
-                      if (!js.isEmpty()) scripts.add(js);
+                  String ad = readAsset("adblock.js");
+                  if (!ad.isEmpty()) scripts.add(ad);
+                  if (DEBUG_TOOLS) {
+                      String insp = readAsset("inspector.js");
+                      if (!insp.isEmpty()) scripts.add(insp);
                   }
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
-                  setContentView(web, new ViewGroup.LayoutParams(
+                  root = new FrameLayout(this);
+                  root.addView(web, new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  setContentView(root, new ViewGroup.LayoutParams(
                           ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
                   WebSettings s = web.getSettings();
@@ -361,6 +625,12 @@ jobs:
                   CookieManager cm = CookieManager.getInstance();
                   cm.setAcceptCookie(true);
                   cm.setAcceptThirdPartyCookies(web, true);
+
+                  if (DEBUG_TOOLS) {
+                      WebView.setWebContentsDebuggingEnabled(true);   // chrome://inspect from a PC
+                      web.addJavascriptInterface(new CapBridge(), "YTCap");
+                      buildDebugUi();
+                  }
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!scripts.isEmpty()
@@ -384,7 +654,6 @@ jobs:
                       @Override
                       public void onPageStarted(WebView v, String url, Bitmap favicon) {
                           // Fallback for old WebView versions without document-start scripts.
-                          // (Every script guards against running twice.)
                           if (!scriptAtDocumentStart) {
                               for (String js : scripts) v.evaluateJavascript(js, null);
                           }
@@ -417,6 +686,217 @@ jobs:
                       return "";
                   }
               }
+
+              // ------------------------------------------------------------------
+              // Debug capture UI: small "CAP" button -> menu
+              // ------------------------------------------------------------------
+              private int dp(int v) {
+                  return Math.round(v * getResources().getDisplayMetrics().density);
+              }
+
+              private TextView menuButton(String label, View.OnClickListener l) {
+                  TextView t = new TextView(this);
+                  t.setText(label);
+                  t.setTextColor(Color.WHITE);
+                  t.setTextSize(14);
+                  t.setPadding(dp(14), dp(10), dp(14), dp(10));
+                  t.setBackgroundColor(0xE6202020);
+                  t.setFocusable(false);
+                  t.setOnClickListener(l);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  lp.topMargin = dp(4);
+                  t.setLayoutParams(lp);
+                  return t;
+              }
+
+              private void runJs(String js) {
+                  web.evaluateJavascript(
+                          "try{" + js + "}catch(e){window.YTCap&&YTCap.toast('Capture error: '+e)}", null);
+              }
+
+              private void buildDebugUi() {
+                  LinearLayout box = new LinearLayout(this);
+                  box.setOrientation(LinearLayout.VERTICAL);
+                  box.setGravity(Gravity.END);
+
+                  panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setVisibility(View.GONE);
+
+                  TextView bubble = menuButton("CAP", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+                      }
+                  });
+                  bubble.setAlpha(0.55f);
+
+                  panel.addView(menuButton("1. Pick item (then tap it)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.pick()");
+                      }
+                  }));
+                  panel.addView(menuButton("2. Dump visible UI (in 5 s)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          Toast.makeText(MainActivity.this,
+                                  "Capturing in 5 seconds - show the screen you want", Toast.LENGTH_LONG).show();
+                          ui.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  runJs("window.__cap.dumpUi()");
+                              }
+                          }, 5000);
+                      }
+                  }));
+                  panel.addView(menuButton("3. Save complete page JS", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.dumpJs()");
+                      }
+                  }));
+                  panel.addView(menuButton("4. Save HTML + CSS", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.dumpDom()");
+                      }
+                  }));
+                  panel.addView(menuButton("5. Share last capture", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          shareFile(lastCapture);
+                      }
+                  }));
+
+                  box.addView(bubble);
+                  box.addView(panel);
+
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.TOP | Gravity.END);
+                  lp.setMargins(0, dp(8), dp(8), 0);
+                  root.addView(box, lp);
+              }
+
+              /** Receives capture text from inspector.js in chunks, then saves + shares it. */
+              private class CapBridge {
+                  private final StringBuilder buf = new StringBuilder();
+
+                  @JavascriptInterface
+                  public synchronized void begin() {
+                      buf.setLength(0);
+                  }
+
+                  @JavascriptInterface
+                  public synchronized void chunk(String s) {
+                      buf.append(s);
+                  }
+
+                  @JavascriptInterface
+                  public void end(String name) {
+                      final String text;
+                      synchronized (this) {
+                          text = buf.toString();
+                          buf.setLength(0);
+                      }
+                      final String fileName = name.replaceAll("[^A-Za-z0-9._-]", "_");
+                      new Thread(new Runnable() {
+                          @Override
+                          public void run() {
+                              saveCapture(fileName, text);
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void toast(final String msg) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+              }
+
+              private void saveCapture(String name, String text) {
+                  try {
+                      byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+                      File base = getExternalFilesDir(null);
+                      if (base == null) base = getFilesDir();
+                      File dir = new File(base, "captures");
+                      dir.mkdirs();
+                      final File f = new File(dir, name);
+                      try (FileOutputStream o = new FileOutputStream(f)) {
+                          o.write(bytes);
+                      }
+                      lastCapture = f;
+                      String where = f.getAbsolutePath();
+                      if (copyToDownloads(name, bytes)) where = "Downloads/YTCapture/" + name;
+                      final String msg = "Saved " + (bytes.length / 1024) + " KB: " + where;
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                              shareFile(f);
+                          }
+                      });
+                  } catch (final Exception e) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, "Save failed: " + e, Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+              }
+
+              @SuppressLint("NewApi")
+              private boolean copyToDownloads(String name, byte[] bytes) {
+                  if (Build.VERSION.SDK_INT < 29) return false;
+                  try {
+                      ContentValues v = new ContentValues();
+                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                      v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
+                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YTCapture");
+                      Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                      if (u == null) return false;
+                      try (OutputStream os = getContentResolver().openOutputStream(u)) {
+                          if (os == null) return false;
+                          os.write(bytes);
+                      }
+                      return true;
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              private void shareFile(File f) {
+                  if (f == null || !f.exists()) {
+                      Toast.makeText(this, "No capture saved yet", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  try {
+                      Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
+                      Intent i = new Intent(Intent.ACTION_SEND);
+                      i.setType("text/plain");
+                      i.putExtra(Intent.EXTRA_STREAM, uri);
+                      i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
+                      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      startActivity(Intent.createChooser(i, "Send capture"));
+                  } catch (Exception e) {
+                      Toast.makeText(this, "Cannot share: " + e, Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              // ------------------------------------------------------------------
 
               @Override
               public boolean onKeyDown(int keyCode, KeyEvent event) {

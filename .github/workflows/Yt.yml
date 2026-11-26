@@ -474,7 +474,7 @@ jobs:
                   // Cookies: accept first-party + third-party and persist them (keeps you signed in).
                   CookieManager cookies = CookieManager.getInstance();
                   cookies.setAcceptCookie(true);
-                  cookies.setAcceptThirdPartyCookie(web, true);
+                  cookies.setAcceptThirdPartyCookies(web, true);
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!scripts.isEmpty()

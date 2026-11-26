@@ -252,31 +252,58 @@ jobs:
           })();
 
           // =====================================================================
-          // Ported from TizenTube (mods/ui/ui.css + mods/ui/ui.js "Fix UI issues"),
-          // trimmed to ONLY what is needed so nothing else in the app changes.
-          //   - CSS: translucent player overlay instead of the solid black bar behind the title
-          //   - body.app-quality-root removal: YouTube's low-quality UI mode (opaque buttons,
-          //     no glass, plain buffering/seek bar). Removing it brings back the full-quality look.
-          // The tectonicConfig switches TizenTube also sets are OFF by default because they made
-          // "Playback speed" show Unavailable. Flip APPLY_QUALITY_CONFIG only if glass is missing.
+          // Ported from TizenTube (mods/ui/ui.css + mods/ui/ui.js "Fix UI issues"), as in the repo:
+          //   - all player CSS fixes (transparent overlay instead of the black bar, 2025 shadow,
+          //     shorts tile, progress bar layering, multiline subtitles)
+          //   - enableFixedUI: every tectonicConfig switch the repo sets
+          //   - removal of body.app-quality-root (YouTube's low-quality UI mode)
+          // Each switch below can be set to false to bisect a problem.
           // =====================================================================
           (function () {
             if (window.__ytFixedUi) return;
             window.__ytFixedUi = true;
 
-            var REMOVE_QUALITY_CLASS = true;    // main switch for the glass / buffering UI
-            var APPLY_QUALITY_CONFIG = false;   // TizenTube's tectonicConfig switches (can hide speed option)
+            var REMOVE_QUALITY_CLASS = true;
+            var CONFIG = {                       // same values TizenTube sets with enableFixedUI
+              featureSwitches: {
+                isLimitedMemory: false,
+                enableAnimations: true,
+                enableOnScrollLinearAnimation: true,
+                enableListAnimations: true,
+                supportsLongPress: true,
+                enableCaptionsPersistence: true
+              },
+              clientData: {
+                legacyApplicationQuality: 'full-animation'
+              }
+            };
 
-            // Only the real watch-page shadow classes; no generic idomkey="shadow" selector,
-            // so queue/tile thumbnails are never touched.
             var CSS = [
-              '.ytLrWatchDefaultShadow {',
+              '/* Fixes transparency effect for the video player */',
+              '.ytLrWatchDefaultShadow,',
+              'div[idomkey="shadow"] {',
               '  background-image: linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.8) 90%) !important;',
               '  background-color: rgba(0, 0, 0, 0.3) !important;',
+              '  display: block !important;',
+              '  height: 100% !important;',
               '  pointer-events: none !important;',
+              '  position: absolute !important;',
+              '  width: 100% !important;',
               '}',
               '.ytLrWatchDefault2025Shadow {',
               '  background-color: rgba(11, 11, 11, 0.5) !important;',
+              '}',
+              '.ytLrTileHeaderRendererShorts {',
+              '  background-image: none !important;',
+              '}',
+              '.ytLrOverlayPanelHeaderRendererSubtitle {',
+              '  white-space: pre-wrap !important;',
+              '}',
+              '.ytLrProgressBarPlayhead {',
+              '  z-index: 1 !important;',
+              '}',
+              '.ytLrProgressBarPlayed {',
+              '  z-index: 1 !important;',
               '}'
             ].join('\n');
 
@@ -303,21 +330,20 @@ jobs:
               }, 20);
             }
 
-            if (APPLY_QUALITY_CONFIG) {
-              var tries = 0;
-              var cfgTimer = setInterval(function () {
-                var c = window.tectonicConfig;
-                if (c && c.featureSwitches && c.clientData) {
-                  try {
-                    c.featureSwitches.isLimitedMemory = false;
-                    c.clientData.legacyApplicationQuality = 'full-animation';
-                  } catch (e) { }
-                  clearInterval(cfgTimer);
-                } else if (++tries > 600) {
-                  clearInterval(cfgTimer);
-                }
-              }, 100);
+            function applyConfig() {
+              var c = window.tectonicConfig;
+              if (!c || !c.featureSwitches || !c.clientData) return false;
+              try {
+                for (var k in CONFIG.featureSwitches) c.featureSwitches[k] = CONFIG.featureSwitches[k];
+                for (var j in CONFIG.clientData) c.clientData[j] = CONFIG.clientData[j];
+              } catch (e) { }
+              return true;
             }
+            var tries = 0;
+            var cfgTimer = setInterval(function () {
+              if (applyConfig() || ++tries > 600) clearInterval(cfgTimer);
+            }, 100);
+            window.addEventListener('load', applyConfig);
 
             if (REMOVE_QUALITY_CLASS) {
               var bodyTimer = setInterval(function () {
@@ -328,7 +354,7 @@ jobs:
                   if (b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
                 }
                 strip();
-                new MutationObserver(strip).observe(b, { attributes: true, attributeFilter: ['class'] });
+                new MutationObserver(strip).observe(b, { attributes: true, childList: false, subtree: false });
               }, 20);
             }
 
@@ -417,11 +443,12 @@ jobs:
 
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // TV-style user agent so youtube.com serves the original TV (leanback) interface.
-              // If you ever get the desktop site or an "unsupported browser" page, change this.
+              // Fire TV Stick (Silk browser) user agent, as a Fire TV would send it.
+              // If you ever get the desktop site or an "unsupported browser" page, switch back to
+              // the old TV UA: "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.5 TV Safari/537.36"
               private static final String TV_UA =
-                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
-                              + "85.0.4183.93/6.5 TV Safari/537.36";
+                      "Mozilla/5.0 (Linux; Android 9; AFTMM Build/PS7233) AppleWebKit/537.36 (KHTML, like Gecko) "
+                              + "Silk/110.3.1 like Chrome/110.0.5481.154 Safari/537.36";
 
               private WebView web;
               private String adblockJs = "";

@@ -1,6 +1,6 @@
 name: Build TizenTube Android TV APK
 
-# Single, standalone workflow. Drop this one file into  .github/workflows/  of any repo
+# Single, standalone workflow. Drop this one file into .github/workflows/ of any repo
 # (the repo can be empty) and run it from the Actions tab. Nothing else is required.
 #
 # What it does
@@ -9,8 +9,6 @@ name: Build TizenTube Android TV APK
 #        - AdBlock        (mods/features/adblock.js)
 #        - SponsorBlock   (mods/features/sponsorblock.js)
 #        - TizenTube UI   (mods/ui/*  - settings menu, theme, sidebar, player buttons ...)
-#      Every other TizenTube feature (PiP, auto frame rate, preferred quality, caption
-#      persistence, extra subtitles, video queue, updater, UA spoofing ...) is left out.
 #   3. Generates a tiny Android TV app (WebView -> https://www.youtube.com/tv) that injects
 #      that userscript before the page runs, plus a network-level ad-host filter.
 #   4. Builds and signs a release APK and uploads it as an artifact (and optionally a release).
@@ -79,3 +77,390 @@ jobs:
       APP_ID: com.tizentube.androidtv
       GRADLE_VERSION: "8.11.1"
       AGP_VERSION: "8.7.3"
+
+    steps:
+      # ------------------------------------------------------------------ setup
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" >/dev/null
+
+      - name: Setup Gradle ${{ env.GRADLE_VERSION }}
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      # ------------------------------------------------------------ signing key
+      - name: Restore cached keystore (no secret configured)
+        if: env.HAS_KEYSTORE_SECRET == 'false'
+        id: cache-keystore
+        uses: actions/cache/restore@v4
+        with:
+          path: release.keystore
+          key: tizentube-keystore-${{ github.repository }}
+
+      - name: Generate keystore (no secret, none cached yet)
+        if: env.HAS_KEYSTORE_SECRET == 'false' && steps.cache-keystore.outputs.cache-hit != 'true'
+        run: |
+          keytool -genkeypair -v -keystore release.keystore -alias tizentube \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass tizentube -keypass tizentube \
+            -dname "CN=TizenTube, OU=TV, O=TizenTube"
+
+      - name: Save keystore to cache
+        if: env.HAS_KEYSTORE_SECRET == 'false' && steps.cache-keystore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: release.keystore
+          key: tizentube-keystore-${{ github.repository }}
+
+      - name: Write keystore from secret
+        if: env.HAS_KEYSTORE_SECRET == 'true'
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > release.keystore
+
+      - name: Export signing credentials
+        run: |
+          if [ "$HAS_KEYSTORE_SECRET" = "true" ]; then
+            echo "KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}"             >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}"       >> "$GITHUB_ENV"
+          else
+            echo "KEYSTORE_PASSWORD=tizentube" >> "$GITHUB_ENV"
+            echo "KEY_ALIAS=tizentube"         >> "$GITHUB_ENV"
+            echo "KEY_PASSWORD=tizentube"      >> "$GITHUB_ENV"
+          fi
+
+      # ------------------------------------------------------- fetch TizenTube
+      - name: Fetch TizenTube source at requested ref
+        run: |
+          set -euo pipefail
+          git clone "$TT_REPO" tt-src
+          cd tt-src
+          git checkout "$TT_REF"
+          echo "Building from commit: $(git rev-parse HEAD)"
+
+      # ---------------------------------------------------- build userscript
+      - name: Build slim userscript (AdBlock + SponsorBlock + UI)
+        run: |
+          set -euo pipefail
+          cd tt-src
+          npm init -y >/dev/null 2>&1 || true
+          npm install --no-audit --no-fund esbuild@0.24.0
+          mkdir -p dist
+
+          node - <<'NODE'
+          import { readdirSync, writeFileSync } from 'node:fs';
+          const uiFiles = readdirSync('mods/ui').filter(f => f.endsWith('.js'));
+          if (uiFiles.length === 0) throw new Error('mods/ui is empty — upstream layout changed');
+          const imports = [
+            "import './mods/features/adblock.js';",
+            "import './mods/features/sponsorblock.js';",
+            ...uiFiles.map(f => `import './mods/ui/${f}';`),
+          ].join('\n');
+          writeFileSync('slim-entry.js', imports);
+          console.log('Entry imports:\n' + imports);
+          NODE
+
+          if ! npx esbuild slim-entry.js \
+                 --bundle --format=iife --target=es2020 --minify=false \
+                 --outfile=dist/slim-userscript.js; then
+            echo "::warning::esbuild bundling failed — falling back to plain concatenation"
+            cat mods/features/adblock.js \
+                mods/features/sponsorblock.js \
+                mods/ui/*.js > dist/slim-userscript.js
+          fi
+
+          echo "Userscript size: $(wc -c < dist/slim-userscript.js) bytes"
+
+      # ------------------------------------------------ scaffold Android app
+      - name: Scaffold Android TV WebView project
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # User-Agent for the chosen profile
+          case "$UA_PROFILE" in
+            tizen)
+              UA='Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 (KHTML, like Gecko) 76.0.3809.146/6.0 TV Safari/537.36' ;;
+            cobalt)
+              UA='Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Cobalt/22.lts.3.306369-gold (unlike Gecko) Starboard/14.lts.3.306369-gold, Version/22.0.0, TV Safari/537.36' ;;
+            ps5)
+              UA='Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15' ;;
+            custom)
+              UA="$CUSTOM_UA" ;;
+          esac
+          echo "UA_PROFILE=$UA_PROFILE"
+          echo "UA=$UA"
+
+          APP_VERSION="${IN_VERSION:-1.0.${GITHUB_RUN_NUMBER}}"
+          echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+
+          mkdir -p app/src/main/java/com/tizentube/androidtv \
+                   app/src/main/res/values \
+                   app/src/main/assets
+
+          # Inject userscript + ad-host list
+          cp tt-src/dist/slim-userscript.js app/src/main/assets/userscript.js
+          cat > app/src/main/assets/adhosts.txt <<'HOSTS'
+          googleads.g.doubleclick.net
+          pagead2.googlesyndication.com
+          static.doubleclick.net
+          googleadservices.com
+          www.googleadservices.com
+          securepubads.g.doubleclick.net
+          ad.doubleclick.net
+          tpc.googlesyndication.com
+          googleads4.g.doubleclick.net
+          app-measurement.com
+          HOSTS
+
+          # -------------------------------------------------------------- Manifest
+          cat > app/src/main/AndroidManifest.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+              <uses-feature android:name="android.software.leanback" android:required="true"/>
+              <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
+              <application
+                  android:allowBackup="true"
+                  android:label="@string/app_name"
+                  android:theme="@style/AppTheme">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
+                      android:screenOrientation="landscape">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          XML
+
+          cat > app/src/main/res/values/strings.xml <<'XML'
+          <resources>
+              <string name="app_name">TizenTube</string>
+          </resources>
+          XML
+
+          cat > app/src/main/res/values/styles.xml <<'XML'
+          <resources>
+              <style name="AppTheme" parent="android:Theme.Material.NoActionBar.Fullscreen">
+                  <item name="android:windowBackground">@android:color/black</item>
+              </style>
+          </resources>
+          XML
+
+          # ------------------------------------------------------------- Kotlin
+          cat > app/src/main/java/com/tizentube/androidtv/Config.kt <<KOT
+          package com.tizentube.androidtv
+          object Config { const val USER_AGENT = "$UA" }
+          KOT
+
+          cat > app/src/main/java/com/tizentube/androidtv/AdBlock.kt <<'KOT'
+          package com.tizentube.androidtv
+          object AdBlock {
+              @Volatile var hosts: Set<String> = emptySet()
+          }
+          KOT
+
+          cat > app/src/main/java/com/tizentube/androidtv/MainActivity.kt <<'KOT'
+          package com.tizentube.androidtv
+
+          import android.annotation.SuppressLint
+          import android.os.Bundle
+          import android.webkit.WebResourceRequest
+          import android.webkit.WebResourceResponse
+          import android.webkit.WebView
+          import android.webkit.WebViewClient
+          import android.widget.FrameLayout
+          import androidx.appcompat.app.AppCompatActivity
+          import java.io.ByteArrayInputStream
+
+          class MainActivity : AppCompatActivity() {
+
+              private lateinit var webView: WebView
+
+              @SuppressLint("SetJavaScriptEnabled")
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+
+                  AdBlock.hosts = assets.open("adhosts.txt").bufferedReader().readLines()
+                      .map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+
+                  val frame = FrameLayout(this)
+                  setContentView(frame)
+
+                  webView = WebView(this)
+                  frame.addView(
+                      webView,
+                      FrameLayout.LayoutParams.MATCH_PARENT,
+                      FrameLayout.LayoutParams.MATCH_PARENT
+                  )
+
+                  webView.settings.apply {
+                      javaScriptEnabled = true
+                      domStorageEnabled = true
+                      databaseEnabled = true
+                      mediaPlaybackRequiresUserGesture = false
+                      userAgentString = Config.USER_AGENT
+                      useWideViewPort = true
+                      loadWithOverviewMode = true
+                  }
+
+                  webView.webViewClient = object : WebViewClient() {
+                      override fun shouldInterceptRequest(
+                          view: WebView,
+                          request: WebResourceRequest
+                      ): WebResourceResponse? {
+                          val host = request.url.host ?: return null
+                          if (AdBlock.hosts.any { host == it || host.endsWith(".$it") }) {
+                              return WebResourceResponse(
+                                  "text/plain", "utf-8",
+                                  ByteArrayInputStream(ByteArray(0))
+                              )
+                          }
+                          return null
+                      }
+
+                      // Inject the userscript as early as we can.
+                      override fun onPageStarted(
+                          view: WebView,
+                          url: String?,
+                          favicon: android.graphics.Bitmap?
+                      ) {
+                          super.onPageStarted(view, url, favicon)
+                          val js = assets.open("userscript.js")
+                              .bufferedReader().use { it.readText() }
+                          view.evaluateJavascript(js, null)
+                      }
+                  }
+
+                  webView.loadUrl("https://www.youtube.com/tv")
+              }
+
+              @Deprecated("Deprecated in Java")
+              override fun onBackPressed() {
+                  if (this::webView.isInitialized && webView.canGoBack()) {
+                      webView.goBack()
+                  } else {
+                      @Suppress("DEPRECATION")
+                      super.onBackPressed()
+                  }
+              }
+          }
+          KOT
+
+          # ---------------------------------------------------- Gradle project
+          cat > settings.gradle.kts <<'GRADLE'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "TizenTubeTV"
+          include(":app")
+          GRADLE
+
+          cat > build.gradle.kts <<GRADLE
+          plugins {
+              id("com.android.application") version "$AGP_VERSION" apply false
+              id("org.jetbrains.kotlin.android") version "1.9.25" apply false
+          }
+          GRADLE
+
+          echo "version_name=$APP_VERSION" > version.properties
+          echo "version_code=$GITHUB_RUN_NUMBER" >> version.properties
+
+          cat > app/build.gradle.kts <<GRADLE
+          import java.util.Properties
+
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+          }
+
+          val vp = Properties().apply {
+              rootProject.file("version.properties").inputStream().use { load(it) }
+          }
+
+          android {
+              namespace = "$APP_ID"
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "$APP_ID"
+                  minSdk = 21
+                  targetSdk = 34
+                  versionCode = vp.getProperty("version_code").toInt()
+                  versionName = vp.getProperty("version_name")
+              }
+
+              signingConfigs {
+                  create("release") {
+                      storeFile     = rootProject.file("release.keystore")
+                      storePassword = System.getenv("KEYSTORE_PASSWORD")
+                      keyAlias      = System.getenv("KEY_ALIAS")
+                      keyPassword   = System.getenv("KEY_PASSWORD")
+                  }
+              }
+
+              buildTypes {
+                  getByName("release") {
+                      isMinifyEnabled = false
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = "17" }
+          }
+
+          dependencies {
+              implementation("androidx.appcompat:appcompat:1.7.0")
+          }
+          GRADLE
+
+      # ------------------------------------------------------------- compile
+      - name: Build release APK
+        run: gradle --no-daemon assembleRelease
+
+      # ------------------------------------------------------------- upload
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tizentube-androidtv-${{ github.run_number }}
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: env.PUBLISH_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.APP_VERSION }}
+          name: TizenTube Android TV ${{ env.APP_VERSION }}
+          generate_release_notes: true
+          files: app/build/outputs/apk/release/app-release.apk

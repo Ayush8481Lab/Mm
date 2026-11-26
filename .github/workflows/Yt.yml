@@ -313,7 +313,7 @@ jobs:
 
                   CookieManager cm = CookieManager.getInstance();
                   cm.setAcceptCookie(true);
-                  cm.setAcceptThirdPartyCookie(web, true);
+                  cm.setAcceptThirdPartyCookies(web, true);
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!adblockJs.isEmpty()

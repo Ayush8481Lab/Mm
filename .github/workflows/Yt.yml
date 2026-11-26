@@ -3,8 +3,8 @@ name: Build YouTube AdBlock TV APK
 # Self-contained: no other files needed in the repo.
 # Android TV app (WebView -> youtube.com/tv, original YouTube UI). Injects only:
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-#   2. fixui.js   - tiny UI fix: glass/transparent player overlay, transparent title bg,
-#                   seek bar loaded/played colors, black "now playing" thumbnail fix
+#   2. fixui.js   - small UI fix: glass player overlay + glass control pills, transparent title bg,
+#                   light loaded (preload) seek bar, "now playing" queue thumbnail fix
 
 on:
   workflow_dispatch:
@@ -252,35 +252,36 @@ jobs:
           })();
           EOF
 
-          # ---- Script 2: UI fixes (glass player, transparent title, seek bar colors) ----
+          # ---- Script 2: UI fixes (glass player, transparent title, seek bar, queue thumbnail) ----
           cat > "$P/app/src/main/assets/fixui.js" <<'EOF'
           (function () {
             if (window.__ytFixUi) return;
             window.__ytFixUi = true;
 
+            // ---------- 1. CSS ----------
             var CSS = [
-              /* Glass player overlay (from TizenTube) */
+              /* translucent player overlay (from TizenTube) */
               '.ytLrWatchDefaultShadow, div[idomkey="shadow"] {',
               '  background-image: linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,.8) 90%) !important;',
               '  background-color: rgba(0,0,0,.3) !important;',
               '  display: block !important; height: 100% !important; width: 100% !important;',
               '  position: absolute !important; pointer-events: none !important; }',
               '.ytLrWatchDefault2025Shadow { background-color: rgba(11,11,11,.5) !important; }',
-
-              /* Title / metadata background transparent */
-              '[class*="WatchMetadata"], [class*="WatchTitle"], [class*="WatchDefaultTitle"] {',
-              '  background: transparent !important; background-color: transparent !important;',
-              '  background-image: none !important; }',
-
-              /* Seek bar: loaded (preload) + played colors, playhead above segments */
-              '[class*="ProgressBarLoaded"], [class*="ProgressBarBuffered"], [class*="ProgressBarPreload"] {',
-              '  background-color: rgba(255,255,255,.55) !important; }',
-              '[class*="ProgressBarPlayed"] { background-color: #f00 !important; }',
-              '.ytLrProgressBarPlayhead, .ytLrProgressBarPlayed { z-index: 1 !important; }',
-
-              /* Black thumbnails: shorts tiles + "now playing" overlay in queue */
               '.ytLrTileHeaderRendererShorts { background-image: none !important; }',
-              '[class*="NowPlaying"] { background-color: rgba(0,0,0,.25) !important; }'
+              '.ytLrProgressBarPlayhead, .ytLrProgressBarPlayed { z-index: 1 !important; }',
+              /* title / metadata background transparent */
+              '[class*="WatchMetadata"], [class*="WatchTitle"], [class*="WatchDefaultTitle"] {',
+              '  background: transparent !important; background-image: none !important; }',
+              /* liquid glass for control pills (never touches the focused item) */
+              '.tt-glass:not(.zylon-focus):not([class*="Focused"]) {',
+              '  background-color: rgba(255,255,255,.12) !important;',
+              '  -webkit-backdrop-filter: blur(22px) saturate(170%) brightness(1.1) !important;',
+              '  backdrop-filter: blur(22px) saturate(170%) brightness(1.1) !important;',
+              '  box-shadow: inset 0 1px 0 rgba(255,255,255,.35), inset 0 0 0 1px rgba(255,255,255,.14),',
+              '              0 4px 18px rgba(0,0,0,.25) !important; }',
+              /* "now playing" queue card: show the thumbnail */
+              '[data-tt-np] { background-size: cover !important; background-position: center !important;',
+              '  background-repeat: no-repeat !important; }'
             ].join('\n');
 
             function addCss() {
@@ -304,8 +305,7 @@ jobs:
             }
             addCss();
 
-            // Same fixes TizenTube applies: stop YouTube treating the device as low-end
-            // (this is what disables translucent overlays / buffer bar rendering).
+            // ---------- 2. Stop YouTube treating the device as low-end (same as TizenTube) ----------
             function patchConfig() {
               var c = window.tectonicConfig;
               if (!c || !c.featureSwitches || !c.clientData) return false;
@@ -325,7 +325,6 @@ jobs:
               if (patchConfig() || ++cfgTries > 600) clearInterval(cfgTimer);
             }, 100);
 
-            // YouTube keeps re-adding this low-quality class to <body>.
             var bodyTimer = setInterval(function () {
               var b = document.body;
               if (!b) return;
@@ -334,6 +333,140 @@ jobs:
               strip();
               new MutationObserver(strip).observe(b, { attributes: true, attributeFilter: ['class'] });
             }, 20);
+
+            // ---------- 3. Layout-based fixes (no guessed class names) ----------
+            function parseColor(s) {
+              var m = /rgba?\(([^)]+)\)/.exec(s || '');
+              if (!m) return null;
+              var p = m[1].split(/[ ,\/]+/).filter(Boolean).map(parseFloat);
+              return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+            }
+
+            function getVideo() {
+              var vs = document.getElementsByTagName('video');
+              for (var i = 0; i < vs.length; i++) {
+                var r = vs[i].getBoundingClientRect();
+                if (r.width > window.innerWidth * 0.5 && (vs[i].currentSrc || vs[i].src)) return vs[i];
+              }
+              return null;
+            }
+
+            function videoId() {
+              var m = /[?&#\/]v=([A-Za-z0-9_-]{11})/.exec(location.href);
+              return m ? m[1] : null;
+            }
+
+            // Seek bar: loaded (preload) = light low-opacity white, track = fainter white. Played untouched.
+            // Layers are told apart by matching their width to currentTime/duration and buffered end/duration.
+            function paintSeekBar(v) {
+              var dur = v.duration;
+              if (!isFinite(dur) || dur <= 0) return;
+              var vf = v.currentTime / dur, lf = vf;
+              try {
+                var b = v.buffered;
+                for (var i = 0; i < b.length; i++) {
+                  if (b.start(i) <= v.currentTime + 0.5 && b.end(i) >= v.currentTime - 0.5) lf = b.end(i) / dur;
+                }
+              } catch (e) { }
+
+              var W = window.innerWidth, H = window.innerHeight;
+              var nodes = document.querySelectorAll(
+                'ytlr-progress-bar, ytlr-progress-bar *, [class*="ProgressBar"], [class*="ProgressBar"] *');
+              var cands = [], trackW = 0;
+              for (var n = 0; n < nodes.length; n++) {
+                var r = nodes[n].getBoundingClientRect();
+                if (r.height < 1 || r.height > H * 0.04 || r.width < W * 0.05 || r.width < r.height * 3) continue;
+                cands.push({ el: nodes[n], w: r.width });
+                if (r.width > trackW) trackW = r.width;
+              }
+              if (!trackW) return;
+              for (var k = 0; k < cands.length; k++) {
+                var el = cands[k].el, f = cands[k].w / trackW;
+                var c = parseColor(getComputedStyle(el).backgroundColor);
+                if (!c || c.a < 0.02) continue;
+                if (f > 0.97) {
+                  el.style.setProperty('background-color', 'rgba(255,255,255,.18)', 'important');
+                } else if (f > vf + 0.004 && Math.abs(f - lf) < Math.abs(f - vf)) {
+                  el.style.setProperty('background-color', 'rgba(255,255,255,.38)', 'important');
+                }
+              }
+            }
+
+            // Control row pills (like/dislike group, CC/settings group, etc.): add the glass class.
+            function tagPills() {
+              var W = window.innerWidth, H = window.innerHeight, seen = new Set();
+              var ys = [0.69, 0.72, 0.75, 0.78];
+              for (var yi = 0; yi < ys.length; yi++) {
+                for (var x = W * 0.05; x < W * 0.95; x += W * 0.03) {
+                  var stack = document.elementsFromPoint(x, H * ys[yi]);
+                  for (var i = 0; i < stack.length; i++) {
+                    var el = stack[i];
+                    if (seen.has(el)) continue;
+                    seen.add(el);
+                    var r = el.getBoundingClientRect();
+                    if (r.height < H * 0.045 || r.height > H * 0.11 || r.width < r.height * 0.9 || r.width > W * 0.5) continue;
+                    var cs = getComputedStyle(el);
+                    var c = parseColor(cs.backgroundColor);
+                    if (!c || c.a < 0.02 || c.a > 0.6) continue;
+                    var rad = cs.borderTopLeftRadius, rv = parseFloat(rad);
+                    var pill = rad.indexOf('%') > 0 ? rv >= 45 : rv >= r.height / 2 - 2;
+                    if (pill) el.classList.add('tt-glass');
+                  }
+                }
+              }
+            }
+
+            // Queue "now playing" card: opaque black overlay hides the thumbnail. Paint the current video's
+            // own thumbnail (it is the same video) under a light tint; the equalizer icon stays on top.
+            var ICON_SEL = 'svg, [class*="Icon"], [class*="Playing"], [class*="Equalizer"], [class*="Bars"]';
+            function fixNowPlaying() {
+              var W = window.innerWidth, H = window.innerHeight, id = videoId();
+
+              var old = document.querySelectorAll('[data-tt-np]');   // clean up recycled nodes
+              for (var o = 0; o < old.length; o++) {
+                if (old[o].getAttribute('data-tt-np') !== String(id) || !old[o].querySelector(ICON_SEL)) {
+                  old[o].removeAttribute('data-tt-np');
+                  old[o].style.removeProperty('background-image');
+                  old[o].style.removeProperty('background-color');
+                }
+              }
+
+              var seen = new Set(), ys = [0.88, 0.95];
+              for (var yi = 0; yi < ys.length; yi++) {
+                for (var x = W * 0.04; x < W * 0.96; x += W * 0.04) {
+                  var stack = document.elementsFromPoint(x, H * ys[yi]);
+                  for (var i = 0; i < stack.length; i++) {
+                    var el = stack[i];
+                    if (seen.has(el) || el.hasAttribute('data-tt-np')) continue;
+                    seen.add(el);
+                    var r = el.getBoundingClientRect();
+                    var ar = r.width / (r.height || 1);
+                    if (ar < 1.5 || ar > 2.1 || r.width < W * 0.15 || r.width > W * 0.4) continue;
+                    var c = parseColor(getComputedStyle(el).backgroundColor);
+                    if (!c || c.a < 0.7 || c.r > 45 || c.g > 45 || c.b > 45) continue;
+                    if (!el.querySelector(ICON_SEL)) continue;
+                    el.setAttribute('data-tt-np', String(id));
+                    el.style.setProperty('background-color', 'rgba(0,0,0,.28)', 'important');
+                    if (id) {
+                      el.style.setProperty('background-image',
+                        'linear-gradient(rgba(0,0,0,.28),rgba(0,0,0,.28)),url(https://i.ytimg.com/vi/' + id + '/hqdefault.jpg)',
+                        'important');
+                    }
+                  }
+                }
+              }
+            }
+
+            setInterval(function () {
+              try {
+                if (document.hidden) return;
+                var v = getVideo();
+                if (!v) return;
+                paintSeekBar(v);
+                tagPills();
+                fixNowPlaying();
+              } catch (e) { /* never break the page */ }
+            }, 600);
           })();
           EOF
 
@@ -421,7 +554,7 @@ jobs:
                   // Cookies: accept first-party + third-party and persist them (keeps you signed in).
                   CookieManager cookies = CookieManager.getInstance();
                   cookies.setAcceptCookie(true);
-                  cookies.setAcceptThirdPartyCookies(web, true);
+                  cookies.setAcceptThirdPartyCookie(web, true);
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!scripts.isEmpty()

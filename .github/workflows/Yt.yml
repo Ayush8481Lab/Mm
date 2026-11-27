@@ -4,10 +4,13 @@ name: Build YouTube AdBlock TV APK
 # Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
 #   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-#   2. glass.js   - transparent-blur player controls, no black boxes behind text,
+#   2. glass.js   - transparent-blur player controls (now applied INSTANTLY when the player controls appear:
+#                   new / changed nodes are glassed synchronously in the mutation callback, before the next paint),
+#                   duration badges on thumbnails get the glass too,
+#                   no black boxes behind card titles / subtitles / separator dots on EVERY screen
+#                   (home, player, music, search ...),
 #                   7-dot circular loading spinner instead of "Loading...",
 #                   sign-in / welcome page background pictures forced back on,
-#                   no black box behind the separator dots (channel . views . time),
 #                   soft black gradient behind the player controls (like the original app)
 #   3. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
 #                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
@@ -18,7 +21,10 @@ name: Build YouTube AdBlock TV APK
 #   Also: on-screen remote (Up / Down / Left / Right / OK / Back) on the left edge, for tablets
 #         (set SHOW_REMOTE=false in MainActivity.java to remove it).
 #   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
-# Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
+#         CAP menu option 1 = "SVG + image URLs log": every <svg> (markup, rect, parents, colours),
+#         every image URL (img, svg <image>, CSS background / mask / ::before / ::after, stylesheet url(),
+#         resource list) and icon-font glyphs. Send that file back and the icons can be replaced.
+# Also: ONE fixed User-Agent (Tizen 6.5 TV), black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
 
 on:
@@ -311,10 +317,14 @@ jobs:
           # ---- Script 2: transparent-blur player controls + 7-dot loading spinner + welcome backgrounds ----
           # Class names on YouTube TV are obfuscated, so glass.js reads the real colour of small
           # elements on the watch page and tags them (dark pill -> light transparent blur,
-          # white -> soft white). It runs from a MutationObserver, so it is applied before the
-          # next paint. Menus / side panels (Settings) are left untouched. No shadows anywhere.
-          # Sign-in / welcome pages: YouTube sometimes drops the background picture of these pages
-          # (body gets "app-quality-root"). The pictures are put back by CSS + inline style.
+          # white -> soft white). Menus / side panels (Settings) are left untouched. No shadows anywhere.
+          #
+          # TIMING FIX: the old version ran the (heavy) full scan at most every 60 ms, so when the player controls
+          # appeared the first frames were un-glassed. Now the MutationObserver callback glasses the nodes that
+          # were just added / changed RIGHT AWAY (synchronously, before the next paint), the full scan only
+          # cleans up afterwards, and every key press / touch on the player triggers a short burst of scans.
+          #
+          # Card titles / subtitles (yt-formatted-string) never get a box behind them, on every screen.
           cat > "$P/app/src/main/assets/glass.js" <<'EOF'
           (function () {
             if (window.__ytGlass) return;
@@ -324,22 +334,25 @@ jobs:
             var BG_GRADIENT = 'https://www.gstatic.com/ytlr/img/uni_tube_gradient_1280x720.jpg';
 
             var CSS = [
-              /* no black boxes behind text on the watch page */
-              'body.WEB_PAGE_TYPE_WATCH yt-formatted-string,',
+              /* card titles / subtitles / separator dots: NO box behind them - every screen (home, player, music ...) */
+              'yt-formatted-string,yt-core-attributed-string{',
+              '  background:transparent !important;background-color:transparent !important;}',
+              'yt-formatted-string::before,yt-formatted-string::after,',
+              'yt-core-attributed-string::before,yt-core-attributed-string::after,',
+              '[idomkey^="detail-text"],[idomkey^="detail-text"] *,',
+              '[idomkey^="detail-text"]::before,[idomkey^="detail-text"]::after,',
+              '[idomkey^="detail-text"] *::before,[idomkey^="detail-text"] *::after{',
+              '  background:transparent !important;background-color:transparent !important;box-shadow:none !important;',
+              '  text-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}',
+
+              /* text spans on the watch page */
               'body.WEB_PAGE_TYPE_WATCH span[idomkey]{',
               '  background:transparent !important;background-color:transparent !important;}',
+              'body.WEB_PAGE_TYPE_WATCH span[idomkey]::before,body.WEB_PAGE_TYPE_WATCH span[idomkey]::after{',
+              '  background:transparent !important;background-color:transparent !important;box-shadow:none !important;}',
 
               /* video area is always plain black (no grey poster) */
               'video{background-color:#000 !important;}',
-
-              /* separator dots between channel / views / time (and every pseudo-element in that row): no black box */
-              'body.WEB_PAGE_TYPE_WATCH yt-formatted-string::before,body.WEB_PAGE_TYPE_WATCH yt-formatted-string::after,',
-              'body.WEB_PAGE_TYPE_WATCH span[idomkey]::before,body.WEB_PAGE_TYPE_WATCH span[idomkey]::after,',
-              'body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"],body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"] *,',
-              'body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"]::before,body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"]::after,',
-              'body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"] *::before,body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"] *::after{',
-              '  background:transparent !important;background-color:transparent !important;box-shadow:none !important;',
-              '  text-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}',
 
               /* soft black gradient from the seek bar down to the bottom while the player controls are shown */
               '#ytg-scrim{position:absolute;left:0;right:0;bottom:0;height:0;pointer-events:none;z-index:2;opacity:0;',
@@ -403,8 +416,17 @@ jobs:
               }
             }
 
+            // formatted strings / SVG are never glassed. SPAN is NOT skipped any more: the duration badge
+            // on thumbnails ("2:06:42") is a dark <span> and must get the glass like the other badges.
             var SKIP = { VIDEO: 1, IMG: 1, IMAGE: 1, 'YTLR-PLAYER': 1, SCRIPT: 1, STYLE: 1,
-              'YT-FORMATTED-STRING': 1, SPAN: 1, SVG: 1, PATH: 1 };
+              'YT-FORMATTED-STRING': 1, 'YT-CORE-ATTRIBUTED-STRING': 1, SVG: 1, PATH: 1 };
+
+            function skipped(el) {
+              if (SKIP[el.tagName.toUpperCase()]) return true;
+              // title / channel / views / time row: never gets glass (no box behind the dots)
+              if (el.closest && el.closest('[idomkey^="detail-text"]')) return true;
+              return false;
+            }
 
             // Anything inside a menu / dialog (the panel that opens from Settings) is left untouched.
             var MENU_TAG = /menu|dialog|popup|modal|dropdown/i;
@@ -445,22 +467,41 @@ jobs:
               }
             }
 
-            // ---------- transparent glass on the player controls (watch page only) ----------
+            // ---------- decide the glass state of ONE element (glass rules must be switched off = probe) ----------
+            function classify(el, r, W, H, panels) {
+              if (r.width < 6 || r.height < 3 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) return null;
+              var thin = r.height <= 12;
+              if (!thin && (r.height > 80 || r.width > 400)) return null;
+              if (panels.length && inAny(panels, r.left + r.width / 2, r.top + r.height / 2)) return null;
+              var cs = getComputedStyle(el);
+              if (cs.visibility === 'hidden' || cs.display === 'none' ||
+                  (cs.backgroundImage && cs.backgroundImage !== 'none')) return null;
+              var bg = parse(cs.backgroundColor);
+              if (!bg || bg.a < 0.05) return null;
+              var lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) / 255;
+              var base = lum < 0.55 ? 'dark' : (bg.a < 0.6 ? 'mid' : 'light');
+              var p = el.parentElement;
+              if (!thin && base === 'dark' && p && p.getAttribute('data-ytg') === 'dark') return null;
+              if (inMenu(el)) return null;
+              return (thin ? 't' : '') + base;
+            }
+
+            var lastPanels = [];
+
+            // ---------- full scan (watch page only) ----------
+            // Glass rules are switched OFF while the real colours are read, then ON again in the
+            // same task, so the screen never shows the un-glassed state.
             function pass() {
               if (document.hidden || !document.body || !isWatch()) return;
               var root = document.documentElement;
               var all = document.body.getElementsByTagName('*');
               var W = innerWidth, H = innerHeight;
-              // Glass rules are switched OFF while the real colours are read, then ON again in the
-              // same task, so the screen never shows the un-glassed state.
               root.setAttribute('data-ytg-probe', '1');
               try {
                 var els = [], rects = [], panels = [], i, el, r, cs;
                 for (i = 0; i < all.length; i++) {
                   el = all[i];
-                  if (SKIP[el.tagName.toUpperCase()]) { mark(el, null); continue; }
-                  // title / channel / views / time row: never gets glass (no box behind the dots)
-                  if (el.closest && el.closest('[idomkey^="detail-text"]')) { mark(el, null); continue; }
+                  if (skipped(el)) { mark(el, null); continue; }
                   r = el.getBoundingClientRect();
                   els.push(el); rects.push(r);
                   // tall side panel (Settings menu) -> nothing inside it gets glass
@@ -470,33 +511,54 @@ jobs:
                     if ((pb && pb.a > 0.05) || (cs.backgroundImage && cs.backgroundImage !== 'none')) panels.push(r);
                   }
                 }
-                for (i = 0; i < els.length; i++) {
-                  el = els[i]; r = rects[i];
-                  if (r.width < 6 || r.height < 3 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) {
-                    mark(el, null); continue;
+                lastPanels = panels;
+                for (i = 0; i < els.length; i++) mark(els[i], classify(els[i], rects[i], W, H, panels));
+              } finally {
+                root.removeAttribute('data-ytg-probe');
+              }
+            }
+
+            // ---------- FAST scan: only the nodes that were just added / changed ----------
+            // Runs synchronously inside the MutationObserver callback, so new player controls are glassed
+            // before the browser paints them. Reads first, writes after (no layout thrashing).
+            function fastPass(recs) {
+              if (document.hidden || !document.body || !isWatch()) return;
+              var set = new Set(), targets = [], i, j, n, rec;
+              for (i = 0; i < recs.length && targets.length < 60; i++) {
+                rec = recs[i];
+                if (rec.type === 'childList') {
+                  for (j = 0; j < rec.addedNodes.length; j++) {
+                    n = rec.addedNodes[j];
+                    if (n.nodeType === 1) targets.push(n);
                   }
-                  var thin = r.height <= 12;
-                  if (!thin && (r.height > 80 || r.width > 400)) { mark(el, null); continue; }
-                  if (panels.length && inAny(panels, r.left + r.width / 2, r.top + r.height / 2)) {
-                    mark(el, null); continue;
-                  }
-                  cs = getComputedStyle(el);
-                  if (cs.visibility === 'hidden' || cs.display === 'none' ||
-                      (cs.backgroundImage && cs.backgroundImage !== 'none')) { mark(el, null); continue; }
-                  var bg = parse(cs.backgroundColor);
-                  if (!bg || bg.a < 0.05) { mark(el, null); continue; }
-                  var lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) / 255;
-                  var base = lum < 0.55 ? 'dark' : (bg.a < 0.6 ? 'mid' : 'light');
-                  var p = el.parentElement;
-                  if (!thin && base === 'dark' && p && p.getAttribute('data-ytg') === 'dark') {
-                    mark(el, null); continue;
-                  }
-                  if (inMenu(el)) { mark(el, null); continue; }
-                  mark(el, (thin ? 't' : '') + base);
+                } else if (rec.target && rec.target.nodeType === 1) {
+                  targets.push(rec.target);
+                }
+              }
+              if (!targets.length) return;
+              var list = [], sub, k;
+              for (i = 0; i < targets.length && list.length < 700; i++) {
+                n = targets[i];
+                if (!set.has(n)) { set.add(n); list.push(n); }
+                sub = n.getElementsByTagName ? n.getElementsByTagName('*') : [];
+                for (k = 0; k < sub.length && list.length < 700; k++) {
+                  if (!set.has(sub[k])) { set.add(sub[k]); list.push(sub[k]); }
+                }
+              }
+              var root = document.documentElement, W = innerWidth, H = innerHeight;
+              var states = new Array(list.length), el, r;
+              root.setAttribute('data-ytg-probe', '1');
+              try {
+                for (i = 0; i < list.length; i++) {
+                  el = list[i];
+                  if (!el.isConnected || skipped(el)) { states[i] = null; continue; }
+                  r = el.getBoundingClientRect();
+                  states[i] = classify(el, r, W, H, lastPanels);
                 }
               } finally {
                 root.removeAttribute('data-ytg-probe');
               }
+              for (i = 0; i < list.length; i++) if (list[i].isConnected) mark(list[i], states[i]);
             }
 
             // ---------- 7-dot circular spinner instead of "Loading..." (every page) ----------
@@ -600,7 +662,7 @@ jobs:
               if (op !== scrimO) { scrim.style.opacity = op; scrimO = op; }
             }
 
-            // ---------- scheduling: apply BEFORE the next paint, not on a slow timer ----------
+            // ---------- scheduling ----------
             var last = 0, pending = false;
             function run() {
               last = performance.now();
@@ -610,17 +672,35 @@ jobs:
             }
             function schedule() {
               var now = performance.now();
-              if (now - last >= 60) { run(); }          // runs inside the mutation microtask = before paint
+              if (now - last >= 60) { run(); }
               else if (!pending) {
                 pending = true;
                 setTimeout(function () { pending = false; run(); }, 60 - (now - last) + 1);
               }
             }
 
+            // Every key press / touch on the player (this is what makes the controls appear): a short burst of
+            // full scans, so nothing that fades in after the first frame is left without glass.
+            var burstAt = 0;
+            function burst() {
+              if (!isWatch()) return;
+              var n = Date.now();
+              if (n - burstAt < 250) return;
+              burstAt = n;
+              [0, 30, 80, 160, 320, 600].forEach(function (t) { setTimeout(run, t); });
+            }
+            ['keydown', 'keyup', 'touchstart', 'mousedown', 'pointerdown', 'click'].forEach(function (n) {
+              window.addEventListener(n, burst, true);
+            });
+
             var mo = null;
             function observe() {
               if (mo || !document.body) return;
-              mo = new MutationObserver(schedule);
+              mo = new MutationObserver(function (recs) {
+                try { fastPass(recs); } catch (e) { }      // glass the new / changed nodes before the next paint
+                try { scrimPass(); } catch (e) { }
+                schedule();                                // then the full clean-up scan
+              });
               mo.observe(document.body, { childList: true, subtree: true,
                 attributes: true, attributeFilter: ['class', 'style'] });
             }
@@ -1476,6 +1556,174 @@ jobs:
               } catch (e) { }
             }
 
+            // ---- 0. SVG + image URL log: every <svg>, every image URL, icon-font glyphs ----
+            // Open the screen that has the wrong icons (e.g. show the player controls, open Settings) BEFORE
+            // pressing it. Pressing the button starts a 5 s timer (set in MainActivity) so the screen can be shown.
+            cap.dumpSvg = function () {
+              toast('Collecting SVG + image URLs...');
+              var W = innerWidth, H = innerHeight, i, j, el, r, cs;
+              var head = header();
+              head.type = 'svg-and-images';
+
+              function isVis(r, cs) {
+                return r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < W && r.top < H &&
+                  cs.visibility !== 'hidden' && cs.display !== 'none';
+              }
+              function urlsIn(str) {
+                var res = [], re = /url\((['"]?)(.*?)\1\)/g, m;
+                while ((m = re.exec(str || ''))) res.push(m[2]);
+                return res;
+              }
+              function shortUrl(u) {
+                u = String(u);
+                return u.length > 700 ? u.slice(0, 700) + '...[' + u.length + ' chars]' : u;
+              }
+              function rowText(e) {
+                var p = e, n = 0, t;
+                while (p && n++ < 6) {
+                  t = ((p.innerText || '') + '').trim();
+                  if (t && t.length < 90) return t;
+                  p = p.parentElement;
+                }
+                return '';
+              }
+              function rectOf(e) { var q = e.getBoundingClientRect(); return [r1(q.left), r1(q.top), r1(q.width), r1(q.height)]; }
+
+              // ---- SVG elements ----
+              var svgs = [], all = document.getElementsByTagName('svg');
+              for (i = 0; i < all.length && i < 600; i++) {
+                el = all[i]; r = el.getBoundingClientRect(); cs = getComputedStyle(el);
+                var uses = [], imgs = [], us = el.querySelectorAll('use'), ims = el.querySelectorAll('image');
+                for (j = 0; j < us.length; j++) {
+                  uses.push(us[j].getAttribute('href') || us[j].getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '');
+                }
+                for (j = 0; j < ims.length; j++) {
+                  imgs.push(shortUrl(ims[j].getAttribute('href') || ims[j].getAttributeNS('http://www.w3.org/1999/xlink', 'href') || ''));
+                }
+                svgs.push({
+                  n: i,
+                  visible: isVis(r, cs),
+                  selector: sel(el),
+                  parents: chain(el).slice(1, 8),
+                  rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
+                  viewBox: el.getAttribute('viewBox') || undefined,
+                  fill: cs.fill, stroke: cs.stroke, color: cs.color, opacity: cs.opacity,
+                  rowText: rowText(el) || undefined,
+                  uses: uses.length ? uses : undefined,
+                  images: imgs.length ? imgs : undefined,
+                  outerHTML: (el.outerHTML || '').slice(0, 6000)
+                });
+              }
+              svgs.sort(function (a, b) { return (b.visible ? 1 : 0) - (a.visible ? 1 : 0); });
+
+              // ---- image URLs ----
+              var found = [], glyphs = [];
+              function addUrl(kind, u, e, extra) {
+                if (!u || found.length >= 900) return;
+                var q = e.getBoundingClientRect ? e.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+                found.push({
+                  kind: kind, url: shortUrl(u),
+                  selector: sel(e), rect: [r1(q.left), r1(q.top), r1(q.width), r1(q.height)],
+                  extra: extra || undefined
+                });
+              }
+              var ALLEL = document.getElementsByTagName('*');
+              var PUA = /^[\uE000-\uF8FF]{1,2}$/;
+              for (i = 0; i < ALLEL.length && i < 7000; i++) {
+                el = ALLEL[i];
+                var tg = el.tagName.toLowerCase();
+                if (tg === 'img') {
+                  addUrl('img', el.currentSrc || el.src, el, 'natural=' + el.naturalWidth + 'x' + el.naturalHeight);
+                } else if (tg === 'video' && el.poster) {
+                  addUrl('video-poster', el.poster, el);
+                } else if (tg === 'image') {
+                  addUrl('svg-image', el.getAttribute('href') || el.getAttributeNS('http://www.w3.org/1999/xlink', 'href'), el);
+                } else if (tg === 'source' && el.src) {
+                  addUrl('source', el.src, el);
+                }
+                if (tg === 'script' || tg === 'style' || tg === 'path') continue;
+                cs = getComputedStyle(el);
+                var props = [['background-image', cs.backgroundImage], ['mask-image', cs.webkitMaskImage || cs.maskImage],
+                  ['border-image', cs.borderImageSource], ['list-style-image', cs.listStyleImage], ['content', cs.content]];
+                for (j = 0; j < props.length; j++) {
+                  if (props[j][1] && props[j][1] !== 'none' && props[j][1].indexOf('url(') >= 0) {
+                    urlsIn(props[j][1]).forEach(function (u) { addUrl('css:' + props[j][0], u, el, cs.backgroundSize || undefined); });
+                  }
+                }
+                ['::before', '::after'].forEach(function (ps) {
+                  try {
+                    var pc = getComputedStyle(el, ps);
+                    if (!pc || pc.content === 'none' || pc.content === 'normal') return;
+                    var pv = [pc.backgroundImage, pc.webkitMaskImage || pc.maskImage, pc.content];
+                    pv.forEach(function (s) {
+                      if (s && s.indexOf('url(') >= 0) urlsIn(s).forEach(function (u) { addUrl('pseudo' + ps, u, el); });
+                    });
+                  } catch (e) { }
+                });
+                // icon-font glyphs (private-use characters)
+                var own = '';
+                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) own += c.nodeValue;
+                own = own.trim();
+                if (own && PUA.test(own) && glyphs.length < 300) {
+                  glyphs.push({
+                    codepoints: own.split('').map(function (ch) { return 'U+' + ch.charCodeAt(0).toString(16).toUpperCase(); }).join(' '),
+                    fontFamily: cs.fontFamily, selector: sel(el), rect: rectOf(el), color: cs.color
+                  });
+                }
+              }
+
+              // ---- url() inside stylesheets (sprites, masks, data:image/svg+xml icons) ----
+              var sheetUrls = [], seenSheet = {};
+              function scanRules(rules, label) {
+                for (var a = 0; a < rules.length && sheetUrls.length < 600; a++) {
+                  var rule = rules[a], txt = rule.cssText || '';
+                  if (rule.cssRules && !rule.selectorText) { try { scanRules(rule.cssRules, label); } catch (e) { } continue; }
+                  if (txt.indexOf('url(') < 0) continue;
+                  urlsIn(txt).forEach(function (u) {
+                    var k = (rule.selectorText || '') + '|' + u;
+                    if (seenSheet[k] || /^data:font|\.woff|\.ttf|\.otf/i.test(u)) return;
+                    seenSheet[k] = 1;
+                    sheetUrls.push({ sheet: label, selector: (rule.selectorText || '').slice(0, 160), url: shortUrl(u) });
+                  });
+                }
+              }
+              for (i = 0; i < document.styleSheets.length; i++) {
+                var ss = document.styleSheets[i];
+                try { scanRules(ss.cssRules, ss.href || ('inline #' + i)); } catch (e) { }
+              }
+
+              // ---- <link rel=icon>, meta og:image, resource list ----
+              var links = [];
+              [].forEach.call(document.querySelectorAll('link[rel*="icon"],link[rel="image_src"],meta[property="og:image"]'), function (l) {
+                links.push(l.href || l.content || '');
+              });
+              var res = [];
+              try {
+                performance.getEntriesByType('resource').forEach(function (e) {
+                  if (e.initiatorType === 'img' || e.initiatorType === 'image' ||
+                      /\.(png|jpe?g|webp|gif|svg|ico)(\?|$)/i.test(e.name) || /ytimg|gstatic.*img|ggpht/i.test(e.name)) {
+                    if (res.length < 500) res.push({ type: e.initiatorType, size: e.transferSize || e.decodedBodySize || 0, url: shortUrl(e.name) });
+                  }
+                });
+              } catch (e) { }
+
+              var vis = svgs.filter(function (s) { return s.visible; }).length;
+              var text = 'YTCAP SVG + image URL log\n' + safeJson(head, 1) + '\n\n' +
+                '===== SUMMARY =====\n' +
+                'svg elements: ' + all.length + ' (visible: ' + vis + ')\n' +
+                'image urls found in DOM/CSS: ' + found.length + '\n' +
+                'icon-font glyphs: ' + glyphs.length + '\n' +
+                'stylesheet url() rules: ' + sheetUrls.length + '\n' +
+                'resource entries (images): ' + res.length + '\n\n' +
+                '===== SVG ELEMENTS (visible first) =====\n' + safeJson(svgs, 1) + '\n\n' +
+                '===== IMAGE URLS (img / svg-image / css background / mask / pseudo) =====\n' + safeJson(found, 1) + '\n\n' +
+                '===== ICON-FONT GLYPHS =====\n' + safeJson(glyphs, 1) + '\n\n' +
+                '===== STYLESHEET url() RULES =====\n' + safeJson(sheetUrls, 1) + '\n\n' +
+                '===== LINK / META IMAGES =====\n' + safeJson(links, 1) + '\n\n' +
+                '===== RESOURCE LIST (images) =====\n' + safeJson(res, 1) + '\n';
+              send('svg_images_' + stamp() + '.txt', text);
+            };
+
             // ---- 1. Pick: tap an item, capture everything stacked at that point ----
             function capturePoint(x, y) {
               var stack = document.elementsFromPoint(x, y).slice(0, 14);
@@ -1615,11 +1863,8 @@ jobs:
 
           import android.annotation.SuppressLint;
           import android.app.Activity;
-          import android.app.AlertDialog;
           import android.content.ContentValues;
-          import android.content.DialogInterface;
           import android.content.Intent;
-          import android.content.SharedPreferences;
           import android.graphics.Bitmap;
           import android.graphics.Color;
           import android.graphics.drawable.GradientDrawable;
@@ -1678,34 +1923,10 @@ jobs:
 
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // ---------------------------------------------------------------------------------
-              // Headers (User-Agent) you can switch between from the CAP menu -> "6. Header".
-              // Edit the strings here if one of them needs to be different.
-              // ---------------------------------------------------------------------------------
-              private static final String UA_TV =
-                      "Mozilla/5.0 (PlayStation 5/SmartTV) AppleWebKit/605.1.15 (KHTML, like Gecko)"
+              // The ONE User-Agent used by the app (Samsung Tizen 6.5 TV, same as the working capture).
+              private static final String USER_AGENT =
+                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
                               + "85.0.4183.93/6.5 TV Safari/537.36";
-
-              // Same profile TizenTube uses for the Amazon Fire TV Stick (AFTMM).
-              private static final String UA_AMAZON =
-                      "Mozilla/5.0 (Linux armeabi-v7a; Android 7.1.2) Cobalt/25.lts.30.1034958-gold (unlike Gecko) "
-                              + "v8/8.8.278.17-jit gles Starboard/15, Amazon_ATV_mt8695_0/NS6294 (Amazon, AFTMM) "
-                              + "com.google.android.youtube.tv/5.30.301";
-
-              private static final String UA_SAFARI =
-                      "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_5_8; en-us) AppleWebKit/531.22.7 "
-                              + "(KHTML, like Gecko) Version/4.0.5 Safari/531.22.7";
-
-              private static final String UA_PLAYSTATION =
-                      "Mozilla/5.0 (PlayStation; PlayStation 7233) AppleWebKit/605.1.15 (KHTML, like Gecko) "
-                              + "Version/15.4 Safari/605.1.15";
-
-              private static final String[][] HEADERS = {
-                      {"TV", UA_TV},
-                      {"Amazon / AFTMM", UA_AMAZON},
-                      {"Safari (4.0)", UA_SAFARI},
-                      {"PlayStation 7233", UA_PLAYSTATION}
-              };
 
               private WebView web;
               private FrameLayout root;
@@ -1713,12 +1934,10 @@ jobs:
               private LinearLayout capBox;
               private LinearLayout remoteBox;
               private Runnable repeater;
-              private TextView headerBtn;
               private LinearLayout offlineView;
               private TextView offlineTitle;
               private TextView retryBtn;
               private ConnectivityManager.NetworkCallback netCb;
-              private SharedPreferences prefs;
               private final List<String> scripts = new ArrayList<>();
               private boolean scriptAtDocumentStart = false;
               private boolean loadFailed = false;
@@ -1732,7 +1951,6 @@ jobs:
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-                  prefs = getSharedPreferences("ytx", MODE_PRIVATE);
 
                   String q = readAsset("quality.js");          // lifts the quality-menu cap (must run first)
                   if (!q.isEmpty()) scripts.add(q);
@@ -1761,7 +1979,7 @@ jobs:
                   s.setJavaScriptEnabled(true);
                   s.setDomStorageEnabled(true);
                   s.setMediaPlaybackRequiresUserGesture(false);
-                  s.setUserAgentString(currentUa());
+                  s.setUserAgentString(USER_AGENT);
                   s.setLoadWithOverviewMode(true);
                   s.setUseWideViewPort(true);
 
@@ -1866,40 +2084,6 @@ jobs:
                   } catch (Exception e) {
                       return "";
                   }
-              }
-
-              // ------------------------------------------------------------------
-              // Header (User-Agent) selection
-              // ------------------------------------------------------------------
-              private int headerIndex() {
-                  int i = prefs.getInt("header", 0);
-                  return (i < 0 || i >= HEADERS.length) ? 0 : i;
-              }
-
-              private String currentUa() {
-                  return HEADERS[headerIndex()][1];
-              }
-
-              private void chooseHeader() {
-                  String[] names = new String[HEADERS.length];
-                  for (int i = 0; i < HEADERS.length; i++) names[i] = HEADERS[i][0];
-                  new AlertDialog.Builder(this)
-                          .setTitle("Header (User-Agent)")
-                          .setSingleChoiceItems(names, headerIndex(), new DialogInterface.OnClickListener() {
-                              @Override
-                              public void onClick(DialogInterface d, int which) {
-                                  prefs.edit().putInt("header", which).apply();
-                                  web.getSettings().setUserAgentString(HEADERS[which][1]);
-                                  if (headerBtn != null) headerBtn.setText("6. Header: " + HEADERS[which][0]);
-                                  d.dismiss();
-                                  Toast.makeText(MainActivity.this,
-                                          "Header: " + HEADERS[which][0] + " - reloading", Toast.LENGTH_SHORT).show();
-                                  loadFailed = false;
-                                  web.loadUrl(START_URL);
-                              }
-                          })
-                          .setNegativeButton("Cancel", null)
-                          .show();
               }
 
               // ------------------------------------------------------------------
@@ -2083,14 +2267,29 @@ jobs:
                   });
                   bubble.setAlpha(0.55f);
 
-                  panel.addView(menuButton("1. Pick item (then tap it)", new View.OnClickListener() {
+                  panel.addView(menuButton("1. SVG + image URLs log (in 5 s)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          Toast.makeText(MainActivity.this,
+                                  "Capturing SVG + image URLs in 5 seconds - show the screen with the icons",
+                                  Toast.LENGTH_LONG).show();
+                          ui.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  runJs("window.__cap.dumpSvg()");
+                              }
+                          }, 5000);
+                      }
+                  }));
+                  panel.addView(menuButton("2. Pick item (then tap it)", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {
                           panel.setVisibility(View.GONE);
                           runJs("window.__cap.pick()");
                       }
                   }));
-                  panel.addView(menuButton("2. Dump visible UI (in 5 s)", new View.OnClickListener() {
+                  panel.addView(menuButton("3. Dump visible UI (in 5 s)", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {
                           panel.setVisibility(View.GONE);
@@ -2104,35 +2303,27 @@ jobs:
                           }, 5000);
                       }
                   }));
-                  panel.addView(menuButton("3. Save complete page JS", new View.OnClickListener() {
+                  panel.addView(menuButton("4. Save complete page JS", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {
                           panel.setVisibility(View.GONE);
                           runJs("window.__cap.dumpJs()");
                       }
                   }));
-                  panel.addView(menuButton("4. Save HTML + CSS", new View.OnClickListener() {
+                  panel.addView(menuButton("5. Save HTML + CSS", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {
                           panel.setVisibility(View.GONE);
                           runJs("window.__cap.dumpDom()");
                       }
                   }));
-                  panel.addView(menuButton("5. Share last capture", new View.OnClickListener() {
+                  panel.addView(menuButton("6. Share last capture", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {
                           panel.setVisibility(View.GONE);
                           shareFile(lastCapture);
                       }
                   }));
-                  headerBtn = menuButton("6. Header: " + HEADERS[headerIndex()][0], new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          chooseHeader();
-                      }
-                  });
-                  panel.addView(headerBtn);
                   panel.addView(menuButton("7. Speed / SponsorBlock / Quality", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {

@@ -5,7 +5,10 @@ name: Build YouTube AdBlock TV APK
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
 #                   7-dot circular loading spinner instead of "Loading..."
-# Also: black screen while video loads (no WebView grey poster), "No internet - Retry" page,
+#   3. ytx.js     - ported from TizenTube: playback speed (also opens from the Settings > Speed row),
+#                   SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel
+#   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
+# Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
 
 on:
@@ -40,7 +43,7 @@ jobs:
         run: |
           P="$GITHUB_WORKSPACE/_android"
           J="$P/app/src/main/java/com/local/ytadblock/tv"
-          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/drawable-nodpi"
+          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/drawable-nodpi" "$P/app/src/main/res/xml"
 
           cat > "$P/settings.gradle" <<'EOF'
           pluginManagement {
@@ -113,6 +116,7 @@ jobs:
 
           dependencies {
               implementation 'androidx.webkit:webkit:1.11.0'
+              implementation 'androidx.core:core:1.13.1'
           }
           EOF
 
@@ -149,6 +153,17 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER" />
                       </intent-filter>
                   </activity>
+
+                  <!-- Lets the capture tool share saved files through the Android share sheet -->
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="com.local.ytadblock.tv.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+                  </provider>
               </application>
           </manifest>
           EOF
@@ -469,11 +484,767 @@ jobs:
           })();
           EOF
 
+          cat > "$P/app/src/main/res/xml/file_paths.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths>
+              <external-files-path name="captures_ext" path="captures/" />
+              <files-path name="captures_int" path="captures/" />
+          </paths>
+          EOF
+
+          # ---- Script 3: ported from TizenTube - speed, SponsorBlock, turn off screen / dim, tools panel ----
+          cat > "$P/app/src/main/assets/ytx.js" <<'EOF'
+          (function () {
+            if (window.__ytx) return;
+            var X = window.__ytx = {};
+
+            // ======================= config (kept in localStorage) =======================
+            var KEY = 'ytx-config';
+            var DEF = {
+              speed: 1,
+              sb: true, sbToast: true,
+              sbCats: { sponsor: 1, intro: 1, outro: 1, interaction: 1, selfpromo: 1, preview: 1, music_offtopic: 1, filler: 0 },
+              dim: false, dimTimeout: 60, dimOpacity: 0.5
+            };
+            var cfg = load();
+            function load() {
+              var c = JSON.parse(JSON.stringify(DEF));
+              try {
+                var s = JSON.parse(localStorage.getItem(KEY) || '{}');
+                for (var k in s) {
+                  if (k === 'sbCats') { for (var j in s.sbCats) c.sbCats[j] = s.sbCats[j]; }
+                  else c[k] = s[k];
+                }
+              } catch (e) { }
+              return c;
+            }
+            function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { } }
+
+            // ======================= styles =======================
+            var CSS = [
+              '#ytx-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);max-width:80%;padding:9px 18px;',
+              '  border-radius:22px;background:rgba(30,30,30,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);',
+              '  color:#fff;font:500 15px Roboto,Arial,sans-serif;z-index:2147483600;pointer-events:none;opacity:0;transition:opacity .25s;}',
+              '#ytx-toast.show{opacity:1;}',
+              '#ytx-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483500;display:none;align-items:center;',
+              '  justify-content:center;background:rgba(0,0,0,.35);font-family:Roboto,Arial,sans-serif;}',
+              '#ytx-box{min-width:300px;max-width:92%;max-height:88%;overflow:auto;padding:16px;border-radius:18px;',
+              '  background:rgba(28,28,28,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;}',
+              '#ytx-title{font-size:18px;font-weight:500;margin:0 4px 12px;}',
+              '#ytx-list{display:grid;gap:8px;}',
+              '.ytx-item{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.10);font-size:15px;cursor:pointer;}',
+              '.ytx-item .sub{font-size:12px;opacity:.7;margin-top:2px;}',
+              '.ytx-item.on{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);}',
+              '.ytx-item.focus{background:rgba(241,241,241,.92);color:#000;}',
+              '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
+              '  z-index:2147483200;transition:opacity 1s;}',
+              '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
+            ].join('\n');
+            var styleEl = null;
+            function inject() {
+              if (styleEl && styleEl.isConnected) return;
+              if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'ytx-css'; styleEl.textContent = CSS; }
+              (document.head || document.documentElement).appendChild(styleEl);
+            }
+
+            // ======================= toast =======================
+            var toastEl = null, toastTimer = null;
+            function toast(msg) {
+              try {
+                if (!toastEl || !toastEl.isConnected) {
+                  toastEl = document.createElement('div'); toastEl.id = 'ytx-toast';
+                  document.documentElement.appendChild(toastEl);
+                }
+                toastEl.textContent = msg;
+                toastEl.className = 'show';
+                clearTimeout(toastTimer);
+                toastTimer = setTimeout(function () { toastEl.className = ''; }, 2500);
+              } catch (e) { }
+            }
+
+            // ======================= small menu (touch + D-pad) =======================
+            var modal = null, box = null, titleEl = null, listEl = null;
+            var mBuild = null, mOpts = {}, mItems = [], mIdx = 0, mOpen = false;
+            var NAV = { 37: 1, 38: 1, 39: 1, 40: 1, 13: 1, 32: 1, 27: 1, 8: 1, 4: 1, 10009: 1, 461: 1 };
+
+            function ensureModal() {
+              if (modal && modal.isConnected) return;
+              modal = document.createElement('div'); modal.id = 'ytx-modal';
+              box = document.createElement('div'); box.id = 'ytx-box';
+              titleEl = document.createElement('div'); titleEl.id = 'ytx-title';
+              listEl = document.createElement('div'); listEl.id = 'ytx-list';
+              box.appendChild(titleEl); box.appendChild(listEl); modal.appendChild(box);
+              modal.addEventListener('click', function (e) { if (e.target === modal) back(); });
+              document.documentElement.appendChild(modal);
+            }
+            function openMenu(title, build, opts) {
+              ensureModal();
+              mBuild = build; mOpts = opts || {}; mOpts.title = title; mOpen = true;
+              mIdx = typeof mOpts.index === 'number' ? mOpts.index : 0;
+              modal.style.display = 'flex';
+              render();
+            }
+            function closeMenu() {
+              mOpen = false;
+              if (modal) modal.style.display = 'none';
+            }
+            function back() {
+              if (mOpts.back) mOpts.back(); else closeMenu();
+            }
+            function render() {
+              mItems = mBuild();
+              if (mIdx >= mItems.length) mIdx = mItems.length - 1;
+              if (mIdx < 0) mIdx = 0;
+              titleEl.textContent = mOpts.title;
+              while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+              listEl.style.gridTemplateColumns = 'repeat(' + (mOpts.cols || 1) + ',1fr)';
+              mItems.forEach(function (it, i) {
+                var d = document.createElement('div');
+                d.className = 'ytx-item' + (it.on ? ' on' : '') + (i === mIdx ? ' focus' : '');
+                if (it.span) d.style.gridColumn = 'span ' + it.span;
+                var l = document.createElement('div'); l.textContent = it.label; d.appendChild(l);
+                if (it.sub) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = it.sub; d.appendChild(s); }
+                d.addEventListener('click', function () { mIdx = i; choose(i); });
+                listEl.appendChild(d);
+              });
+              scrollToFocus();
+            }
+            function scrollToFocus() {
+              try { listEl.children[mIdx].scrollIntoView({ block: 'nearest' }); } catch (e) { }
+            }
+            function setFocus(i) {
+              if (!mItems.length) return;
+              i = Math.max(0, Math.min(mItems.length - 1, i));
+              var kids = listEl.children;
+              if (kids[mIdx]) kids[mIdx].classList.remove('focus');
+              mIdx = i;
+              if (kids[mIdx]) kids[mIdx].classList.add('focus');
+              scrollToFocus();
+            }
+            function choose(i) {
+              var it = mItems[i];
+              if (!it || !it.run) return;
+              var r = it.run();
+              if (r === 'keep') render();
+              else if (r !== 'nav') closeMenu();
+            }
+            function onMenuKey(e) {
+              if (!mOpen) return;
+              var k = e.keyCode;
+              if (!NAV[k]) return;
+              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+              if (e.type !== 'keydown') return;
+              var cols = mOpts.cols || 1;
+              if (k === 37) setFocus(mIdx - 1);
+              else if (k === 39) setFocus(mIdx + 1);
+              else if (k === 38) setFocus(mIdx - cols);
+              else if (k === 40) setFocus(mIdx + cols);
+              else if (k === 13 || k === 32) choose(mIdx);
+              else back();
+            }
+
+            // ======================= playback speed =======================
+            var SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
+            function applySpeed() {
+              var v = document.querySelector('video');
+              if (v && v.playbackRate !== cfg.speed) { try { v.playbackRate = cfg.speed; } catch (e) { } }
+            }
+            function setSpeed(s) {
+              cfg.speed = s; save(); applySpeed();
+              toast('Speed ' + s + 'x');
+            }
+            // every new video starts at the chosen speed
+            ['loadedmetadata', 'canplay', 'playing'].forEach(function (n) {
+              document.addEventListener(n, function (e) {
+                var v = e.target;
+                if (v && v.tagName === 'VIDEO' && cfg.speed !== 1 && v.playbackRate !== cfg.speed) {
+                  try { v.playbackRate = cfg.speed; } catch (x) { }
+                }
+              }, true);
+            });
+            function sendEscape() {
+              try {
+                var kE = document.createEvent('Event');
+                kE.initEvent('keydown', true, true); kE.keyCode = 27; kE.which = 27;
+                document.dispatchEvent(kE);
+              } catch (e) { }
+            }
+            function speedMenu(fromYT, backFn) {
+              var cur = 3;
+              SPEEDS.forEach(function (s, i) { if (Math.abs(cfg.speed - s) < 0.001) cur = i; });
+              function pick(s) {
+                return function () {
+                  setSpeed(s);
+                  if (fromYT) setTimeout(sendEscape, 80);
+                  if (backFn) { backFn(); return 'nav'; }
+                  return null;
+                };
+              }
+              openMenu('Playback speed', function () {
+                var items = SPEEDS.map(function (s) {
+                  return { label: s + 'x', on: Math.abs(cfg.speed - s) < 0.001, run: pick(s) };
+                });
+                items.push({ label: 'Fix stuttering (1.0001x)', span: 4, on: cfg.speed === 1.0001, run: pick(1.0001) });
+                return items;
+              }, { cols: 4, index: cur, back: backFn });
+            }
+
+            // The YouTube Settings row says "Speed - Not available on this device": open our picker instead.
+            var swallowEnterUntil = 0;
+            function speedRowHit(el) {
+              for (var n = 0; el && n < 8; n++, el = el.parentElement) {
+                var t = (el.innerText || '').trim();
+                if (t && t.length < 90 && /^speed\b/i.test(t) && /not available/i.test(t)) return true;
+              }
+              return false;
+            }
+            document.addEventListener('click', function (e) {
+              if (mOpen) return;
+              if (speedRowHit(e.target)) {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                speedMenu(true);
+              }
+            }, true);
+
+            // keys: Enter on the Speed row, colour buttons (blue 406 / 191) open the speed picker
+            function onGlobalKey(e) {
+              if (mOpen) return;
+              var k = e.keyCode;
+              if (k === 13) {
+                if (e.type === 'keydown') {
+                  var f = document.querySelector('.zylon-focus');
+                  if (f && speedRowHit(f)) {
+                    swallowEnterUntil = Date.now() + 500;
+                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                    speedMenu(true);
+                  }
+                } else if (Date.now() < swallowEnterUntil) {
+                  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                }
+              } else if (k === 406 || k === 191) {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                if (e.type === 'keydown') speedMenu(false);
+              }
+            }
+
+            // ======================= SponsorBlock =======================
+            var SBCATS = {
+              sponsor: ['Sponsor', '#00d400'], intro: ['Intro', '#00ffff'], outro: ['Outro', '#0202ed'],
+              interaction: ['Interaction reminder', '#cc00ff'], selfpromo: ['Self-promotion', '#ffff00'],
+              preview: ['Recap / preview', '#008fd6'], filler: ['Tangents / jokes', '#7300ff'],
+              music_offtopic: ['Non-music part', '#ff9900'], poi_highlight: ['Highlight', '#9b044c']
+            };
+            var sb = { id: null, segs: null, video: null, timer: null, done: {}, ov: null, ovKey: '' };
+            var SB_EVENTS = ['timeupdate', 'play', 'playing', 'seeked', 'ratechange'];
+
+            function sha256hex(s) {
+              return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)).then(function (buf) {
+                var a = new Uint8Array(buf), h = '';
+                for (var i = 0; i < a.length; i++) h += ('0' + a[i].toString(16)).slice(-2);
+                return h;
+              });
+            }
+            function sbDetach() {
+              clearTimeout(sb.timer); sb.timer = null;
+              if (sb.video) {
+                SB_EVENTS.forEach(function (n) { sb.video.removeEventListener(n, sbTick); });
+                sb.video = null;
+              }
+            }
+            function sbStop() {
+              sbDetach();
+              sb.id = null; sb.segs = null; sb.done = {};
+              sbHideOverlay();
+            }
+            function sbStart(id) {
+              sbStop();
+              sb.id = id;
+              if (!cfg.sb) return;
+              var cats = Object.keys(SBCATS);
+              sha256hex(id).then(function (h) {
+                return fetch('https://sponsor.ajay.app/api/skipSegments/' + h.substring(0, 4) +
+                  '?categories=' + encodeURIComponent(JSON.stringify(cats)));
+              }).then(function (r) {
+                if (!r.ok) throw new Error('none');
+                return r.json();
+              }).then(function (list) {
+                if (sb.id !== id) return;
+                var res = null;
+                for (var i = 0; i < list.length; i++) if (list[i].videoID === id) { res = list[i]; break; }
+                if (!res || !res.segments || !res.segments.length) return;
+                sb.segs = res.segments;
+                sbAttach();
+              }).catch(function () { });
+            }
+            function sbAttach() {
+              var v = document.querySelector('video');
+              if (!v) { sb.timer = setTimeout(sbAttach, 300); return; }
+              sbDetach();
+              sb.video = v;
+              SB_EVENTS.forEach(function (n) { v.addEventListener(n, sbTick); });
+              sbTick();
+            }
+            function sbTick() {
+              clearTimeout(sb.timer); sb.timer = null;
+              var v = sb.video;
+              if (!v || !sb.segs || !cfg.sb || v.paused) return;
+              var t = v.currentTime, next = null;
+              for (var i = 0; i < sb.segs.length; i++) {
+                var seg = sb.segs[i];
+                if (!cfg.sbCats[seg.category]) continue;
+                var s = seg.segment[0], e = seg.segment[1];
+                if (t >= s - 0.05 && t < e - 0.25) { sbSkip(seg); return; }
+                if (s > t && (!next || s < next.segment[0])) next = seg;
+              }
+              if (next) {
+                var d = (next.segment[0] - t) / (v.playbackRate || 1) * 1000;
+                sb.timer = setTimeout(sbTick, Math.max(0, d - 30));
+              }
+            }
+            function sbSkip(seg) {
+              var v = sb.video, now = Date.now(), rec = sb.done[seg.UUID];
+              if (rec && now - rec.t < 1500) {            // loop guard (user rewound into the segment)
+                if (!rec.warned) { rec.warned = true; if (cfg.sbToast) toast('SponsorBlock: not skipping again'); }
+                return;
+              }
+              sb.done[seg.UUID] = { t: now };
+              var e = seg.segment[1];
+              v.currentTime = (v.duration - e < 1) ? Math.max(0, e - 1) : e;
+              if (cfg.sbToast) toast('SponsorBlock: skipped ' + (SBCATS[seg.category] ? SBCATS[seg.category][0].toLowerCase() : seg.category));
+            }
+            function sbRefresh() {
+              var id = sb.id || currentVid();
+              if (!id) return;
+              if (cfg.sb) sbStart(id); else sbStop();
+              lastVid = id;
+            }
+
+            // coloured segments drawn over the seek bar (best effort)
+            function sbHideOverlay() { if (sb.ov) sb.ov.style.display = 'none'; }
+            function sbOverlay() {
+              try {
+                var v = sb.video;
+                if (!sb.segs || !v || !cfg.sb || !v.duration || !isFinite(v.duration)) { sbHideOverlay(); return; }
+                var sl = document.querySelector('div[idomkey="slider"]');
+                if (!sl) { sbHideOverlay(); return; }
+                var r = sl.getBoundingClientRect(), pb = document.querySelector('ytlr-progress-bar');
+                if (r.width < 100 || r.bottom < 0 || r.top > innerHeight ||
+                    (pb && pb.getAttribute('hybridnavfocusable') === 'false')) { sbHideOverlay(); return; }
+                if (!sb.ov || !sb.ov.isConnected) {
+                  sb.ov = document.createElement('div'); sb.ov.id = 'ytx-sb'; sb.ovKey = '';
+                  document.documentElement.appendChild(sb.ov);
+                }
+                var key = sb.id + '|' + v.duration + '|' + JSON.stringify(cfg.sbCats);
+                if (key !== sb.ovKey) {
+                  sb.ovKey = key;
+                  while (sb.ov.firstChild) sb.ov.removeChild(sb.ov.firstChild);
+                  sb.segs.forEach(function (seg) {
+                    if (seg.category !== 'poi_highlight' && !cfg.sbCats[seg.category]) return;
+                    var c = SBCATS[seg.category] ? SBCATS[seg.category][1] : '#0000ff';
+                    var a = seg.segment[0], b = seg.segment[1], d = document.createElement('div');
+                    d.style.cssText = 'position:absolute;top:0;height:100%;opacity:.75;background:' + c +
+                      ';left:' + (100 * a / v.duration) + '%;width:' +
+                      (seg.category === 'poi_highlight' ? 0.4 : 100 * (b - a) / v.duration) + '%';
+                    sb.ov.appendChild(d);
+                  });
+                }
+                var st = sb.ov.style;
+                st.left = r.left + 'px'; st.top = r.top + 'px'; st.width = r.width + 'px';
+                st.height = Math.max(3, r.height) + 'px'; st.display = 'block';
+              } catch (e) { }
+            }
+
+            // follow the video in the URL:  .../tv#/watch?v=VIDEOID
+            var lastVid = null;
+            function currentVid() {
+              try {
+                var m = (location.hash || '').match(/[?&]v=([\w-]{6,})/);
+                return m ? m[1] : null;
+              } catch (e) { return null; }
+            }
+            function checkVideo() {
+              var id = currentVid();
+              if (id !== lastVid) {
+                lastVid = id;
+                if (id) sbStart(id); else sbStop();
+              } else if (id && sb.segs && cfg.sb) {
+                var v = document.querySelector('video');
+                if (v && v !== sb.video) sbAttach();       // YouTube swapped the <video> element
+              }
+            }
+            window.addEventListener('hashchange', checkVideo);
+
+            // ======================= turn off screen / auto dim =======================
+            var off = null, offAt = 0;
+            function capUi(visible) { try { if (window.YTCap && YTCap.setUiVisible) YTCap.setUiVisible(!!visible); } catch (e) { } }
+            function screenOff() {
+              if (off || !document.body) return;
+              off = [];
+              var ch = document.body.children;
+              for (var i = 0; i < ch.length; i++) {
+                var c = ch[i], tg = c.tagName.toLowerCase();
+                if (tg === 'script' || tg === 'svg') continue;
+                off.push([c, c.style.getPropertyValue('display'), c.style.getPropertyPriority('display')]);
+                c.style.setProperty('display', 'none', 'important');
+              }
+              document.documentElement.style.setProperty('background', '#000', 'important');
+              offAt = Date.now();
+              capUi(false);
+            }
+            function wake() {
+              if (!off) return;
+              off.forEach(function (o) {
+                if (o[1]) o[0].style.setProperty('display', o[1], o[2]); else o[0].style.removeProperty('display');
+              });
+              off = null;
+              document.documentElement.style.removeProperty('background');
+              capUi(true);
+            }
+            function onWakeEvent(e) {
+              if (!off) return;
+              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+              if (Date.now() - offAt > 1000 && (e.type === 'keydown' || e.type === 'touchstart' || e.type === 'mousedown')) wake();
+            }
+
+            var dimEl = null, dimTimer = null, dimVisible = false, lastArm = 0;
+            function dimShow(on) {
+              if (!dimEl || !dimEl.isConnected) {
+                if (!on) return;
+                dimEl = document.createElement('div'); dimEl.id = 'ytx-dim';
+                document.documentElement.appendChild(dimEl);
+              }
+              dimVisible = on;
+              dimEl.style.opacity = on ? String(cfg.dimOpacity) : '0';
+            }
+            function armDim() {
+              clearTimeout(dimTimer);
+              dimShow(false);
+              if (!cfg.dim) return;
+              dimTimer = setTimeout(function () {
+                var v = document.querySelector('video');
+                if (v && !v.paused && !v.ended) { armDim(); return; }   // never dim while playing
+                dimShow(true);
+              }, cfg.dimTimeout * 1000);
+            }
+            function onUser() {
+              var n = Date.now();
+              if (dimVisible || n - lastArm > 500) { lastArm = n; armDim(); }
+            }
+
+            // ======================= tools panel =======================
+            function cycle(list, cur) {
+              var i = list.indexOf(cur);
+              return list[(i + 1) % list.length];
+            }
+            function onOff(b) { return b ? 'On' : 'Off'; }
+            function panel() {
+              openMenu('Tools', function () {
+                return [
+                  { label: 'Playback speed', sub: cfg.speed + 'x', run: function () { speedMenu(false, panel); return 'nav'; } },
+                  { label: 'SponsorBlock', sub: onOff(cfg.sb), run: function () { cfg.sb = !cfg.sb; save(); sbRefresh(); return 'keep'; } },
+                  { label: 'SponsorBlock categories', run: function () { sbCatsMenu(); return 'nav'; } },
+                  { label: 'SponsorBlock toasts', sub: onOff(cfg.sbToast), run: function () { cfg.sbToast = !cfg.sbToast; save(); return 'keep'; } },
+                  { label: 'Turn off screen', sub: 'Audio keeps playing. Press any key or tap to wake.', run: function () { setTimeout(screenOff, 200); return null; } },
+                  { label: 'Auto-dim when paused', sub: onOff(cfg.dim), run: function () { cfg.dim = !cfg.dim; save(); armDim(); return 'keep'; } },
+                  { label: 'Dim after', sub: cfg.dimTimeout + ' s', run: function () { cfg.dimTimeout = cycle([30, 60, 120, 300], cfg.dimTimeout); save(); armDim(); return 'keep'; } },
+                  { label: 'Dim strength', sub: Math.round(cfg.dimOpacity * 100) + '%', run: function () { cfg.dimOpacity = cycle([0.3, 0.5, 0.7, 0.9], cfg.dimOpacity); save(); return 'keep'; } }
+                ];
+              }, { back: null });
+            }
+            function sbCatsMenu() {
+              openMenu('SponsorBlock categories', function () {
+                return Object.keys(cfg.sbCats).map(function (k) {
+                  return {
+                    label: SBCATS[k] ? SBCATS[k][0] : k, sub: cfg.sbCats[k] ? 'Skip' : 'Don\'t skip',
+                    on: !!cfg.sbCats[k],
+                    run: function () { cfg.sbCats[k] = cfg.sbCats[k] ? 0 : 1; save(); return 'keep'; }
+                  };
+                });
+              }, { back: panel });
+            }
+
+            // ======================= wiring =======================
+            window.addEventListener('keydown', onMenuKey, true);
+            window.addEventListener('keyup', onMenuKey, true);
+            window.addEventListener('keypress', onMenuKey, true);
+            ['keydown', 'keyup', 'keypress'].forEach(function (n) { window.addEventListener(n, onGlobalKey, true); });
+            ['keydown', 'keyup', 'keypress', 'touchstart', 'mousedown'].forEach(function (n) { window.addEventListener(n, onWakeEvent, true); });
+            ['keydown', 'touchstart', 'mousedown', 'mousemove'].forEach(function (n) { window.addEventListener(n, onUser, true); });
+
+            X.panel = panel;
+            X.speed = function () { speedMenu(false); };
+            X.setSpeed = setSpeed;
+            X.screenOff = function () { setTimeout(screenOff, 200); };
+            X.toast = toast;
+            X._sb = sb; X._tick = sbTick; X._cfg = cfg;
+
+            inject();
+            if (cfg.dim) armDim();
+            setInterval(function () {
+              try { inject(); checkVideo(); sbOverlay(); } catch (e) { }
+            }, 400);
+          })();
+          EOF
+
+          # ---- Script 4: capture / inspector helpers (passive until a CAP menu button is used) ----
+          cat > "$P/app/src/main/assets/inspector.js" <<'EOF'
+          (function () {
+            if (window.__cap) return;
+            var cap = window.__cap = {};
+            var picking = false;
+
+            function pad(n) { return (n < 10 ? '0' : '') + n; }
+            function stamp() {
+              var d = new Date();
+              return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' +
+                pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+            }
+            function toast(m) { try { if (window.YTCap) YTCap.toast(String(m)); } catch (e) { } }
+            function send(name, text) {
+              if (!window.YTCap) return;
+              YTCap.begin();
+              var n = 200000;
+              for (var i = 0; i < text.length; i += n) YTCap.chunk(text.slice(i, i + n));
+              YTCap.end(name);
+            }
+            function safeJson(o, space) {
+              var seen = new WeakSet();
+              try {
+                return JSON.stringify(o, function (k, v) {
+                  if (typeof v === 'function') return '[fn]';
+                  if (v && typeof v === 'object') {
+                    if (v.nodeType) return '[node]';
+                    if (seen.has(v)) return '[circular]';
+                    seen.add(v);
+                  }
+                  return v;
+                }, space);
+              } catch (e) { return '"[unserializable: ' + e + ']"'; }
+            }
+
+            function cls(el) {
+              var c = el.getAttribute && el.getAttribute('class');
+              return c ? c.trim() : '';
+            }
+            function sel(el) {
+              var s = (el.tagName || '?').toLowerCase();
+              if (el.id) s += '#' + el.id;
+              var c = cls(el).split(/\s+/).filter(Boolean).slice(0, 6).join('.');
+              if (c) s += '.' + c;
+              var k = el.getAttribute && el.getAttribute('idomkey');
+              if (k) s += '[idomkey="' + k + '"]';
+              return s;
+            }
+            function r1(n) { return Math.round(n * 10) / 10; }
+
+            var PROPS = ['backgroundColor', 'backgroundImage', 'color', 'opacity', 'borderRadius', 'boxShadow',
+              'display', 'position', 'zIndex', 'visibility', 'filter', 'transform', 'mixBlendMode',
+              'overflow', 'width', 'height'];
+
+            function info(el) {
+              var r = el.getBoundingClientRect(), cs = getComputedStyle(el), st = {};
+              PROPS.forEach(function (p) {
+                var v = cs[p];
+                if (v && v !== 'none' && v !== 'normal' && v !== 'auto') st[p] = String(v).slice(0, 220);
+              });
+              var bf = cs.backdropFilter || cs.webkitBackdropFilter;
+              if (bf && bf !== 'none') st.backdropFilter = bf;
+              var attrs = {};
+              if (el.attributes) for (var i = 0; i < el.attributes.length; i++) {
+                var a = el.attributes[i];
+                if (a.name === 'class' || a.name === 'style') continue;
+                attrs[a.name] = String(a.value).slice(0, 80);
+              }
+              var inline = el.getAttribute && el.getAttribute('style');
+              return {
+                selector: sel(el),
+                tag: (el.tagName || '').toLowerCase(),
+                id: el.id || undefined,
+                class: cls(el) || undefined,
+                idomkey: (el.getAttribute && el.getAttribute('idomkey')) || undefined,
+                rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
+                attrs: attrs,
+                inlineStyle: inline ? inline.slice(0, 300) : undefined,
+                text: ((el.innerText || '') + '').trim().slice(0, 80) || undefined,
+                computed: st
+              };
+            }
+            function chain(el) {
+              var out = [], n = 0;
+              while (el && el.nodeType === 1 && n++ < 12) { out.push(sel(el)); el = el.parentElement; }
+              return out;
+            }
+            function header() {
+              var v = document.querySelector('video');
+              return {
+                captured: new Date().toISOString(),
+                url: location.href,
+                userAgent: navigator.userAgent,
+                viewport: [innerWidth, innerHeight, window.devicePixelRatio],
+                bodyClass: document.body ? document.body.className : '',
+                video: v ? {
+                  rect: (function () { var r = v.getBoundingClientRect(); return [r1(r.left), r1(r.top), r1(r.width), r1(r.height)]; })(),
+                  currentTime: v.currentTime, duration: v.duration, readyState: v.readyState,
+                  paused: v.paused, playbackRate: v.playbackRate,
+                  src: (v.currentSrc || v.src || '').slice(0, 80)
+                } : null
+              };
+            }
+            function flash(el) {
+              try {
+                var r = el.getBoundingClientRect(), d = document.createElement('div');
+                d.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;border:3px solid #0f0;' +
+                  'background:rgba(0,255,0,.15);left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
+                  'px;height:' + r.height + 'px';
+                document.documentElement.appendChild(d);
+                setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 1500);
+              } catch (e) { }
+            }
+
+            // ---- 1. Pick: tap an item, capture everything stacked at that point ----
+            function capturePoint(x, y) {
+              var stack = document.elementsFromPoint(x, y).slice(0, 14);
+              if (!stack.length) { toast('Nothing found at that point'); return; }
+              flash(stack[0]);
+              var out = header();
+              out.type = 'element-pick';
+              out.point = [Math.round(x), Math.round(y)];
+              out.ancestorsOfTop = chain(stack[0]);
+              out.topOuterHTML = (stack[0].outerHTML || '').slice(0, 1500);
+              out.stackTopToBottom = stack.map(info);
+              out.tectonicConfig = window.tectonicConfig ? JSON.parse(safeJson(window.tectonicConfig)) : null;
+              send('element_' + stamp() + '.txt', safeJson(out, 1));
+            }
+            cap.pick = function () {
+              if (picking) return;
+              picking = true;
+              toast('Tap the item you want to capture');
+              var types = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click'];
+              var done = false;
+              function handler(e) {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                if (done) return;
+                if (e.type === 'pointerup' || e.type === 'touchend' || e.type === 'mouseup' || e.type === 'click') {
+                  var t = (e.changedTouches && e.changedTouches[0]) || e;
+                  if (typeof t.clientX !== 'number') return;
+                  done = true;
+                  capturePoint(t.clientX, t.clientY);
+                  setTimeout(function () {
+                    types.forEach(function (n) { window.removeEventListener(n, handler, true); });
+                    picking = false;
+                  }, 600);
+                }
+              }
+              types.forEach(function (n) { window.addEventListener(n, handler, true); });
+            };
+
+            // ---- 2. Dump visible UI: every visible, styled element (use after showing the controls) ----
+            cap.dumpUi = function () {
+              var lines = [], all = document.body.getElementsByTagName('*'), W = innerWidth, H = innerHeight;
+              for (var i = 0; i < all.length && lines.length < 1800; i++) {
+                var el = all[i], r = el.getBoundingClientRect();
+                if (r.width < 8 || r.height < 8 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) continue;
+                var cs = getComputedStyle(el);
+                if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+                var bg = cs.backgroundColor, bgi = cs.backgroundImage, bf = cs.backdropFilter || cs.webkitBackdropFilter;
+                var hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+                var hasImg = bgi && bgi !== 'none';
+                var hasBf = bf && bf !== 'none';
+                var ownText = '';
+                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) ownText += c.nodeValue;
+                ownText = ownText.trim().slice(0, 40);
+                if (!hasBg && !hasImg && !hasBf && !ownText && el.tagName !== 'VIDEO' && el.tagName !== 'IMG') continue;
+                lines.push(sel(el) + ' | rect=' + [r1(r.left), r1(r.top), r1(r.width), r1(r.height)].join(',') +
+                  (hasBg ? ' | bg=' + bg : '') + (hasImg ? ' | bgimg=' + bgi.slice(0, 90) : '') +
+                  (hasBf ? ' | backdrop=' + bf : '') +
+                  (cs.opacity !== '1' ? ' | opacity=' + cs.opacity : '') +
+                  (cs.borderRadius !== '0px' ? ' | radius=' + cs.borderRadius : '') +
+                  (cs.zIndex !== 'auto' ? ' | z=' + cs.zIndex : '') +
+                  (ownText ? ' | text="' + ownText + '"' : ''));
+              }
+              var text = 'YTCAP visible-UI dump\n' + safeJson(header(), 1) + '\n\n' + lines.join('\n') + '\n';
+              send('ui_' + stamp() + '.txt', text);
+            };
+
+            // ---- 3. Full HTML + all CSS ----
+            cap.dumpDom = function () {
+              var out = ['<!-- YTCAP DOM dump ' + new Date().toISOString() + ' | ' + location.href + ' -->',
+                document.documentElement.outerHTML, '', '/* ===== CSS (all stylesheets) ===== */'];
+              function addSheet(ss, label) {
+                try {
+                  var rules = ss.cssRules, parts = [];
+                  for (var i = 0; i < rules.length; i++) parts.push(rules[i].cssText);
+                  out.push('\n/* --- ' + label + ' (' + rules.length + ' rules) --- */\n' + parts.join('\n'));
+                } catch (e) { out.push('\n/* --- ' + label + ' unreadable (cross-origin) --- */'); }
+              }
+              for (var i = 0; i < document.styleSheets.length; i++) {
+                var ss = document.styleSheets[i];
+                addSheet(ss, ss.href || ('inline #' + i));
+              }
+              try { (document.adoptedStyleSheets || []).forEach(function (ss, i) { addSheet(ss, 'adopted #' + i); }); } catch (e) { }
+              send('dom_' + stamp() + '.txt', out.join('\n'));
+            };
+
+            // ---- 4. Complete JS: inline scripts + every external script the page loaded ----
+            cap.dumpJs = function () {
+              toast('Collecting page JS, please wait...');
+              var urls = [], seen = {};
+              function add(u) { if (u && !seen[u]) { seen[u] = 1; urls.push(u); } }
+              [].forEach.call(document.scripts, function (s) { if (s.src) add(s.src); });
+              try {
+                performance.getEntriesByType('resource').forEach(function (e) {
+                  if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) add(e.name);
+                });
+              } catch (e) { }
+
+              var out = ['/* YTCAP JS dump ' + new Date().toISOString() + ' */',
+                '/* url: ' + location.href + ' */',
+                '/* ua: ' + navigator.userAgent + ' */',
+                '/* body class: ' + (document.body ? document.body.className : '') + ' */',
+                '/* window._yttv keys: ' + (window._yttv ? Object.keys(window._yttv).join(',') : 'none') + ' */',
+                '/* tectonicConfig: */', safeJson(window.tectonicConfig, 1)];
+              [].forEach.call(document.scripts, function (s, i) {
+                if (!s.src && s.textContent) {
+                  out.push('\n/* ===== inline script #' + i + ' (' + s.textContent.length + ' chars) ===== */\n' + s.textContent);
+                }
+              });
+
+              var total = 0, idx = 0;
+              function next() {
+                if (idx >= urls.length) {
+                  out.push('\n/* total external chars: ' + total + ' in ' + urls.length + ' files */');
+                  send('js_' + stamp() + '.txt', out.join('\n'));
+                  return;
+                }
+                var u = urls[idx++];
+                if (total > 14000000) {
+                  out.push('\n/* ===== ' + u + ' SKIPPED (size cap reached) ===== */');
+                  return next();
+                }
+                fetch(u, { credentials: 'include' })
+                  .then(function (r) { return r.text().then(function (t) { return { s: r.status, t: t }; }); })
+                  .then(function (r) {
+                    total += r.t.length;
+                    out.push('\n/* ===== ' + u + ' [' + r.s + ', ' + r.t.length + ' chars] ===== */\n' + r.t);
+                  })
+                  .catch(function (e) { out.push('\n/* ===== ' + u + ' FAILED: ' + e + ' ===== */'); })
+                  .then(next);
+              }
+              next();
+            };
+          })();
+          EOF
+
           cat > "$J/MainActivity.java" <<'EOF'
           package com.local.ytadblock.tv;
 
           import android.annotation.SuppressLint;
           import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.ContentValues;
+          import android.content.DialogInterface;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
           import android.graphics.Bitmap;
           import android.graphics.Color;
           import android.graphics.drawable.GradientDrawable;
@@ -481,14 +1252,20 @@ jobs:
           import android.net.Network;
           import android.net.NetworkCapabilities;
           import android.net.NetworkRequest;
+          import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.os.Environment;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.provider.MediaStore;
           import android.view.Gravity;
           import android.view.KeyEvent;
           import android.view.View;
           import android.view.ViewGroup;
           import android.view.WindowManager;
           import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
           import android.webkit.WebChromeClient;
           import android.webkit.WebResourceError;
           import android.webkit.WebResourceRequest;
@@ -498,47 +1275,93 @@ jobs:
           import android.widget.FrameLayout;
           import android.widget.LinearLayout;
           import android.widget.TextView;
+          import android.widget.Toast;
 
+          import androidx.core.content.FileProvider;
           import androidx.webkit.WebViewCompat;
           import androidx.webkit.WebViewFeature;
 
           import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileOutputStream;
           import java.io.InputStream;
+          import java.io.OutputStream;
+          import java.nio.charset.StandardCharsets;
           import java.util.ArrayList;
           import java.util.Collections;
           import java.util.List;
 
           public class MainActivity extends Activity {
 
+              // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
+              private static final boolean DEBUG_TOOLS = true;
+
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // TV-style user agent so youtube.com serves the original TV (leanback) interface.
-              private static final String TV_UA =
+              // ---------------------------------------------------------------------------------
+              // Headers (User-Agent) you can switch between from the CAP menu -> "6. Header".
+              // Edit the strings here if one of them needs to be different.
+              // ---------------------------------------------------------------------------------
+              private static final String UA_TV =
                       "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
                               + "85.0.4183.93/6.5 TV Safari/537.36";
 
+              // Same profile TizenTube uses for the Amazon Fire TV Stick (AFTMM).
+              private static final String UA_AMAZON =
+                      "Mozilla/5.0 (Linux armeabi-v7a; Android 7.1.2) Cobalt/25.lts.30.1034958-gold (unlike Gecko) "
+                              + "v8/8.8.278.17-jit gles Starboard/15, Amazon_ATV_mt8695_0/NS6294 (Amazon, AFTMM) "
+                              + "com.google.android.youtube.tv/5.30.301";
+
+              private static final String UA_SAFARI =
+                      "Mozilla/5.0 (Macintosh; U; Intel Mac OS X 10_5_8; en-us) AppleWebKit/531.22.7 "
+                              + "(KHTML, like Gecko) Version/4.0.5 Safari/531.22.7";
+
+              private static final String UA_PLAYSTATION =
+                      "Mozilla/5.0 (PlayStation; PlayStation 7233) AppleWebKit/605.1.15 (KHTML, like Gecko) "
+                              + "Version/15.4 Safari/605.1.15";
+
+              private static final String[][] HEADERS = {
+                      {"TV", UA_TV},
+                      {"Amazon / AFTMM", UA_AMAZON},
+                      {"Safari (4.0)", UA_SAFARI},
+                      {"PlayStation 7233", UA_PLAYSTATION}
+              };
+
               private WebView web;
               private FrameLayout root;
+              private LinearLayout panel;
+              private LinearLayout capBox;
+              private TextView headerBtn;
               private LinearLayout offlineView;
               private TextView offlineTitle;
               private TextView retryBtn;
               private ConnectivityManager.NetworkCallback netCb;
+              private SharedPreferences prefs;
               private final List<String> scripts = new ArrayList<>();
               private boolean scriptAtDocumentStart = false;
               private boolean loadFailed = false;
               private String failedUrl = null;
               private long lastBack = 0;
+              private File lastCapture = null;
+              private final Handler ui = new Handler(Looper.getMainLooper());
 
-              @SuppressLint("SetJavaScriptEnabled")
+              @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+                  prefs = getSharedPreferences("ytx", MODE_PRIVATE);
 
                   String ad = readAsset("adblock.js");
                   if (!ad.isEmpty()) scripts.add(ad);
                   String glass = readAsset("glass.js");
                   if (!glass.isEmpty()) scripts.add(glass);
+                  String ytx = readAsset("ytx.js");            // speed, SponsorBlock, screen off / dim, tools panel
+                  if (!ytx.isEmpty()) scripts.add(ytx);
+                  if (DEBUG_TOOLS) {
+                      String insp = readAsset("inspector.js");
+                      if (!insp.isEmpty()) scripts.add(insp);
+                  }
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
@@ -554,13 +1377,19 @@ jobs:
                   s.setJavaScriptEnabled(true);
                   s.setDomStorageEnabled(true);
                   s.setMediaPlaybackRequiresUserGesture(false);
-                  s.setUserAgentString(TV_UA);
+                  s.setUserAgentString(currentUa());
                   s.setLoadWithOverviewMode(true);
                   s.setUseWideViewPort(true);
 
                   CookieManager cm = CookieManager.getInstance();
                   cm.setAcceptCookie(true);
                   cm.setAcceptThirdPartyCookies(web, true);
+
+                  if (DEBUG_TOOLS) {
+                      WebView.setWebContentsDebuggingEnabled(true);   // chrome://inspect from a PC
+                      web.addJavascriptInterface(new CapBridge(), "YTCap");
+                      buildDebugUi();
+                  }
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!scripts.isEmpty()
@@ -652,6 +1481,40 @@ jobs:
                   } catch (Exception e) {
                       return "";
                   }
+              }
+
+              // ------------------------------------------------------------------
+              // Header (User-Agent) selection
+              // ------------------------------------------------------------------
+              private int headerIndex() {
+                  int i = prefs.getInt("header", 0);
+                  return (i < 0 || i >= HEADERS.length) ? 0 : i;
+              }
+
+              private String currentUa() {
+                  return HEADERS[headerIndex()][1];
+              }
+
+              private void chooseHeader() {
+                  String[] names = new String[HEADERS.length];
+                  for (int i = 0; i < HEADERS.length; i++) names[i] = HEADERS[i][0];
+                  new AlertDialog.Builder(this)
+                          .setTitle("Header (User-Agent)")
+                          .setSingleChoiceItems(names, headerIndex(), new DialogInterface.OnClickListener() {
+                              @Override
+                              public void onClick(DialogInterface d, int which) {
+                                  prefs.edit().putInt("header", which).apply();
+                                  web.getSettings().setUserAgentString(HEADERS[which][1]);
+                                  if (headerBtn != null) headerBtn.setText("6. Header: " + HEADERS[which][0]);
+                                  d.dismiss();
+                                  Toast.makeText(MainActivity.this,
+                                          "Header: " + HEADERS[which][0] + " - reloading", Toast.LENGTH_SHORT).show();
+                                  loadFailed = false;
+                                  web.loadUrl(START_URL);
+                              }
+                          })
+                          .setNegativeButton("Cancel", null)
+                          .show();
               }
 
               // ------------------------------------------------------------------
@@ -789,6 +1652,247 @@ jobs:
                               .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), netCb);
                   } catch (Exception e) {
                       netCb = null;
+                  }
+              }
+
+              // ------------------------------------------------------------------
+              // Debug / tools menu: small "CAP" button -> menu
+              // ------------------------------------------------------------------
+              private TextView menuButton(String label, View.OnClickListener l) {
+                  TextView t = new TextView(this);
+                  t.setText(label);
+                  t.setTextColor(Color.WHITE);
+                  t.setTextSize(14);
+                  t.setSingleLine(true);
+                  t.setMinWidth(dp(label.equals("CAP") ? 56 : 250));
+                  t.setPadding(dp(14), dp(10), dp(14), dp(10));
+                  t.setBackgroundColor(0xE6202020);
+                  t.setFocusable(false);
+                  t.setOnClickListener(l);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  lp.topMargin = dp(4);
+                  t.setLayoutParams(lp);
+                  return t;
+              }
+
+              private void runJs(String js) {
+                  web.evaluateJavascript(
+                          "try{" + js + "}catch(e){window.YTCap&&YTCap.toast('Error: '+e)}", null);
+              }
+
+              private void buildDebugUi() {
+                  capBox = new LinearLayout(this);
+                  capBox.setOrientation(LinearLayout.VERTICAL);
+                  capBox.setGravity(Gravity.END);
+
+                  panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setVisibility(View.GONE);
+
+                  TextView bubble = menuButton("CAP", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+                      }
+                  });
+                  bubble.setAlpha(0.55f);
+
+                  panel.addView(menuButton("1. Pick item (then tap it)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.pick()");
+                      }
+                  }));
+                  panel.addView(menuButton("2. Dump visible UI (in 5 s)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          Toast.makeText(MainActivity.this,
+                                  "Capturing in 5 seconds - show the screen you want", Toast.LENGTH_LONG).show();
+                          ui.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  runJs("window.__cap.dumpUi()");
+                              }
+                          }, 5000);
+                      }
+                  }));
+                  panel.addView(menuButton("3. Save complete page JS", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.dumpJs()");
+                      }
+                  }));
+                  panel.addView(menuButton("4. Save HTML + CSS", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.dumpDom()");
+                      }
+                  }));
+                  panel.addView(menuButton("5. Share last capture", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          shareFile(lastCapture);
+                      }
+                  }));
+                  headerBtn = menuButton("6. Header: " + HEADERS[headerIndex()][0], new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          chooseHeader();
+                      }
+                  });
+                  panel.addView(headerBtn);
+                  panel.addView(menuButton("7. Speed / SponsorBlock / Screen", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__ytx.panel()");
+                      }
+                  }));
+                  panel.addView(menuButton("8. Turn off screen", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__ytx.screenOff()");
+                      }
+                  }));
+
+                  capBox.addView(bubble);
+                  capBox.addView(panel);
+
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.TOP | Gravity.END);
+                  lp.setMargins(0, dp(8), dp(8), 0);
+                  root.addView(capBox, lp);
+              }
+
+              /** Receives capture text from inspector.js in chunks, then saves + shares it. */
+              private class CapBridge {
+                  private final StringBuilder buf = new StringBuilder();
+
+                  @JavascriptInterface
+                  public synchronized void begin() {
+                      buf.setLength(0);
+                  }
+
+                  @JavascriptInterface
+                  public synchronized void chunk(String s) {
+                      buf.append(s);
+                  }
+
+                  @JavascriptInterface
+                  public void end(String name) {
+                      final String text;
+                      synchronized (this) {
+                          text = buf.toString();
+                          buf.setLength(0);
+                      }
+                      final String fileName = name.replaceAll("[^A-Za-z0-9._-]", "_");
+                      new Thread(new Runnable() {
+                          @Override
+                          public void run() {
+                              saveCapture(fileName, text);
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void toast(final String msg) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+
+                  /** Hides / shows the CAP button (used by "Turn off screen" so the screen is fully black). */
+                  @JavascriptInterface
+                  public void setUiVisible(final boolean visible) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              if (capBox != null) capBox.setVisibility(visible ? View.VISIBLE : View.GONE);
+                              if (!visible && panel != null) panel.setVisibility(View.GONE);
+                          }
+                      });
+                  }
+              }
+
+              private void saveCapture(String name, String text) {
+                  try {
+                      byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+                      File base = getExternalFilesDir(null);
+                      if (base == null) base = getFilesDir();
+                      File dir = new File(base, "captures");
+                      dir.mkdirs();
+                      final File f = new File(dir, name);
+                      try (FileOutputStream o = new FileOutputStream(f)) {
+                          o.write(bytes);
+                      }
+                      lastCapture = f;
+                      String where = f.getAbsolutePath();
+                      if (copyToDownloads(name, bytes)) where = "Downloads/YTCapture/" + name;
+                      final String msg = "Saved " + (bytes.length / 1024) + " KB: " + where;
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                              shareFile(f);
+                          }
+                      });
+                  } catch (final Exception e) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, "Save failed: " + e, Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+              }
+
+              @SuppressLint("NewApi")
+              private boolean copyToDownloads(String name, byte[] bytes) {
+                  if (Build.VERSION.SDK_INT < 29) return false;
+                  try {
+                      ContentValues v = new ContentValues();
+                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                      v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
+                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YTCapture");
+                      Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                      if (u == null) return false;
+                      try (OutputStream os = getContentResolver().openOutputStream(u)) {
+                          if (os == null) return false;
+                          os.write(bytes);
+                      }
+                      return true;
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              private void shareFile(File f) {
+                  if (f == null || !f.exists()) {
+                      Toast.makeText(this, "No capture saved yet", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  try {
+                      Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
+                      Intent i = new Intent(Intent.ACTION_SEND);
+                      i.setType("text/plain");
+                      i.putExtra(Intent.EXTRA_STREAM, uri);
+                      i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
+                      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      startActivity(Intent.createChooser(i, "Send capture"));
+                  } catch (Exception e) {
+                      Toast.makeText(this, "Cannot share: " + e, Toast.LENGTH_LONG).show();
                   }
               }
 

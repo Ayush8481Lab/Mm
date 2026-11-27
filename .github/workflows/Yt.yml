@@ -6,11 +6,14 @@ name: Build YouTube AdBlock TV APK
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
 #                   7-dot circular loading spinner instead of "Loading...",
-#                   sign-in / welcome page background pictures forced back on
+#                   sign-in / welcome page background pictures forced back on,
+#                   no black box behind the separator dots (channel . views . time),
+#                   soft black gradient behind the player controls (like the original app)
 #   3. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
 #                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
 #                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off (own shield icon)
-#                                   / Turn off screen (eye icon)
+#                                   / Turn off screen (eye icon) - icons are drawn as an overlay
+#                                   with the row's own grey, covering the original icon
 #                   Touch fix: taps on our menus never reach the YouTube panel underneath.
 #   Also: on-screen remote (Up / Down / Left / Right / OK / Back) on the left edge, for tablets
 #         (set SHOW_REMOTE=false in MainActivity.java to remove it).
@@ -329,6 +332,19 @@ jobs:
               /* video area is always plain black (no grey poster) */
               'video{background-color:#000 !important;}',
 
+              /* separator dots between channel / views / time (and every pseudo-element in that row): no black box */
+              'body.WEB_PAGE_TYPE_WATCH yt-formatted-string::before,body.WEB_PAGE_TYPE_WATCH yt-formatted-string::after,',
+              'body.WEB_PAGE_TYPE_WATCH span[idomkey]::before,body.WEB_PAGE_TYPE_WATCH span[idomkey]::after,',
+              'body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"],body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"] *,',
+              'body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"]::before,body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"]::after,',
+              'body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"] *::before,body.WEB_PAGE_TYPE_WATCH [idomkey^="detail-text"] *::after{',
+              '  background:transparent !important;background-color:transparent !important;box-shadow:none !important;',
+              '  text-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}',
+
+              /* soft black gradient from the seek bar down to the bottom while the player controls are shown */
+              '#ytg-scrim{position:absolute;left:0;right:0;bottom:0;height:0;pointer-events:none;z-index:2;opacity:0;',
+              '  transition:opacity .3s;background:linear-gradient(to bottom,rgba(0,0,0,0),rgba(0,0,0,.28) 50%,rgba(0,0,0,.62));}',
+
               /* sign-in / welcome pages keep their background pictures */
               'html body ytlr-welcome-immersive-value-prop[class]{',
               '  background-image:url(' + BG_IMMERSIVE + ') !important;background-size:cover !important;',
@@ -443,6 +459,8 @@ jobs:
                 for (i = 0; i < all.length; i++) {
                   el = all[i];
                   if (SKIP[el.tagName.toUpperCase()]) { mark(el, null); continue; }
+                  // title / channel / views / time row: never gets glass (no box behind the dots)
+                  if (el.closest && el.closest('[idomkey^="detail-text"]')) { mark(el, null); continue; }
                   r = el.getBoundingClientRect();
                   els.push(el); rects.push(r);
                   // tall side panel (Settings menu) -> nothing inside it gets glass
@@ -545,11 +563,49 @@ jobs:
               }
             }
 
+            // ---------- black gradient behind the controls (seek bar -> bottom), like the original app ----------
+            var scrim = null, scrimH = -1, scrimO = '';
+            function effVisible(el) {
+              var o = 1, n = 0, p = el, cs;
+              while (p && p.nodeType === 1 && n++ < 12) {
+                cs = getComputedStyle(p);
+                if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+                o *= parseFloat(cs.opacity);
+                p = p.parentElement;
+              }
+              return o > 0.05;
+            }
+            function scrimPass() {
+              var show = false, top = 0, el, r;
+              if (isWatch()) {
+                el = document.querySelector('span[idomkey="elapsedTime"]') || document.querySelector('div[idomkey="slider"]');
+                if (el) {
+                  r = el.getBoundingClientRect();
+                  if (r.width > 0 && r.bottom > 0 && r.top < innerHeight && effVisible(el)) { show = true; top = r.top; }
+                }
+              }
+              var host = document.getElementById('player-container');
+              if (!host) { var v = document.querySelector('video'); host = v && v.parentNode; }
+              if (!host) return;
+              if (!scrim || scrim.parentNode !== host) {
+                if (!scrim) { scrim = document.createElement('div'); scrim.id = 'ytg-scrim'; }
+                host.appendChild(scrim);
+                scrimH = -1; scrimO = '';
+              }
+              var H = innerHeight, op = show ? '1' : '0';
+              if (show) {
+                var h = Math.round(H - Math.max(H * 0.2, top - 70));
+                if (h !== scrimH) { scrim.style.height = h + 'px'; scrimH = h; }
+              }
+              if (op !== scrimO) { scrim.style.opacity = op; scrimO = op; }
+            }
+
             // ---------- scheduling: apply BEFORE the next paint, not on a slow timer ----------
             var last = 0, pending = false;
             function run() {
               last = performance.now();
               try { inject(); bgPass(); pass(); } catch (e) { }
+              try { scrimPass(); } catch (e) { }
               try { spinPass(); } catch (e) { }
             }
             function schedule() {
@@ -637,14 +693,9 @@ jobs:
               '.ytx-item.focus{background:#f1f1f1;color:#000;}',
               '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
               /* own icons placed inside the Settings rows (SponsorBlock shield, eye) */
-              '.ytx-ic{display:block;flex:none;pointer-events:none;font-size:0;}',
-              '.ytx-ic svg{display:block;width:100%;height:100%;fill:currentColor;}',
-              /* the original icon slot (image, glyph font, mask, ::before) is blanked, only our SVG stays */
-              '[data-ytx-ic]{display:flex !important;align-items:center;justify-content:center;font-size:0 !important;',
-              '  background:none !important;background-color:transparent !important;border:0 !important;',
-              '  -webkit-mask:none !important;mask:none !important;}',
-              '[data-ytx-ic]::before,[data-ytx-ic]::after,[data-ytx-ov]::before,[data-ytx-ov]::after{content:none !important;display:none !important;}',
-              '[data-ytx-ic] > *:not(.ytx-ic){display:none !important;}',
+              '.ytx-ic{position:absolute;z-index:10;box-sizing:border-box;border-radius:8px;display:flex;',
+              '  align-items:center;justify-content:center;pointer-events:none;}',
+              '.ytx-ic svg{display:block;width:24px;height:24px;fill:currentColor;}',
               '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
               '  z-index:2147483200;transition:opacity 1s;}',
               '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
@@ -868,48 +919,32 @@ jobs:
               return false;
             }
 
-            // Replace the row's original icon (Report flag / Feedback bubble) with our own SVG.
-            // The icon slot = the element that sits LEFT of the label text inside the row (any shape: image,
-            // glyph font, mask...). It is blanked by CSS ([data-ytx-ic]) and our SVG is placed in it.
-            // If nothing is found there, our SVG is laid over the left part of the row instead.
+            // Our icon is drawn as an OVERLAY on top of the row's original icon (Report flag / Feedback bubble).
+            // The overlay has the row's own grey (#212121, or #f1f1f1 while the row is focused), so the old
+            // icon is completely covered and our SVG sits in its place.
             function iconPass(row, kind, sp) {
-              var ic = row.querySelector('.ytx-ic'), host, i, el, r;
+              var rr = row.getBoundingClientRect(), sr = sp.getBoundingClientRect();
+              if (!rr.width || !sr.width) return;
+              var ic = row.querySelector('.ytx-ic');
               if (!ic) {
-                var rr = row.getBoundingClientRect(), sr = sp.getBoundingClientRect();
-                if (!rr.width || !sr.width) return;
-                host = null;
-                var all = row.getElementsByTagName('*');
-                for (i = 0; i < all.length; i++) {
-                  el = all[i];
-                  if (el === sp || el.contains(sp) || sp.contains(el)) continue;
-                  if (el.closest && el.closest('.ytx-ic')) continue;
-                  if (el.tagName.toLowerCase() === 'yt-formatted-string' ||
-                      el.getElementsByTagName('yt-formatted-string').length) continue;
-                  r = el.getBoundingClientRect();
-                  if (r.width >= 8 && r.height >= 8 && r.width <= 90 && r.height <= 90 &&
-                      r.left >= rr.left - 2 && r.right <= sr.left + 4 &&
-                      r.top >= rr.top - 2 && r.bottom <= rr.bottom + 2) { host = el; break; }
-                }
-                var size = 24;
                 ic = document.createElement('span');
                 ic.className = 'ytx-ic';
                 ic.innerHTML = kind === 'sb' ? SVG_SB : SVG_EYE;
-                if (host) {
-                  host.setAttribute('data-ytx-ic', kind);
-                  ic.style.width = size + 'px'; ic.style.height = size + 'px';
-                  host.appendChild(ic);
-                } else {
-                  if (getComputedStyle(row).position === 'static') row.style.setProperty('position', 'relative', 'important');
-                  row.setAttribute('data-ytx-ov', '1');
-                  ic.style.cssText = 'position:absolute;z-index:5;width:' + size + 'px;height:' + size + 'px;left:' +
-                    Math.round((sr.left - rr.left - size) / 2) + 'px;top:' + Math.round((rr.height - size) / 2) + 'px;';
-                  row.appendChild(ic);
-                }
+                if (getComputedStyle(row).position === 'static') row.style.setProperty('position', 'relative', 'important');
+                row.appendChild(ic);
               }
-              var col = getComputedStyle(sp).color;           // follows the row: white, or black when focused
-              if (ic.style.color !== col) ic.style.color = col;
-              var op = (kind === 'sb' && !cfg.sb) ? '0.45' : '1';
-              if (ic.style.opacity !== op) ic.style.opacity = op;
+              var w = Math.max(24, Math.round(sr.left - rr.left - 10));
+              var h = Math.max(24, Math.round(rr.height - 8));
+              var focused = row.classList.contains('zylon-focus');
+              var col = getComputedStyle(sp).color;            // white, or black while focused
+              var key = [kind, w, h, focused ? 1 : 0, col].join('|');
+              if (ic.getAttribute('data-k') !== key) {
+                ic.setAttribute('data-k', key);
+                ic.style.cssText = 'left:4px;top:4px;width:' + w + 'px;height:' + h + 'px;background:' +
+                  (focused ? '#f1f1f1' : '#212121') + ';color:' + col + ';';
+              }
+              var svg = ic.firstChild, op = (kind === 'sb' && !cfg.sb) ? '0.45' : '1';
+              if (svg && svg.style && svg.style.opacity !== op) svg.style.opacity = op;
             }
 
             function patchSettings() {
@@ -1285,6 +1320,27 @@ jobs:
             ['keydown', 'keyup', 'keypress'].forEach(function (n) { window.addEventListener(n, onGlobalKey, true); });
             ['keydown', 'keyup', 'keypress', 'touchstart', 'mousedown'].forEach(function (n) { window.addEventListener(n, onWakeEvent, true); });
             ['keydown', 'touchstart', 'mousedown', 'mousemove'].forEach(function (n) { window.addEventListener(n, onUser, true); });
+
+            // YouTube re-renders the Settings rows when focus moves; our row patches / icons are re-applied in the
+            // same task (before the next paint), so the original icon never flashes back.
+            (function () {
+              var queued = false, mo = null;
+              function go() {
+                queued = false;
+                try { patchSettings(); } catch (e) { }
+                try { mo.takeRecords(); } catch (e) { }
+              }
+              function start() {
+                if (!document.body) { setTimeout(start, 100); return; }
+                try {
+                  mo = new MutationObserver(function () {
+                    if (!queued) { queued = true; Promise.resolve().then(go); }
+                  });
+                  mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+                } catch (e) { }
+              }
+              start();
+            })();
 
             X.panel = panel;
             X.speed = function () { speedMenu(null); };

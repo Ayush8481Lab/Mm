@@ -1683,7 +1683,7 @@ jobs:
               // Edit the strings here if one of them needs to be different.
               // ---------------------------------------------------------------------------------
               private static final String UA_TV =
-                      "Mozilla/5.0 (SMART-TV; LINUX; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Mozilla/5.0 (PlayStation 5/SmartTV) AppleWebKit/605.1.15 (KHTML, like Gecko)"
                               + "85.0.4183.93/6.5 TV Safari/537.36";
 
               // Same profile TizenTube uses for the Amazon Fire TV Stick (AFTMM).

@@ -5,10 +5,13 @@ name: Build YouTube AdBlock TV APK
 #   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
-#                   7-dot circular loading spinner instead of "Loading..."
+#                   7-dot circular loading spinner instead of "Loading...",
+#                   sign-in / welcome page background pictures forced back on
 #   3. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
 #                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
-#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off / Turn off screen
+#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off (own shield icon)
+#                                   / Turn off screen (eye icon)
+#                   Touch fix: taps on our menus never reach the YouTube panel underneath.
 #   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
 # Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
@@ -300,15 +303,20 @@ jobs:
           })();
           EOF
 
-          # ---- Script 2: transparent-blur player controls + 7-dot loading spinner ----
+          # ---- Script 2: transparent-blur player controls + 7-dot loading spinner + welcome backgrounds ----
           # Class names on YouTube TV are obfuscated, so glass.js reads the real colour of small
           # elements on the watch page and tags them (dark pill -> light transparent blur,
           # white -> soft white). It runs from a MutationObserver, so it is applied before the
           # next paint. Menus / side panels (Settings) are left untouched. No shadows anywhere.
+          # Sign-in / welcome pages: YouTube sometimes drops the background picture of these pages
+          # (body gets "app-quality-root"). The pictures are put back by CSS + inline style.
           cat > "$P/app/src/main/assets/glass.js" <<'EOF'
           (function () {
             if (window.__ytGlass) return;
             window.__ytGlass = true;
+
+            var BG_IMMERSIVE = 'https://www.gstatic.com/ytlr/img/ftux_immersive_1280x720_v2.jpg';
+            var BG_GRADIENT = 'https://www.gstatic.com/ytlr/img/uni_tube_gradient_1280x720.jpg';
 
             var CSS = [
               /* no black boxes behind text on the watch page */
@@ -318,6 +326,14 @@ jobs:
 
               /* video area is always plain black (no grey poster) */
               'video{background-color:#000 !important;}',
+
+              /* sign-in / welcome pages keep their background pictures */
+              'html body ytlr-welcome-immersive-value-prop[class]{',
+              '  background-image:url(' + BG_IMMERSIVE + ') !important;background-size:cover !important;',
+              '  background-position:center !important;background-repeat:no-repeat !important;}',
+              'html body ytlr-welcome[class]{',
+              '  background-image:url(' + BG_GRADIENT + ') !important;background-size:cover !important;',
+              '  background-position:center !important;background-repeat:no-repeat !important;}',
 
               /* transparent glass: low opacity, low blur, no shadow */
               'html:not([data-ytg-probe]) [data-ytg="dark"]{',
@@ -388,6 +404,27 @@ jobs:
                 if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return true;
               }
               return false;
+            }
+
+            // ---------- sign-in / welcome pages: put the background pictures back ----------
+            var BGS = [
+              ['ytlr-welcome-immersive-value-prop', BG_IMMERSIVE],
+              ['ytlr-welcome', BG_GRADIENT]
+            ];
+            function bgPass() {
+              for (var b = 0; b < BGS.length; b++) {
+                var list = document.getElementsByTagName(BGS[b][0]);
+                var file = BGS[b][1].substring(BGS[b][1].lastIndexOf('/') + 1);
+                for (var i = 0; i < list.length; i++) {
+                  var el = list[i];
+                  if ((el.style.backgroundImage || '').indexOf(file) < 0) {
+                    el.style.setProperty('background-image', 'url("' + BGS[b][1] + '")', 'important');
+                    el.style.setProperty('background-size', 'cover', 'important');
+                    el.style.setProperty('background-position', 'center', 'important');
+                    el.style.setProperty('background-repeat', 'no-repeat', 'important');
+                  }
+                }
+              }
             }
 
             // ---------- transparent glass on the player controls (watch page only) ----------
@@ -510,7 +547,7 @@ jobs:
             var last = 0, pending = false;
             function run() {
               last = performance.now();
-              try { inject(); pass(); } catch (e) { }
+              try { inject(); bgPass(); pass(); } catch (e) { }
               try { spinPass(); } catch (e) { }
             }
             function schedule() {
@@ -597,6 +634,9 @@ jobs:
               '.ytx-item .chk{flex:none;margin-left:1vw;font-size:1.9vw;line-height:1;}',
               '.ytx-item.focus{background:#f1f1f1;color:#000;}',
               '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
+              /* own icons placed inside the Settings rows (SponsorBlock shield, eye) */
+              '.ytx-ic{display:block;pointer-events:none;}',
+              '.ytx-ic svg{display:block;width:100%;height:100%;fill:currentColor;}',
               '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
               '  z-index:2147483200;transition:opacity 1s;}',
               '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
@@ -626,6 +666,7 @@ jobs:
             // ======================= menu (native look, touch + D-pad) =======================
             var modal = null, box = null, titleEl = null, listEl = null;
             var mBuild = null, mOpts = {}, mItems = [], mIdx = 0, mOpen = false;
+            var blockUntil = 0;   // after a menu closes, ALL pointer events are swallowed for a moment
             var NAV = { 37: 1, 38: 1, 39: 1, 40: 1, 13: 1, 32: 1, 27: 1, 8: 1, 4: 1, 10009: 1, 461: 1 };
 
             function ensureModal() {
@@ -635,7 +676,7 @@ jobs:
               titleEl = document.createElement('div'); titleEl.id = 'ytx-title';
               listEl = document.createElement('div'); listEl.id = 'ytx-list';
               box.appendChild(titleEl); box.appendChild(listEl); modal.appendChild(box);
-                document.documentElement.appendChild(modal);
+              document.documentElement.appendChild(modal);
             }
             function openMenu(title, build, opts) {
               ensureModal();
@@ -646,6 +687,7 @@ jobs:
             }
             function closeMenu() {
               mOpen = false;
+              blockUntil = Date.now() + 800;       // the finger that closed us must not touch YouTube underneath
               if (modal) modal.style.display = 'none';
             }
             function back() {
@@ -768,9 +810,20 @@ jobs:
             // ======================= YouTube Settings panel: Speed / SponsorBlock / Turn off screen =======================
             // The existing rows are reused so the look and the D-pad focus are 100% native:
             //   "Speed - Not available on this device"  -> "Speed - <current speed>"  (opens our speed list)
-            //   "Report"   -> "SponsorBlock: On/Off"    (Enter toggles)
-            //   "Feedback" -> "Turn off screen"
+            //   "Report"   -> "SponsorBlock: On/Off"    (Enter toggles)  + own shield icon
+            //   "Feedback" -> "Turn off screen"                          + eye icon
             function onOff(b) { return b ? 'On' : 'Off'; }
+
+            // Icons drawn in the row's own icon slot (fill = currentColor, so they follow the focus colour).
+            // SponsorBlock: shield with a "skip" (play + bar) cut out of it.
+            var SVG_SB = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+              '<path fill-rule="evenodd" d="M12 2 4 5v6.2c0 4.9 3.3 9.4 8 10.8 4.7-1.4 8-5.9 8-10.8V5l-8-3z' +
+              'M9.2 8v8l5.3-4-5.3-4zM15.8 8h1.7v8h-1.7V8z"/></svg>';
+            // Turn off screen: eye.
+            var SVG_EYE = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+              '<path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5z' +
+              'M12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
+
             // The label "Speed" is a <span> INSIDE a yt-formatted-string, so the subtitle is the
             // yt-formatted-string that does NOT contain that span.
             function labelSpan(row) {
@@ -806,6 +859,52 @@ jobs:
               }
               return false;
             }
+
+            // Replace the row's original icon (Report flag / Feedback bubble) with our own SVG.
+            // The icon slot is found by shape: the first small, roughly square element in the row that
+            // is not the text. Its original children / image are hidden, our SVG is placed inside.
+            function iconPass(row, kind, sp) {
+              var host = row.querySelector('[data-ytx-ic]'), i, el, r, ch;
+              if (!host) {
+                var all = row.getElementsByTagName('*');
+                for (i = 0; i < all.length; i++) {
+                  el = all[i];
+                  if (el === sp || el.contains(sp) || sp.contains(el)) continue;
+                  if (el.tagName.toLowerCase() === 'yt-formatted-string' ||
+                      el.getElementsByTagName('yt-formatted-string').length) continue;
+                  r = el.getBoundingClientRect();
+                  if (r.width >= 12 && r.width <= 96 && r.height >= 12 &&
+                      Math.abs(r.width - r.height) <= r.width * 0.3) { host = el; break; }
+                }
+                if (!host) return;
+                host.setAttribute('data-ytx-ic', kind);
+              }
+              var ic = null;
+              for (ch = host.firstChild; ch; ch = ch.nextSibling) {
+                if (ch.nodeType === 1 && ch.className === 'ytx-ic') { ic = ch; break; }
+              }
+              if (!ic) {
+                r = host.getBoundingClientRect();           // measure BEFORE the old icon is hidden
+                ic = document.createElement('span');
+                ic.className = 'ytx-ic';
+                ic.style.width = Math.round(r.width || 24) + 'px';
+                ic.style.height = Math.round(r.height || 24) + 'px';
+                ic.innerHTML = kind === 'sb' ? SVG_SB : SVG_EYE;
+                host.appendChild(ic);
+              }
+              for (ch = host.firstChild; ch; ch = ch.nextSibling) {
+                if (ch !== ic && ch.nodeType === 1 && ch.style.display !== 'none') {
+                  ch.style.setProperty('display', 'none', 'important');
+                }
+              }
+              host.style.setProperty('background-image', 'none', 'important');
+              host.style.setProperty('-webkit-mask-image', 'none', 'important');
+              var col = getComputedStyle(sp).color;           // follows the row: white, or black when focused
+              if (ic.style.color !== col) ic.style.color = col;
+              var op = (kind === 'sb' && !cfg.sb) ? '0.45' : '1';
+              if (ic.style.opacity !== op) ic.style.opacity = op;
+            }
+
             function patchSettings() {
               var rows = document.getElementsByTagName('ytlr-compact-link-renderer');
               if (!rows.length) return;
@@ -832,6 +931,7 @@ jobs:
                   row.setAttribute('data-ytx', kind);
                 }
                 setText(sp, kind === 'sb' ? ('SponsorBlock: ' + onOff(cfg.sb)) : 'Turn off screen');
+                try { iconPass(row, kind, sp); } catch (e) { }
               }
             }
             function rowKindOf(el) {
@@ -858,9 +958,15 @@ jobs:
               }
             }
 
-            // YouTube TV hit-tests touches itself, so a tap on our panel also "pressed" the YouTube button underneath
-            // (e.g. Stats for nerds). All pointer events on our panel / our rows are stopped here, first in line.
-            var PTR = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'touchmove', 'click'];
+            // YouTube TV hit-tests touches itself (and moves its focus on hover), so a tap on our panel also
+            // "pressed" the YouTube button underneath (a caption row, Stats for nerds...).
+            // While our menu is open - and for a moment after it closes - EVERY pointer / mouse / touch event
+            // (press, release, hover, move, click) is stopped here, first in line, before YouTube sees it.
+            var PTR = ['pointerdown', 'pointerup', 'pointermove', 'pointerover', 'pointerout', 'pointerenter',
+              'pointerleave', 'pointercancel', 'mousedown', 'mouseup', 'mousemove', 'mouseover', 'mouseout',
+              'mouseenter', 'mouseleave', 'touchstart', 'touchend', 'touchmove', 'touchcancel', 'click',
+              'dblclick', 'contextmenu'];
+            var PRESS = { pointerdown: 1, pointerup: 1, mousedown: 1, mouseup: 1, touchstart: 1, touchend: 1, click: 1 };
             function evPoint(e) {
               var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
               return typeof t.clientX === 'number' ? t : null;
@@ -875,19 +981,21 @@ jobs:
               return null;
             }
             function onPointer(e) {
-              if (mOpen) {
+              if (mOpen || Date.now() < blockUntil) {
                 e.stopPropagation(); e.stopImmediatePropagation();
                 if (e.type === 'click') {
                   e.preventDefault();
-                  var el = e.target, it = el && el.closest ? el.closest('.ytx-item') : null;
-                  if (it) {
-                    var n = parseInt(it.getAttribute('data-i'), 10);
-                    if (n >= 0) { mIdx = n; choose(n); }
-                  } else if (!box.contains(el)) back();
+                  if (mOpen) {
+                    var el = e.target, it = el && el.closest ? el.closest('.ytx-item') : null;
+                    if (it) {
+                      var n = parseInt(it.getAttribute('data-i'), 10);
+                      if (n >= 0) { mIdx = n; choose(n); }
+                    } else if (!box.contains(el)) back();
+                  }
                 }
                 return;
               }
-              if (e.type === 'touchmove') return;
+              if (!PRESS[e.type]) return;
               var k = kindAtPoint(e);
               if (!k) return;
               e.stopPropagation(); e.stopImmediatePropagation();

@@ -2,11 +2,13 @@ name: Build YouTube AdBlock TV APK
 
 # Self-contained: no other files needed in the repo.
 # Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
+#   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
 #                   7-dot circular loading spinner instead of "Loading..."
-#   3. ytx.js     - ported from TizenTube: playback speed (also opens from the Settings > Speed row),
-#                   SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel
+#   3. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
+#                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
+#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off / Turn off screen
 #   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
 # Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
@@ -166,6 +168,56 @@ jobs:
                   </provider>
               </application>
           </manifest>
+          EOF
+
+          # ---- Script 0: quality-menu cap fix ----
+          # YouTube TV limits the Quality list by the display height it reads from the page
+          # (innerHeight x devicePixelRatio, rounded DOWN to a standard step). System bars / window
+          # insets make that number a little smaller than the real panel, so 1080p -> 720p max and
+          # 4K -> 1440p max, while "Auto" (bandwidth based) still plays the higher one.
+          # Here devicePixelRatio is reported slightly higher so the number lands on the real step.
+          # Manual override: Tools panel -> "Unlock max quality" (auto / 1080p / 1440p / 4K / 8K).
+          cat > "$P/app/src/main/assets/quality.js" <<'EOF'
+          (function () {
+            if (window.__ytq) return;
+            window.__ytq = true;
+            try {
+              var d = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+              if (!d || !d.get) return;
+              var realGet = d.get;
+              window.__realDpr = function () { return realGet.call(window); };
+              var STEPS = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320];
+
+              function forced() {
+                try { return parseInt(localStorage.getItem('ytx-qmax') || '0', 10) || 0; } catch (e) { return 0; }
+              }
+
+              Object.defineProperty(window, 'devicePixelRatio', {
+                configurable: true,
+                enumerable: d.enumerable,
+                get: function () {
+                  var r = realGet.call(window);
+                  try {
+                    var ih = window.innerHeight;
+                    if (!ih) return r;
+                    var target = forced();
+                    if (!target) {
+                      var sc = window.screen || {};
+                      var sh = Math.min(sc.width || 0, sc.height || 0);   // display height in CSS px
+                      var phys = Math.max(ih, sh) * r;                    // physical pixels
+                      for (var i = 0; i < STEPS.length; i++) {
+                        if (phys <= STEPS[i] * 1.06) { target = STEPS[i]; break; }
+                      }
+                      if (!target) target = STEPS[STEPS.length - 1];
+                    }
+                    var f = target / ih;
+                    if (f > r && f < r * 8) return f;
+                  } catch (e) { }
+                  return r;
+                }
+              });
+            } catch (e) { }
+          })();
           EOF
 
           # ---- Script 1: strips ad data from YouTube responses ----
@@ -520,22 +572,31 @@ jobs:
             }
             function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { } }
 
-            // ======================= styles =======================
+            // ======================= styles (menus copy the YouTube TV Settings panel look) =======================
+            // Measured from the Settings capture: panel #181818 radius 1.83vw, rows #212121 radius .92vw,
+            // focused row #f1f1f1 with black text, same size / position as the real panel.
             var CSS = [
               '#ytx-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);max-width:80%;padding:9px 18px;',
               '  border-radius:22px;background:rgba(30,30,30,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);',
               '  color:#fff;font:500 15px Roboto,Arial,sans-serif;z-index:2147483600;pointer-events:none;opacity:0;transition:opacity .25s;}',
               '#ytx-toast.show{opacity:1;}',
-              '#ytx-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483500;display:none;align-items:center;',
-              '  justify-content:center;background:rgba(0,0,0,.35);font-family:Roboto,Arial,sans-serif;}',
-              '#ytx-box{min-width:300px;max-width:92%;max-height:88%;overflow:auto;padding:16px;border-radius:18px;',
-              '  background:rgba(28,28,28,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);color:#fff;}',
-              '#ytx-title{font-size:18px;font-weight:500;margin:0 4px 12px;}',
-              '#ytx-list{display:grid;gap:8px;}',
-              '.ytx-item{padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.10);font-size:15px;cursor:pointer;}',
-              '.ytx-item .sub{font-size:12px;opacity:.7;margin-top:2px;}',
-              '.ytx-item.on{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55);}',
-              '.ytx-item.focus{background:rgba(241,241,241,.92);color:#000;}',
+              '#ytx-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483500;display:none;',
+              '  font-family:Roboto,Arial,sans-serif;}',
+              '#ytx-box{position:absolute;right:2.94vw;top:3.33vh;bottom:3.33vh;width:34.8vw;box-sizing:border-box;',
+              '  padding:1.83vw;border-radius:1.83vw;background:#181818;color:#fff;display:flex;flex-direction:column;}',
+              '#ytx-title{flex:none;font-size:2vw;line-height:2.45vw;font-weight:500;margin-bottom:1.83vw;',
+              '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
+              '#ytx-list{flex:1;min-height:0;overflow-y:auto;}',
+              '#ytx-list::-webkit-scrollbar{display:none;}',
+              '.ytx-item{display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;',
+              '  min-height:4.88vw;margin-bottom:.62vw;padding:.6vw 1.22vw;border-radius:.92vw;background:#212121;',
+              '  color:#fff;cursor:pointer;}',
+              '.ytx-item .t{min-width:0;}',
+              '.ytx-item .l{font-size:1.75vw;line-height:2.1vw;}',
+              '.ytx-item .sub{font-size:1.25vw;line-height:1.5vw;margin-top:.15vw;color:rgba(255,255,255,.65);}',
+              '.ytx-item .chk{flex:none;margin-left:1vw;font-size:1.9vw;line-height:1;}',
+              '.ytx-item.focus{background:#f1f1f1;color:#000;}',
+              '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
               '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
               '  z-index:2147483200;transition:opacity 1s;}',
               '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
@@ -562,7 +623,7 @@ jobs:
               } catch (e) { }
             }
 
-            // ======================= small menu (touch + D-pad) =======================
+            // ======================= menu (native look, touch + D-pad) =======================
             var modal = null, box = null, titleEl = null, listEl = null;
             var mBuild = null, mOpts = {}, mItems = [], mIdx = 0, mOpen = false;
             var NAV = { 37: 1, 38: 1, 39: 1, 40: 1, 13: 1, 32: 1, 27: 1, 8: 1, 4: 1, 10009: 1, 461: 1 };
@@ -581,7 +642,7 @@ jobs:
               ensureModal();
               mBuild = build; mOpts = opts || {}; mOpts.title = title; mOpen = true;
               mIdx = typeof mOpts.index === 'number' ? mOpts.index : 0;
-              modal.style.display = 'flex';
+              modal.style.display = 'block';
               render();
             }
             function closeMenu() {
@@ -597,13 +658,14 @@ jobs:
               if (mIdx < 0) mIdx = 0;
               titleEl.textContent = mOpts.title;
               while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
-              listEl.style.gridTemplateColumns = 'repeat(' + (mOpts.cols || 1) + ',1fr)';
               mItems.forEach(function (it, i) {
                 var d = document.createElement('div');
-                d.className = 'ytx-item' + (it.on ? ' on' : '') + (i === mIdx ? ' focus' : '');
-                if (it.span) d.style.gridColumn = 'span ' + it.span;
-                var l = document.createElement('div'); l.textContent = it.label; d.appendChild(l);
-                if (it.sub) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = it.sub; d.appendChild(s); }
+                d.className = 'ytx-item' + (i === mIdx ? ' focus' : '');
+                var t = document.createElement('div'); t.className = 't';
+                var l = document.createElement('div'); l.className = 'l'; l.textContent = it.label; t.appendChild(l);
+                if (it.sub) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = it.sub; t.appendChild(s); }
+                d.appendChild(t);
+                if (it.on) { var c = document.createElement('div'); c.className = 'chk'; c.textContent = '\u2713'; d.appendChild(c); }
                 d.addEventListener('click', function () { mIdx = i; choose(i); });
                 listEl.appendChild(d);
               });
@@ -628,36 +690,52 @@ jobs:
               if (r === 'keep') render();
               else if (r !== 'nav') closeMenu();
             }
+            function stop(e) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
             function onMenuKey(e) {
               if (!mOpen) return;
               var k = e.keyCode;
               if (!NAV[k]) return;
-              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+              stop(e);
               if (e.type !== 'keydown') return;
-              var cols = mOpts.cols || 1;
-              if (k === 37) setFocus(mIdx - 1);
-              else if (k === 39) setFocus(mIdx + 1);
-              else if (k === 38) setFocus(mIdx - cols);
-              else if (k === 40) setFocus(mIdx + cols);
+              if (k === 38) setFocus(mIdx - 1);
+              else if (k === 40) setFocus(mIdx + 1);
               else if (k === 13 || k === 32) choose(mIdx);
+              else if (k === 37 || k === 39) { /* ignore */ }
               else back();
             }
 
             // ======================= playback speed =======================
             var SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
+
+            // YouTube TV tries to keep playbackRate at 1 on this device ("Not available on this device").
+            // Whenever the page writes the rate, our chosen speed is written instead.
+            (function patchRate() {
+              try {
+                var P = HTMLMediaElement.prototype, d = Object.getOwnPropertyDescriptor(P, 'playbackRate');
+                if (!d || !d.set) return;
+                Object.defineProperty(P, 'playbackRate', {
+                  configurable: true, enumerable: d.enumerable, get: d.get,
+                  set: function (v) { d.set.call(this, (this.tagName === 'VIDEO' && cfg.speed !== 1) ? cfg.speed : v); }
+                });
+              } catch (e) { }
+            })();
+
+            function speedText() {
+              return Math.abs(cfg.speed - 1) < 0.00001 ? 'Normal' : (cfg.speed + 'x');
+            }
             function applySpeed() {
               var v = document.querySelector('video');
-              if (v && v.playbackRate !== cfg.speed) { try { v.playbackRate = cfg.speed; } catch (e) { } }
+              if (v) { try { v.playbackRate = cfg.speed; } catch (e) { } }
             }
             function setSpeed(s) {
-              cfg.speed = s; save(); applySpeed();
-              toast('Speed ' + s + 'x');
+              cfg.speed = s; save(); applySpeed(); patchSettings();
+              toast('Speed ' + speedText());
             }
-            // every new video starts at the chosen speed
-            ['loadedmetadata', 'canplay', 'playing'].forEach(function (n) {
+            // every new video starts at the chosen speed, and stays there
+            ['loadedmetadata', 'canplay', 'playing', 'ratechange'].forEach(function (n) {
               document.addEventListener(n, function (e) {
                 var v = e.target;
-                if (v && v.tagName === 'VIDEO' && cfg.speed !== 1 && v.playbackRate !== cfg.speed) {
+                if (v && v.tagName === 'VIDEO' && cfg.speed !== 1 && Math.abs(v.playbackRate - cfg.speed) > 0.00001) {
                   try { v.playbackRate = cfg.speed; } catch (x) { }
                 }
               }, true);
@@ -669,61 +747,111 @@ jobs:
                 document.dispatchEvent(kE);
               } catch (e) { }
             }
-            function speedMenu(fromYT, backFn) {
+            function speedMenu(backFn) {
               var cur = 3;
-              SPEEDS.forEach(function (s, i) { if (Math.abs(cfg.speed - s) < 0.001) cur = i; });
+              SPEEDS.forEach(function (s, i) { if (Math.abs(cfg.speed - s) < 0.00001) cur = i; });
               function pick(s) {
                 return function () {
                   setSpeed(s);
-                  if (fromYT) setTimeout(sendEscape, 80);
                   if (backFn) { backFn(); return 'nav'; }
-                  return null;
+                  return null;                       // closes our panel, YouTube Settings stays as it was
                 };
               }
               openMenu('Playback speed', function () {
                 var items = SPEEDS.map(function (s) {
-                  return { label: s + 'x', on: Math.abs(cfg.speed - s) < 0.001, run: pick(s) };
+                  return { label: s === 1 ? 'Normal' : s + 'x', on: Math.abs(cfg.speed - s) < 0.00001, run: pick(s) };
                 });
-                items.push({ label: 'Fix stuttering (1.0001x)', span: 4, on: cfg.speed === 1.0001, run: pick(1.0001) });
+                items.push({ label: 'Fix stuttering (1.0001x)', on: cfg.speed === 1.0001, run: pick(1.0001) });
                 return items;
-              }, { cols: 4, index: cur, back: backFn });
+              }, { index: cur, back: backFn });
             }
 
-            // The YouTube Settings row says "Speed - Not available on this device": open our picker instead.
-            var swallowEnterUntil = 0;
-            function speedRowHit(el) {
-              for (var n = 0; el && n < 8; n++, el = el.parentElement) {
-                var t = (el.innerText || '').trim();
-                if (t && t.length < 90 && /^speed\b/i.test(t) && /not available/i.test(t)) return true;
+            // ======================= YouTube Settings panel: Speed / SponsorBlock / Turn off screen =======================
+            // The existing rows are reused so the look and the D-pad focus are 100% native:
+            //   "Speed - Not available on this device"  -> "Speed - <current speed>"  (opens our speed list)
+            //   "Report"   -> "SponsorBlock: On/Off"    (Enter toggles)
+            //   "Feedback" -> "Turn off screen"
+            function onOff(b) { return b ? 'On' : 'Off'; }
+            function patchSettings() {
+              var rows = document.getElementsByTagName('ytlr-compact-link-renderer');
+              if (!rows.length) return;
+              var i, row, sp, t;
+              for (i = 0; i < rows.length; i++) {
+                row = rows[i]; sp = row.querySelector('span');
+                if (!sp) continue;
+                t = (sp.textContent || '').trim();
+                if (t === 'Speed' || row.getAttribute('data-ytx') === 'speed') {
+                  if (row.getAttribute('data-ytx') !== 'speed') row.setAttribute('data-ytx', 'speed');
+                  var sub = row.querySelector('yt-formatted-string'), want = speedText();
+                  if (sub && sub.textContent !== want) sub.textContent = want;
+                }
               }
-              return false;
+              for (i = 0; i < rows.length; i++) {
+                row = rows[i]; sp = row.querySelector('span');
+                if (!sp) continue;
+                t = (sp.textContent || '').trim();
+                var kind = row.getAttribute('data-ytx');
+                if (kind === 'speed') continue;
+                if (!kind) {
+                  var par = row.parentElement;
+                  if (!par || !par.querySelector('[data-ytx="speed"]')) continue;   // only inside the player Settings panel
+                  kind = t === 'Report' ? 'sb' : (t === 'Feedback' ? 'off' : null);
+                  if (!kind) continue;
+                  row.setAttribute('data-ytx', kind);
+                }
+                var label = kind === 'sb' ? ('SponsorBlock: ' + onOff(cfg.sb)) : 'Turn off screen';
+                if (sp.textContent !== label) sp.textContent = label;
+              }
             }
+            function rowKindOf(el) {
+              try { var r = el && el.closest ? el.closest('[data-ytx]') : null; return r ? r.getAttribute('data-ytx') : null; }
+              catch (e) { return null; }
+            }
+            function focusedKind() {
+              var fs = document.querySelectorAll('.zylon-focus'), i, k;
+              for (i = 0; i < fs.length; i++) { k = rowKindOf(fs[i]); if (k) return k; }
+              for (i = 0; i < fs.length; i++) {          // before the row was patched
+                var t = (fs[i].innerText || '').trim();
+                if (t && t.length < 90 && /^speed\b/i.test(t) && /not available/i.test(t)) return 'speed';
+              }
+              return null;
+            }
+            function activate(kind) {
+              if (kind === 'speed') speedMenu(null);
+              else if (kind === 'sb') {
+                cfg.sb = !cfg.sb; save(); sbRefresh(); patchSettings();
+                toast('SponsorBlock ' + onOff(cfg.sb));
+              } else if (kind === 'off') {
+                sendEscape();
+                setTimeout(screenOff, 350);
+              }
+            }
+
             document.addEventListener('click', function (e) {
               if (mOpen) return;
-              if (speedRowHit(e.target)) {
-                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                speedMenu(true);
-              }
+              var k = rowKindOf(e.target);
+              if (k) { stop(e); activate(k); }
             }, true);
 
-            // keys: Enter on the Speed row, colour buttons (blue 406 / 191) open the speed picker
+            // keys: Enter on our rows, colour buttons (blue 406 / 191) open the speed picker
+            var swallowEnterUntil = 0;
             function onGlobalKey(e) {
               if (mOpen) return;
               var k = e.keyCode;
               if (k === 13) {
                 if (e.type === 'keydown') {
-                  var f = document.querySelector('.zylon-focus');
-                  if (f && speedRowHit(f)) {
+                  var kind = focusedKind();
+                  if (kind) {
                     swallowEnterUntil = Date.now() + 500;
-                    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                    speedMenu(true);
+                    stop(e);
+                    activate(kind);
                   }
                 } else if (Date.now() < swallowEnterUntil) {
-                  e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                  stop(e);
                 }
               } else if (k === 406 || k === 191) {
-                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                if (e.type === 'keydown') speedMenu(false);
+                stop(e);
+                if (e.type === 'keydown') speedMenu(null);
               }
             }
 
@@ -931,20 +1059,30 @@ jobs:
               if (dimVisible || n - lastArm > 500) { lastArm = n; armDim(); }
             }
 
-            // ======================= tools panel =======================
+            // ======================= tools panel (CAP menu -> 7) =======================
             function cycle(list, cur) {
               var i = list.indexOf(cur);
               return list[(i + 1) % list.length];
             }
-            function onOff(b) { return b ? 'On' : 'Off'; }
+            function qmax() {
+              try { return parseInt(localStorage.getItem('ytx-qmax') || '0', 10) || 0; } catch (e) { return 0; }
+            }
+            function qname(v) { return v ? (v === 1440 ? '1440p (2K)' : v === 2160 ? '2160p (4K)' : v === 4320 ? '4320p (8K)' : v + 'p') : 'Auto-detect'; }
             function panel() {
               openMenu('Tools', function () {
                 return [
-                  { label: 'Playback speed', sub: cfg.speed + 'x', run: function () { speedMenu(false, panel); return 'nav'; } },
-                  { label: 'SponsorBlock', sub: onOff(cfg.sb), run: function () { cfg.sb = !cfg.sb; save(); sbRefresh(); return 'keep'; } },
+                  { label: 'Playback speed', sub: speedText(), run: function () { speedMenu(panel); return 'nav'; } },
+                  { label: 'SponsorBlock', sub: onOff(cfg.sb), run: function () { cfg.sb = !cfg.sb; save(); sbRefresh(); patchSettings(); return 'keep'; } },
+                  { label: 'Turn off screen', sub: 'Audio keeps playing. Press any key or tap to wake.', run: function () { setTimeout(screenOff, 200); return null; } },
                   { label: 'SponsorBlock categories', run: function () { sbCatsMenu(); return 'nav'; } },
                   { label: 'SponsorBlock toasts', sub: onOff(cfg.sbToast), run: function () { cfg.sbToast = !cfg.sbToast; save(); return 'keep'; } },
-                  { label: 'Turn off screen', sub: 'Audio keeps playing. Press any key or tap to wake.', run: function () { setTimeout(screenOff, 200); return null; } },
+                  { label: 'Unlock max quality', sub: qname(qmax()) + ' (page reloads)', run: function () {
+                      var n = cycle([0, 1080, 1440, 2160, 4320], qmax());
+                      try { if (n) localStorage.setItem('ytx-qmax', String(n)); else localStorage.removeItem('ytx-qmax'); } catch (e) { }
+                      toast('Max quality: ' + qname(n) + ' - reloading');
+                      setTimeout(function () { location.reload(); }, 900);
+                      return 'keep';
+                    } },
                   { label: 'Auto-dim when paused', sub: onOff(cfg.dim), run: function () { cfg.dim = !cfg.dim; save(); armDim(); return 'keep'; } },
                   { label: 'Dim after', sub: cfg.dimTimeout + ' s', run: function () { cfg.dimTimeout = cycle([30, 60, 120, 300], cfg.dimTimeout); save(); armDim(); return 'keep'; } },
                   { label: 'Dim strength', sub: Math.round(cfg.dimOpacity * 100) + '%', run: function () { cfg.dimOpacity = cycle([0.3, 0.5, 0.7, 0.9], cfg.dimOpacity); save(); return 'keep'; } }
@@ -972,7 +1110,7 @@ jobs:
             ['keydown', 'touchstart', 'mousedown', 'mousemove'].forEach(function (n) { window.addEventListener(n, onUser, true); });
 
             X.panel = panel;
-            X.speed = function () { speedMenu(false); };
+            X.speed = function () { speedMenu(null); };
             X.setSpeed = setSpeed;
             X.screenOff = function () { setTimeout(screenOff, 200); };
             X.toast = toast;
@@ -980,6 +1118,7 @@ jobs:
 
             inject();
             if (cfg.dim) armDim();
+            setInterval(function () { try { patchSettings(); } catch (e) { } }, 120);
             setInterval(function () {
               try { inject(); checkVideo(); sbOverlay(); } catch (e) { }
             }, 400);
@@ -1081,6 +1220,9 @@ jobs:
                 url: location.href,
                 userAgent: navigator.userAgent,
                 viewport: [innerWidth, innerHeight, window.devicePixelRatio],
+                realDpr: window.__realDpr ? window.__realDpr() : null,
+                screen: [screen.width, screen.height, screen.availWidth, screen.availHeight],
+                qmax: (function () { try { return localStorage.getItem('ytx-qmax'); } catch (e) { return null; } })(),
                 bodyClass: document.body ? document.body.className : '',
                 video: v ? {
                   rect: (function () { var r = v.getBoundingClientRect(); return [r1(r.left), r1(r.top), r1(r.width), r1(r.height)]; })(),
@@ -1352,6 +1494,8 @@ jobs:
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
                   prefs = getSharedPreferences("ytx", MODE_PRIVATE);
 
+                  String q = readAsset("quality.js");          // lifts the quality-menu cap (must run first)
+                  if (!q.isEmpty()) scripts.add(q);
                   String ad = readAsset("adblock.js");
                   if (!ad.isEmpty()) scripts.add(ad);
                   String glass = readAsset("glass.js");
@@ -1748,7 +1892,7 @@ jobs:
                       }
                   });
                   panel.addView(headerBtn);
-                  panel.addView(menuButton("7. Speed / SponsorBlock / Screen", new View.OnClickListener() {
+                  panel.addView(menuButton("7. Speed / SponsorBlock / Quality", new View.OnClickListener() {
                       @Override
                       public void onClick(View v) {
                           panel.setVisibility(View.GONE);

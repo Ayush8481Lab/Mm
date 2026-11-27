@@ -12,6 +12,8 @@ name: Build YouTube AdBlock TV APK
 #                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off (own shield icon)
 #                                   / Turn off screen (eye icon)
 #                   Touch fix: taps on our menus never reach the YouTube panel underneath.
+#   Also: on-screen remote (Up / Down / Left / Right / OK / Back) on the left edge, for tablets
+#         (set SHOW_REMOTE=false in MainActivity.java to remove it).
 #   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
 # Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
@@ -635,8 +637,14 @@ jobs:
               '.ytx-item.focus{background:#f1f1f1;color:#000;}',
               '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
               /* own icons placed inside the Settings rows (SponsorBlock shield, eye) */
-              '.ytx-ic{display:block;pointer-events:none;}',
+              '.ytx-ic{display:block;flex:none;pointer-events:none;font-size:0;}',
               '.ytx-ic svg{display:block;width:100%;height:100%;fill:currentColor;}',
+              /* the original icon slot (image, glyph font, mask, ::before) is blanked, only our SVG stays */
+              '[data-ytx-ic]{display:flex !important;align-items:center;justify-content:center;font-size:0 !important;',
+              '  background:none !important;background-color:transparent !important;border:0 !important;',
+              '  -webkit-mask:none !important;mask:none !important;}',
+              '[data-ytx-ic]::before,[data-ytx-ic]::after,[data-ytx-ov]::before,[data-ytx-ov]::after{content:none !important;display:none !important;}',
+              '[data-ytx-ic] > *:not(.ytx-ic){display:none !important;}',
               '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
               '  z-index:2147483200;transition:opacity 1s;}',
               '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
@@ -861,44 +869,43 @@ jobs:
             }
 
             // Replace the row's original icon (Report flag / Feedback bubble) with our own SVG.
-            // The icon slot is found by shape: the first small, roughly square element in the row that
-            // is not the text. Its original children / image are hidden, our SVG is placed inside.
+            // The icon slot = the element that sits LEFT of the label text inside the row (any shape: image,
+            // glyph font, mask...). It is blanked by CSS ([data-ytx-ic]) and our SVG is placed in it.
+            // If nothing is found there, our SVG is laid over the left part of the row instead.
             function iconPass(row, kind, sp) {
-              var host = row.querySelector('[data-ytx-ic]'), i, el, r, ch;
-              if (!host) {
+              var ic = row.querySelector('.ytx-ic'), host, i, el, r;
+              if (!ic) {
+                var rr = row.getBoundingClientRect(), sr = sp.getBoundingClientRect();
+                if (!rr.width || !sr.width) return;
+                host = null;
                 var all = row.getElementsByTagName('*');
                 for (i = 0; i < all.length; i++) {
                   el = all[i];
                   if (el === sp || el.contains(sp) || sp.contains(el)) continue;
+                  if (el.closest && el.closest('.ytx-ic')) continue;
                   if (el.tagName.toLowerCase() === 'yt-formatted-string' ||
                       el.getElementsByTagName('yt-formatted-string').length) continue;
                   r = el.getBoundingClientRect();
-                  if (r.width >= 12 && r.width <= 96 && r.height >= 12 &&
-                      Math.abs(r.width - r.height) <= r.width * 0.3) { host = el; break; }
+                  if (r.width >= 8 && r.height >= 8 && r.width <= 90 && r.height <= 90 &&
+                      r.left >= rr.left - 2 && r.right <= sr.left + 4 &&
+                      r.top >= rr.top - 2 && r.bottom <= rr.bottom + 2) { host = el; break; }
                 }
-                if (!host) return;
-                host.setAttribute('data-ytx-ic', kind);
-              }
-              var ic = null;
-              for (ch = host.firstChild; ch; ch = ch.nextSibling) {
-                if (ch.nodeType === 1 && ch.className === 'ytx-ic') { ic = ch; break; }
-              }
-              if (!ic) {
-                r = host.getBoundingClientRect();           // measure BEFORE the old icon is hidden
+                var size = 24;
                 ic = document.createElement('span');
                 ic.className = 'ytx-ic';
-                ic.style.width = Math.round(r.width || 24) + 'px';
-                ic.style.height = Math.round(r.height || 24) + 'px';
                 ic.innerHTML = kind === 'sb' ? SVG_SB : SVG_EYE;
-                host.appendChild(ic);
-              }
-              for (ch = host.firstChild; ch; ch = ch.nextSibling) {
-                if (ch !== ic && ch.nodeType === 1 && ch.style.display !== 'none') {
-                  ch.style.setProperty('display', 'none', 'important');
+                if (host) {
+                  host.setAttribute('data-ytx-ic', kind);
+                  ic.style.width = size + 'px'; ic.style.height = size + 'px';
+                  host.appendChild(ic);
+                } else {
+                  if (getComputedStyle(row).position === 'static') row.style.setProperty('position', 'relative', 'important');
+                  row.setAttribute('data-ytx-ov', '1');
+                  ic.style.cssText = 'position:absolute;z-index:5;width:' + size + 'px;height:' + size + 'px;left:' +
+                    Math.round((sr.left - rr.left - size) / 2) + 'px;top:' + Math.round((rr.height - size) / 2) + 'px;';
+                  row.appendChild(ic);
                 }
               }
-              host.style.setProperty('background-image', 'none', 'important');
-              host.style.setProperty('-webkit-mask-image', 'none', 'important');
               var col = getComputedStyle(sp).color;           // follows the row: white, or black when focused
               if (ic.style.color !== col) ic.style.color = col;
               var op = (kind === 'sb' && !cfg.sb) ? '0.45' : '1';
@@ -1573,6 +1580,7 @@ jobs:
           import android.provider.MediaStore;
           import android.view.Gravity;
           import android.view.KeyEvent;
+          import android.view.MotionEvent;
           import android.view.View;
           import android.view.ViewGroup;
           import android.view.WindowManager;
@@ -1607,6 +1615,10 @@ jobs:
 
               // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
               private static final boolean DEBUG_TOOLS = true;
+
+              // On-screen remote (Up / Down / Left / Right / OK / Back) on the left edge - for tablets / phones.
+              // Set to false to remove it.
+              private static final boolean SHOW_REMOTE = true;
 
               private static final String START_URL = "https://www.youtube.com/tv";
 
@@ -1643,6 +1655,8 @@ jobs:
               private FrameLayout root;
               private LinearLayout panel;
               private LinearLayout capBox;
+              private LinearLayout remoteBox;
+              private Runnable repeater;
               private TextView headerBtn;
               private LinearLayout offlineView;
               private TextView offlineTitle;
@@ -1704,6 +1718,7 @@ jobs:
                       web.addJavascriptInterface(new CapBridge(), "YTCap");
                       buildDebugUi();
                   }
+                  if (SHOW_REMOTE) buildRemote();
 
                   // Preferred: run before any page script so nothing can capture JSON.parse first.
                   if (!scripts.isEmpty()
@@ -2087,6 +2102,103 @@ jobs:
                   root.addView(capBox, lp);
               }
 
+              // ------------------------------------------------------------------
+              // On-screen remote: Up / Down / Left / Right / OK / Back, left edge of the screen
+              // ------------------------------------------------------------------
+              private void sendKey(int keyCode, boolean down) {
+                  if (web == null) return;
+                  if (offlineView.getVisibility() == View.VISIBLE) {      // Retry page
+                      if (down && keyCode == KeyEvent.KEYCODE_ENTER) retry();
+                      else if (down && keyCode == KeyEvent.KEYCODE_ESCAPE) finish();
+                      return;
+                  }
+                  web.dispatchKeyEvent(new KeyEvent(
+                          down ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP, keyCode));
+              }
+
+              private void stopRepeat() {
+                  if (repeater != null) {
+                      ui.removeCallbacks(repeater);
+                      repeater = null;
+                  }
+              }
+
+              private void startRepeat(final int keyCode) {
+                  stopRepeat();
+                  repeater = new Runnable() {
+                      @Override
+                      public void run() {
+                          sendKey(keyCode, true);
+                          ui.postDelayed(this, 110);
+                      }
+                  };
+                  ui.postDelayed(repeater, 400);
+              }
+
+              private void styleRemote(TextView t, boolean pressed) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setShape(GradientDrawable.OVAL);
+                  g.setColor(pressed ? 0xCCF1F1F1 : 0x99202020);
+                  g.setStroke(dp(1), 0x55FFFFFF);
+                  t.setBackground(g);
+                  t.setTextColor(pressed ? Color.BLACK : Color.WHITE);
+              }
+
+              @SuppressLint("ClickableViewAccessibility")
+              private TextView remoteBtn(String label, final int keyCode, final boolean repeat) {
+                  final TextView t = new TextView(this);
+                  t.setText(label);
+                  t.setTextSize(label.length() > 2 ? 10 : 16);
+                  t.setGravity(Gravity.CENTER);
+                  t.setFocusable(false);
+                  styleRemote(t, false);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(42), dp(42));
+                  lp.setMargins(dp(3), dp(3), dp(3), dp(3));
+                  t.setLayoutParams(lp);
+                  t.setOnTouchListener(new View.OnTouchListener() {
+                      @Override
+                      public boolean onTouch(View v, MotionEvent e) {
+                          int a = e.getActionMasked();
+                          if (a == MotionEvent.ACTION_DOWN) {
+                              styleRemote(t, true);
+                              sendKey(keyCode, true);
+                              if (repeat) startRepeat(keyCode);
+                          } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
+                              styleRemote(t, false);
+                              stopRepeat();
+                              sendKey(keyCode, false);
+                          }
+                          return true;
+                      }
+                  });
+                  return t;
+              }
+
+              private void buildRemote() {
+                  remoteBox = new LinearLayout(this);
+                  remoteBox.setOrientation(LinearLayout.VERTICAL);
+                  remoteBox.setGravity(Gravity.CENTER_HORIZONTAL);
+                  remoteBox.setAlpha(0.75f);
+
+                  remoteBox.addView(remoteBtn("BACK", KeyEvent.KEYCODE_ESCAPE, false));
+                  remoteBox.addView(remoteBtn("\u25B2", KeyEvent.KEYCODE_DPAD_UP, true));
+
+                  LinearLayout mid = new LinearLayout(this);
+                  mid.setOrientation(LinearLayout.HORIZONTAL);
+                  mid.addView(remoteBtn("\u25C0", KeyEvent.KEYCODE_DPAD_LEFT, true));
+                  mid.addView(remoteBtn("OK", KeyEvent.KEYCODE_ENTER, false));
+                  mid.addView(remoteBtn("\u25B6", KeyEvent.KEYCODE_DPAD_RIGHT, true));
+                  remoteBox.addView(mid);
+
+                  remoteBox.addView(remoteBtn("\u25BC", KeyEvent.KEYCODE_DPAD_DOWN, true));
+
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.START | Gravity.CENTER_VERTICAL);
+                  lp.setMargins(dp(4), 0, 0, 0);
+                  root.addView(remoteBox, lp);
+              }
+
               /** Receives capture text from inspector.js in chunks, then saves + shares it. */
               private class CapBridge {
                   private final StringBuilder buf = new StringBuilder();
@@ -2134,6 +2246,7 @@ jobs:
                           @Override
                           public void run() {
                               if (capBox != null) capBox.setVisibility(visible ? View.VISIBLE : View.GONE);
+                              if (remoteBox != null) remoteBox.setVisibility(visible ? View.VISIBLE : View.GONE);
                               if (!visible && panel != null) panel.setVisibility(View.GONE);
                           }
                       });

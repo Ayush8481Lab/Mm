@@ -3,13 +3,12 @@ name: Build YouTube AdBlock TV APK
 # Self-contained: no other files needed in the repo.
 # Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
 #   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
-#   0b. bgfix.js  - turns YouTube's low-end UI mode off so the sign-in / home background images load
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
 #                   7-dot circular loading spinner instead of "Loading..."
 #   3. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
 #                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
-#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off (shield icon) / Turn off screen (eye icon)
+#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off / Turn off screen
 #   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
 # Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
@@ -218,59 +217,6 @@ jobs:
                 }
               });
             } catch (e) { }
-          })();
-          EOF
-
-          # ---- Script 0b: sign-in / home background images ----
-          # Compared captures: with <body class="app-quality-root"> + tectonicConfig "limited memory / low quality",
-          # YouTube TV renders the welcome (sign-in) screen WITHOUT its background image (no background-image on
-          # ytlr-welcome-immersive-value-prop / ytlr-welcome). Turning that low-end mode off brings the images back.
-          # Level (Tools panel -> "Fix UI (backgrounds)"): 0 = off, 1 = backgrounds only (default), 2 = + animations.
-          cat > "$P/app/src/main/assets/bgfix.js" <<'EOF'
-          (function () {
-            if (window.__ytbg) return;
-            window.__ytbg = true;
-            var level = 1;
-            try { var v = localStorage.getItem('ytx-fixui'); if (v !== null) level = parseInt(v, 10) || 0; } catch (e) { }
-            if (level < 1) return;
-
-            function apply() {
-              try {
-                var t = window.tectonicConfig;
-                if (!t) return false;
-                if (t.featureSwitches) {
-                  t.featureSwitches.isLimitedMemory = false;
-                  if (level >= 2) {
-                    t.featureSwitches.enableAnimations = true;
-                    t.featureSwitches.enableListAnimations = true;
-                    t.featureSwitches.enableOnScrollLinearAnimation = true;
-                  }
-                }
-                if (t.clientData) t.clientData.legacyApplicationQuality = 'full-animation';
-                return true;
-              } catch (e) { return false; }
-            }
-
-            var obs = null;
-            function strip() {
-              var b = document.body;
-              if (b && b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
-            }
-            function watch() {
-              if (obs || !document.body) return;
-              strip();
-              try {
-                obs = new MutationObserver(strip);
-                obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-              } catch (e) { }
-            }
-
-            var n = 0, iv = setInterval(function () {
-              apply(); watch();
-              if (++n > 400) clearInterval(iv);          // ~20 s, long enough for the page to define its config
-            }, 50);
-            window.addEventListener('DOMContentLoaded', function () { apply(); watch(); });
-            window.addEventListener('load', function () { apply(); watch(); });
           })();
           EOF
 
@@ -653,10 +599,7 @@ jobs:
               '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
               '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
               '  z-index:2147483200;transition:opacity 1s;}',
-              '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}',
-              '.ytx-ic{position:fixed;display:none;align-items:center;justify-content:center;box-sizing:border-box;',
-              '  border-radius:.92vw 0 0 .92vw;z-index:2147483100;pointer-events:none;}',
-              '.ytx-ic svg{width:2.1vw;height:2.1vw;display:block;fill:currentColor;}'
+              '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
             ].join('\n');
             var styleEl = null;
             function inject() {
@@ -855,50 +798,6 @@ jobs:
                 el.textContent = text;
               }
             }
-            // Icons for the SponsorBlock / Turn off screen rows. They are drawn as a small overlay that covers the
-            // row's old icon (flag / feedback), so nothing inside YouTube's own DOM is touched.
-            var SVGNS = 'http://www.w3.org/2000/svg';
-            var ICONS = {
-              off: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
-              sb: 'M12 2 4 5v6c0 5.25 3.4 9.74 8 11 4.6-1.26 8-5.75 8-11V5l-8-3zM9 8.5v7l5-3.5-5-3.5zM15 8.5h1.6v7H15z'
-            };
-            var icEls = {};
-            function icEl(kind) {
-              var e = icEls[kind];
-              if (e && e.isConnected) return e;
-              e = document.createElement('div'); e.className = 'ytx-ic';
-              var svg = document.createElementNS(SVGNS, 'svg');
-              svg.setAttribute('viewBox', '0 0 24 24');
-              var path = document.createElementNS(SVGNS, 'path');
-              path.setAttribute('d', ICONS[kind]);
-              path.setAttribute('fill-rule', 'evenodd');
-              svg.appendChild(path); e.appendChild(svg);
-              document.documentElement.appendChild(e);
-              icEls[kind] = e;
-              return e;
-            }
-            function placeIcons() {
-              var rows = document.querySelectorAll('[data-ytx="sb"],[data-ytx="off"]'), seen = {}, i;
-              for (i = 0; i < rows.length; i++) {
-                var row = rows[i], kind = row.getAttribute('data-ytx'), ok = !mOpen, sp, r, lx, w = 0, cx, cy;
-                if (ok) { sp = labelSpan(row); r = row.getBoundingClientRect(); ok = !!sp && r.width > 50 && r.height > 10 && r.bottom > 0 && r.top < innerHeight; }
-                if (ok) { lx = sp.getBoundingClientRect().left; w = lx - r.left - 6; ok = w > 10; }
-                if (ok) {                                    // only when this row is really the top-most thing at that spot
-                  cx = r.left + w / 2; cy = r.top + r.height / 2;
-                  var st = document.elementsFromPoint ? document.elementsFromPoint(cx, cy) : [];
-                  ok = !!st.length && rowKindOf(st[0]) === kind;
-                }
-                if (!ok) continue;
-                var foc = row.classList.contains('zylon-focus') || !!row.querySelector('.zylon-focus');
-                var e = icEl(kind), s = e.style;
-                s.display = 'flex'; s.left = (r.left + 1) + 'px'; s.top = (r.top + 1) + 'px';
-                s.width = w + 'px'; s.height = (r.height - 2) + 'px';
-                s.background = foc ? '#f1f1f1' : '#212121'; s.color = foc ? '#000' : '#fff';
-                e.firstChild.style.opacity = (kind === 'sb' && !cfg.sb) ? '.45' : '1';
-                seen[kind] = 1;
-              }
-              for (var k in icEls) if (!seen[k]) icEls[k].style.display = 'none';
-            }
             function panelHasSpeed(row) {
               var p = row.parentElement, n = 0;
               while (p && n++ < 6) {
@@ -966,29 +865,13 @@ jobs:
               var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
               return typeof t.clientX === 'number' ? t : null;
             }
-            function opaque(el) {
-              try {
-                var m = getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
-                if (!m) return false;
-                var p = m[1].split(',').map(parseFloat);
-                return (p.length > 3 ? p[3] : 1) > 0.9;
-              } catch (e) { return false; }
-            }
             function kindAtPoint(e) {
               var k = rowKindOf(e.target);
               if (k) return k;
               var t = evPoint(e);
               if (!t || !document.elementsFromPoint) return null;
-              var st = document.elementsFromPoint(t.clientX, t.clientY), i, el;
-              for (i = 0; i < st.length && i < 14; i++) {
-                el = st[i];
-                k = rowKindOf(el);
-                if (k) return k;
-                // Another YouTube row / button / panel is on top here (e.g. the Captions list opened over Settings),
-                // so the Speed / SponsorBlock rows hidden underneath must not react.
-                if (el.closest && el.closest('ytlr-compact-link-renderer,ytlr-button,ytlr-playlist-loop-button-renderer,ytlr-menu-service-item-renderer')) return null;
-                if (opaque(el)) return null;
-              }
+              var st = document.elementsFromPoint(t.clientX, t.clientY), i;
+              for (i = 0; i < st.length; i++) { k = rowKindOf(st[i]); if (k) return k; }
               return null;
             }
             function onPointer(e) {
@@ -1243,9 +1126,6 @@ jobs:
               var i = list.indexOf(cur);
               return list[(i + 1) % list.length];
             }
-            function fixLevel() {
-              try { var v = localStorage.getItem('ytx-fixui'); return v === null ? 1 : (parseInt(v, 10) || 0); } catch (e) { return 1; }
-            }
             function qmax() {
               try { return parseInt(localStorage.getItem('ytx-qmax') || '0', 10) || 0; } catch (e) { return 0; }
             }
@@ -1262,13 +1142,6 @@ jobs:
                       var n = cycle([0, 1080, 1440, 2160, 4320], qmax());
                       try { if (n) localStorage.setItem('ytx-qmax', String(n)); else localStorage.removeItem('ytx-qmax'); } catch (e) { }
                       toast('Max quality: ' + qname(n) + ' - reloading');
-                      setTimeout(function () { location.reload(); }, 900);
-                      return 'keep';
-                    } },
-                  { label: 'Fix UI (backgrounds)', sub: ['Off', 'Backgrounds', 'Backgrounds + animations'][fixLevel()] + ' (page reloads)', run: function () {
-                      var n = (fixLevel() + 1) % 3;
-                      try { localStorage.setItem('ytx-fixui', String(n)); } catch (e) { }
-                      toast('Fix UI: ' + ['Off', 'Backgrounds', 'Backgrounds + animations'][n] + ' - reloading');
                       setTimeout(function () { location.reload(); }, 900);
                       return 'keep';
                     } },
@@ -1307,7 +1180,7 @@ jobs:
 
             inject();
             if (cfg.dim) armDim();
-            setInterval(function () { try { patchSettings(); placeIcons(); } catch (e) { } }, 120);
+            setInterval(function () { try { patchSettings(); } catch (e) { } }, 120);
             setInterval(function () {
               try { inject(); checkVideo(); sbOverlay(); } catch (e) { }
             }, 400);
@@ -1685,8 +1558,6 @@ jobs:
 
                   String q = readAsset("quality.js");          // lifts the quality-menu cap (must run first)
                   if (!q.isEmpty()) scripts.add(q);
-                  String bgfix = readAsset("bgfix.js");      // sign-in / home background images
-                  if (!bgfix.isEmpty()) scripts.add(bgfix);
                   String ad = readAsset("adblock.js");
                   if (!ad.isEmpty()) scripts.add(ad);
                   String glass = readAsset("glass.js");

@@ -635,8 +635,7 @@ jobs:
               titleEl = document.createElement('div'); titleEl.id = 'ytx-title';
               listEl = document.createElement('div'); listEl.id = 'ytx-list';
               box.appendChild(titleEl); box.appendChild(listEl); modal.appendChild(box);
-              modal.addEventListener('click', function (e) { if (e.target === modal) back(); });
-              document.documentElement.appendChild(modal);
+                document.documentElement.appendChild(modal);
             }
             function openMenu(title, build, opts) {
               ensureModal();
@@ -666,7 +665,7 @@ jobs:
                 if (it.sub) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = it.sub; t.appendChild(s); }
                 d.appendChild(t);
                 if (it.on) { var c = document.createElement('div'); c.className = 'chk'; c.textContent = '\u2713'; d.appendChild(c); }
-                d.addEventListener('click', function () { mIdx = i; choose(i); });
+                d.setAttribute('data-i', String(i));
                 listEl.appendChild(d);
               });
               scrollToFocus();
@@ -772,35 +771,67 @@ jobs:
             //   "Report"   -> "SponsorBlock: On/Off"    (Enter toggles)
             //   "Feedback" -> "Turn off screen"
             function onOff(b) { return b ? 'On' : 'Off'; }
+            // The label "Speed" is a <span> INSIDE a yt-formatted-string, so the subtitle is the
+            // yt-formatted-string that does NOT contain that span.
+            function labelSpan(row) {
+              var s = row.getElementsByTagName('span'), i;
+              for (i = 0; i < s.length; i++) {
+                if (s[i].children.length === 0 && (s[i].textContent || '').trim()) return s[i];
+              }
+              return null;
+            }
+            function subOf(row, sp) {
+              var l = row.getElementsByTagName('yt-formatted-string'), i;
+              for (i = 0; i < l.length; i++) {
+                if (l[i].contains(sp) || sp.contains(l[i])) continue;
+                return l[i];
+              }
+              return null;
+            }
+            function setText(el, text) {
+              if (!el) return;
+              if (el.childNodes.length === 1 && el.firstChild.nodeType === 3) {
+                if (el.firstChild.nodeValue !== text) el.firstChild.nodeValue = text;
+              } else if (el.children.length === 1 && el.firstElementChild.children.length === 0) {
+                if (el.firstElementChild.textContent !== text) el.firstElementChild.textContent = text;
+              } else if (el.textContent !== text) {
+                el.textContent = text;
+              }
+            }
+            function panelHasSpeed(row) {
+              var p = row.parentElement, n = 0;
+              while (p && n++ < 6) {
+                if (p.querySelector('[data-ytx="speed"]')) return true;
+                p = p.parentElement;
+              }
+              return false;
+            }
             function patchSettings() {
               var rows = document.getElementsByTagName('ytlr-compact-link-renderer');
               if (!rows.length) return;
               var i, row, sp, t;
               for (i = 0; i < rows.length; i++) {
-                row = rows[i]; sp = row.querySelector('span');
+                row = rows[i]; sp = labelSpan(row);
                 if (!sp) continue;
                 t = (sp.textContent || '').trim();
                 if (t === 'Speed' || row.getAttribute('data-ytx') === 'speed') {
                   if (row.getAttribute('data-ytx') !== 'speed') row.setAttribute('data-ytx', 'speed');
-                  var sub = row.querySelector('yt-formatted-string'), want = speedText();
-                  if (sub && sub.textContent !== want) sub.textContent = want;
+                  setText(subOf(row, sp), speedText());           // replaces "Not available on this device"
                 }
               }
               for (i = 0; i < rows.length; i++) {
-                row = rows[i]; sp = row.querySelector('span');
+                row = rows[i]; sp = labelSpan(row);
                 if (!sp) continue;
                 t = (sp.textContent || '').trim();
                 var kind = row.getAttribute('data-ytx');
                 if (kind === 'speed') continue;
                 if (!kind) {
-                  var par = row.parentElement;
-                  if (!par || !par.querySelector('[data-ytx="speed"]')) continue;   // only inside the player Settings panel
+                  if (!panelHasSpeed(row)) continue;              // only inside the player Settings panel
                   kind = t === 'Report' ? 'sb' : (t === 'Feedback' ? 'off' : null);
                   if (!kind) continue;
                   row.setAttribute('data-ytx', kind);
                 }
-                var label = kind === 'sb' ? ('SponsorBlock: ' + onOff(cfg.sb)) : 'Turn off screen';
-                if (sp.textContent !== label) sp.textContent = label;
+                setText(sp, kind === 'sb' ? ('SponsorBlock: ' + onOff(cfg.sb)) : 'Turn off screen');
               }
             }
             function rowKindOf(el) {
@@ -827,11 +858,42 @@ jobs:
               }
             }
 
-            document.addEventListener('click', function (e) {
-              if (mOpen) return;
+            // YouTube TV hit-tests touches itself, so a tap on our panel also "pressed" the YouTube button underneath
+            // (e.g. Stats for nerds). All pointer events on our panel / our rows are stopped here, first in line.
+            var PTR = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'touchmove', 'click'];
+            function evPoint(e) {
+              var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
+              return typeof t.clientX === 'number' ? t : null;
+            }
+            function kindAtPoint(e) {
               var k = rowKindOf(e.target);
-              if (k) { stop(e); activate(k); }
-            }, true);
+              if (k) return k;
+              var t = evPoint(e);
+              if (!t || !document.elementsFromPoint) return null;
+              var st = document.elementsFromPoint(t.clientX, t.clientY), i;
+              for (i = 0; i < st.length; i++) { k = rowKindOf(st[i]); if (k) return k; }
+              return null;
+            }
+            function onPointer(e) {
+              if (mOpen) {
+                e.stopPropagation(); e.stopImmediatePropagation();
+                if (e.type === 'click') {
+                  e.preventDefault();
+                  var el = e.target, it = el && el.closest ? el.closest('.ytx-item') : null;
+                  if (it) {
+                    var n = parseInt(it.getAttribute('data-i'), 10);
+                    if (n >= 0) { mIdx = n; choose(n); }
+                  } else if (!box.contains(el)) back();
+                }
+                return;
+              }
+              if (e.type === 'touchmove') return;
+              var k = kindAtPoint(e);
+              if (!k) return;
+              e.stopPropagation(); e.stopImmediatePropagation();
+              if (e.type === 'click') { e.preventDefault(); activate(k); }
+            }
+            PTR.forEach(function (n) { window.addEventListener(n, onPointer, true); });
 
             // keys: Enter on our rows, colour buttons (blue 406 / 191) open the speed picker
             var swallowEnterUntil = 0;

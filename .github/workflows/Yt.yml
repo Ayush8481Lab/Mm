@@ -2188,7 +2188,10 @@ jobs:
                   mid.addView(remoteBtn("\u25C0", KeyEvent.KEYCODE_DPAD_LEFT, true));
                   mid.addView(remoteBtn("OK", KeyEvent.KEYCODE_ENTER, false));
                   mid.addView(remoteBtn("\u25B6", KeyEvent.KEYCODE_DPAD_RIGHT, true));
-                  remoteBox.addView(mid);
+                  // WRAP_CONTENT is required: a vertical LinearLayout would otherwise squeeze this row to one
+                  // button width and clip OK and Right.
+                  remoteBox.addView(mid, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                   remoteBox.addView(remoteBtn("\u25BC", KeyEvent.KEYCODE_DPAD_DOWN, true));
 

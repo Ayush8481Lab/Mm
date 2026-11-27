@@ -3,8 +3,7 @@ name: Build YouTube AdBlock TV APK
 # Self-contained: no other files needed in the repo.
 # Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
 #   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
-#   0b. bgfix.js  - turns YouTube's low-end UI mode off EARLY (config trap) so the sign-in / welcome
-#                   background images load, plus a CSS fallback that paints those images directly
+#   0b. bgfix.js  - turns YouTube's low-end UI mode off so the sign-in / home background images load
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
 #                   7-dot circular loading spinner instead of "Loading..."
@@ -222,15 +221,10 @@ jobs:
           })();
           EOF
 
-          # ---- Script 0b: sign-in / welcome background images ----
-          # Captures show that with <body class="app-quality-root"> + tectonicConfig "limited memory / low quality",
-          # YouTube TV renders the welcome screens WITHOUT their background images and even picks different CSS classes
-          # for them. The old version patched the config with a 50 ms timer, which was too late: the app had already read it.
-          # Now:
-          #   1. window.tectonicConfig gets a setter trap, so the low-end flags are cleared the moment the page assigns it
-          #      (before the app reads it), and again by a fast poll as a safety net;
-          #   2. body.app-quality-root is stripped (and kept stripped by a MutationObserver);
-          #   3. a CSS fallback paints the two welcome backgrounds directly, in case the page still renders the low-end variant.
+          # ---- Script 0b: sign-in / home background images ----
+          # Compared captures: with <body class="app-quality-root"> + tectonicConfig "limited memory / low quality",
+          # YouTube TV renders the welcome (sign-in) screen WITHOUT its background image (no background-image on
+          # ytlr-welcome-immersive-value-prop / ytlr-welcome). Turning that low-end mode off brings the images back.
           # Level (Tools panel -> "Fix UI (backgrounds)"): 0 = off, 1 = backgrounds only (default), 2 = + animations.
           cat > "$P/app/src/main/assets/bgfix.js" <<'EOF'
           (function () {
@@ -240,23 +234,11 @@ jobs:
             try { var v = localStorage.getItem('ytx-fixui'); if (v !== null) level = parseInt(v, 10) || 0; } catch (e) { }
             if (level < 1) return;
 
-            var LOWKEY = /limited.?memory|low.?memory|low.?end/i;
-
-            function fixObj(o) {
-              if (!o || typeof o !== 'object') return;
+            function apply() {
               try {
-                for (var k in o) {
-                  if (LOWKEY.test(k) && o[k] === true) o[k] = false;
-                }
-              } catch (e) { }
-            }
-
-            function apply(t) {
-              try {
-                t = t || window.tectonicConfig;
-                if (!t || typeof t !== 'object') return false;
+                var t = window.tectonicConfig;
+                if (!t) return false;
                 if (t.featureSwitches) {
-                  fixObj(t.featureSwitches);
                   t.featureSwitches.isLimitedMemory = false;
                   if (level >= 2) {
                     t.featureSwitches.enableAnimations = true;
@@ -264,64 +246,29 @@ jobs:
                     t.featureSwitches.enableOnScrollLinearAnimation = true;
                   }
                 }
-                if (t.clientData) {
-                  fixObj(t.clientData);
-                  t.clientData.legacyApplicationQuality = 'full-animation';
-                }
+                if (t.clientData) t.clientData.legacyApplicationQuality = 'full-animation';
                 return true;
               } catch (e) { return false; }
             }
 
-            // 1. trap the assignment of window.tectonicConfig so it is fixed before the app reads it
-            try {
-              var cur = window.tectonicConfig;
-              if (cur) apply(cur);
-              Object.defineProperty(window, 'tectonicConfig', {
-                configurable: true,
-                enumerable: true,
-                get: function () { return cur; },
-                set: function (v) { cur = v; apply(v); }
-              });
-            } catch (e) { }
-
-            // 3. CSS fallback: the two welcome backgrounds painted directly
-            try {
-              var st = document.createElement('style');
-              st.id = 'ytbg-css';
-              st.textContent = [
-                'ytlr-welcome-immersive-value-prop{',
-                '  background-image:url("https://www.gstatic.com/ytlr/img/ftux_immersive_1280x720_v2.jpg") !important;',
-                '  background-size:cover !important;background-position:center !important;background-repeat:no-repeat !important;}',
-                'ytlr-welcome{',
-                '  background-image:url("https://www.gstatic.com/ytlr/img/uni_tube_gradient_1280x720.jpg") !important;',
-                '  background-size:cover !important;background-position:center !important;background-repeat:no-repeat !important;}'
-              ].join('\n');
-              (document.head || document.documentElement).appendChild(st);
-            } catch (e) { }
-
-            // 2. keep body.app-quality-root off
-            var obs = null, obsBody = null;
+            var obs = null;
             function strip() {
               var b = document.body;
               if (b && b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
             }
             function watch() {
-              var b = document.body;
-              if (!b) return;
+              if (obs || !document.body) return;
               strip();
-              if (obs && obsBody === b) return;
-              try { if (obs) obs.disconnect(); } catch (e) { }
               try {
                 obs = new MutationObserver(strip);
-                obs.observe(b, { attributes: true, attributeFilter: ['class'] });
-                obsBody = b;
+                obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
               } catch (e) { }
             }
 
             var n = 0, iv = setInterval(function () {
               apply(); watch();
-              if (++n > 1000) clearInterval(iv);          // 20 ms x 1000 = ~20 s
-            }, 20);
+              if (++n > 400) clearInterval(iv);          // ~20 s, long enough for the page to define its config
+            }, 50);
             window.addEventListener('DOMContentLoaded', function () { apply(); watch(); });
             window.addEventListener('load', function () { apply(); watch(); });
           })();
@@ -745,7 +692,7 @@ jobs:
               titleEl = document.createElement('div'); titleEl.id = 'ytx-title';
               listEl = document.createElement('div'); listEl.id = 'ytx-list';
               box.appendChild(titleEl); box.appendChild(listEl); modal.appendChild(box);
-              document.documentElement.appendChild(modal);
+                document.documentElement.appendChild(modal);
             }
             function openMenu(title, build, opts) {
               ensureModal();
@@ -878,7 +825,7 @@ jobs:
             // ======================= YouTube Settings panel: Speed / SponsorBlock / Turn off screen =======================
             // The existing rows are reused so the look and the D-pad focus are 100% native:
             //   "Speed - Not available on this device"  -> "Speed - <current speed>"  (opens our speed list)
-            //   "Report"   -> "SponsorBlock: On/Off"    (Enter / tap toggles)
+            //   "Report"   -> "SponsorBlock: On/Off"    (Enter toggles)
             //   "Feedback" -> "Turn off screen"
             function onOff(b) { return b ? 'On' : 'Off'; }
             // The label "Speed" is a <span> INSIDE a yt-formatted-string, so the subtitle is the
@@ -910,12 +857,10 @@ jobs:
             }
             // Icons for the SponsorBlock / Turn off screen rows. They are drawn as a small overlay that covers the
             // row's old icon (flag / feedback), so nothing inside YouTube's own DOM is touched.
-            //   off: eye (Material "visibility")
-            //   sb : custom shield with a "skip" mark cut out of it (a play triangle + a bar), drawn with even-odd fill
             var SVGNS = 'http://www.w3.org/2000/svg';
             var ICONS = {
               off: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
-              sb: 'M12 1.8 3.6 4.9v6.2c0 5.4 3.5 9.9 8.4 11.1 4.9-1.2 8.4-5.7 8.4-11.1V4.9L12 1.8zM8.6 8.2v7.6l5.3-3.8-5.3-3.8zM15.1 8.2h1.7v7.6h-1.7V8.2z'
+              sb: 'M12 2 4 5v6c0 5.25 3.4 9.74 8 11 4.6-1.26 8-5.75 8-11V5l-8-3zM9 8.5v7l5-3.5-5-3.5zM15 8.5h1.6v7H15z'
             };
             var icEls = {};
             function icEl(kind) {
@@ -941,7 +886,7 @@ jobs:
                 if (ok) {                                    // only when this row is really the top-most thing at that spot
                   cx = r.left + w / 2; cy = r.top + r.height / 2;
                   var st = document.elementsFromPoint ? document.elementsFromPoint(cx, cy) : [];
-                  ok = !!st.length && topRowKind(st) === kind;
+                  ok = !!st.length && rowKindOf(st[0]) === kind;
                 }
                 if (!ok) continue;
                 var foc = row.classList.contains('zylon-focus') || !!row.querySelector('.zylon-focus');
@@ -1014,61 +959,38 @@ jobs:
               }
             }
 
-            // ---- hit-testing: is one of OUR rows really the thing under the finger? ----
-            // Bug fixed here: with the Captions (or any other) list opened over Settings, the Speed / SponsorBlock rows
-            // are still in the DOM underneath it, and a tap on a caption item was also "pressed" on them. Now the stack
-            // of elements at the touch point is walked from the top: if the first element that has any real content
-            // (text, background colour / image, icon, a YouTube row or button) is NOT inside one of our rows, the touch
-            // belongs to something else and we do nothing.
-            var YT_CTRL = 'ytlr-compact-link-renderer,ytlr-button,ytlr-playlist-loop-button-renderer,' +
-              'ytlr-menu-service-item-renderer,ytlr-toggle-button-renderer,ytlr-radio-button-renderer,' +
-              'ytlr-list-item-renderer,ytlr-simple-menu-item-renderer,ytlr-settings-item-renderer,[role="menuitem"],' +
-              '[role="menuitemradio"],[role="radio"],[role="option"],[role="button"]';
-            function hasOwnText(el) {
-              for (var c = el.firstChild; c; c = c.nextSibling) {
-                if (c.nodeType === 3 && c.nodeValue && c.nodeValue.trim()) return true;
-              }
-              return false;
-            }
-            function hasContent(el) {
-              try {
-                var tg = (el.tagName || '').toLowerCase();
-                if (tg === 'svg' || tg === 'img' || tg === 'image' || tg === 'video' || tg === 'canvas') return true;
-                if (el.closest && el.closest(YT_CTRL)) return true;
-                if (hasOwnText(el)) return true;
-                var cs = getComputedStyle(el);
-                if (cs.backgroundImage && cs.backgroundImage !== 'none') return true;
-                var m = (cs.backgroundColor || '').match(/rgba?\(([^)]+)\)/);
-                if (m) {
-                  var p = m[1].split(',').map(parseFloat);
-                  if ((p.length > 3 ? p[3] : 1) > 0.05) return true;
-                }
-              } catch (e) { }
-              return false;
-            }
-            function topRowKind(stack) {
-              var i, el, k;
-              for (i = 0; i < stack.length && i < 16; i++) {
-                el = stack[i];
-                k = rowKindOf(el);
-                if (k) return k;                         // one of our rows is the first real thing here
-                if (hasContent(el)) return null;         // something else (e.g. the Captions list) is on top
-              }
-              return null;
-            }
+            // YouTube TV hit-tests touches itself, so a tap on our panel also "pressed" the YouTube button underneath
+            // (e.g. Stats for nerds). All pointer events on our panel / our rows are stopped here, first in line.
+            var PTR = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'touchmove', 'click'];
             function evPoint(e) {
               var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
               return typeof t.clientX === 'number' ? t : null;
             }
-            function kindAtPoint(e) {
-              var t = evPoint(e);
-              if (!t || !document.elementsFromPoint) return rowKindOf(e.target);
-              return topRowKind(document.elementsFromPoint(t.clientX, t.clientY));
+            function opaque(el) {
+              try {
+                var m = getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
+                if (!m) return false;
+                var p = m[1].split(',').map(parseFloat);
+                return (p.length > 3 ? p[3] : 1) > 0.9;
+              } catch (e) { return false; }
             }
-
-            // YouTube TV hit-tests touches itself, so a tap on our panel also "pressed" the YouTube button underneath
-            // (e.g. Stats for nerds). All pointer events on our panel / our rows are stopped here, first in line.
-            var PTR = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'touchmove', 'click'];
+            function kindAtPoint(e) {
+              var k = rowKindOf(e.target);
+              if (k) return k;
+              var t = evPoint(e);
+              if (!t || !document.elementsFromPoint) return null;
+              var st = document.elementsFromPoint(t.clientX, t.clientY), i, el;
+              for (i = 0; i < st.length && i < 14; i++) {
+                el = st[i];
+                k = rowKindOf(el);
+                if (k) return k;
+                // Another YouTube row / button / panel is on top here (e.g. the Captions list opened over Settings),
+                // so the Speed / SponsorBlock rows hidden underneath must not react.
+                if (el.closest && el.closest('ytlr-compact-link-renderer,ytlr-button,ytlr-playlist-loop-button-renderer,ytlr-menu-service-item-renderer')) return null;
+                if (opaque(el)) return null;
+              }
+              return null;
+            }
             function onPointer(e) {
               if (mOpen) {
                 e.stopPropagation(); e.stopImmediatePropagation();

@@ -3,12 +3,13 @@ name: Build YouTube AdBlock TV APK
 # Self-contained: no other files needed in the repo.
 # Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
 #   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
+#   0b. uifix.js  - TizenTube "Fix UI": brings back home-screen / login-page background images
 #   1. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
 #   2. glass.js   - transparent-blur player controls, no black boxes behind text,
 #                   7-dot circular loading spinner instead of "Loading..."
 #   3. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
 #                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
-#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off / Turn off screen
+#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off (shield icon) / Turn off screen (eye icon)
 #   4. inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
 # Also: header (User-Agent) picker, black screen while video loads, "No internet - Retry" page,
 # app logos downloaded at build time (falls back to a built-in red icon if a download fails).
@@ -217,6 +218,58 @@ jobs:
                 }
               });
             } catch (e) { }
+          })();
+          EOF
+
+          # ---- Script 0b: "Fix UI" ported from TizenTube (enableFixedUI) ----
+          # YouTube TV treats this WebView as a low-end device: <body class="app-quality-root"> + tectonicConfig
+          # (isLimitedMemory / legacyApplicationQuality / animations off) switch off background images,
+          # gradients and animations on the home screen and the sign-in page. TizenTube undoes exactly that.
+          # Toggle: Tools panel -> "Fix UI (backgrounds)".
+          cat > "$P/app/src/main/assets/uifix.js" <<'EOF'
+          (function () {
+            if (window.__ytfix) return;
+            window.__ytfix = true;
+            try { if (localStorage.getItem('ytx-fixui') === '0') return; } catch (e) { }
+
+            function apply() {
+              try {
+                var t = window.tectonicConfig;
+                if (!t) return false;
+                var f = t.featureSwitches;
+                if (f) {
+                  f.isLimitedMemory = false;
+                  f.enableAnimations = true;
+                  f.enableOnScrollLinearAnimation = true;
+                  f.enableListAnimations = true;
+                  f.supportsLongPress = true;
+                  f.enableCaptionsPersistence = true;
+                }
+                if (t.clientData) t.clientData.legacyApplicationQuality = 'full-animation';
+                return true;
+              } catch (e) { return false; }
+            }
+
+            var obs = null;
+            function strip() {
+              var b = document.body;
+              if (b && b.classList.contains('app-quality-root')) b.classList.remove('app-quality-root');
+            }
+            function watch() {
+              if (obs || !document.body) return;
+              strip();
+              try {
+                obs = new MutationObserver(strip);
+                obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+              } catch (e) { }
+            }
+
+            var n = 0, iv = setInterval(function () {
+              apply(); watch();
+              if (++n > 400) clearInterval(iv);          // ~20 s, long enough for the page to define its config
+            }, 50);
+            window.addEventListener('DOMContentLoaded', function () { apply(); watch(); });
+            window.addEventListener('load', function () { apply(); watch(); });
           })();
           EOF
 
@@ -599,7 +652,11 @@ jobs:
               '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
               '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
               '  z-index:2147483200;transition:opacity 1s;}',
-              '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}'
+              '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}',
+              '[data-ytx-hide]{visibility:hidden !important;}',
+              '.ytx-ico{position:absolute;left:1.22vw;top:50%;width:2.1vw;height:2.1vw;margin-top:-1.05vw;z-index:3;pointer-events:none;}',
+              '.ytx-ico svg{width:100%;height:100%;display:block;fill:currentColor;}',
+              '[data-ytx-off="1"] .ytx-ico{opacity:.45;}'
             ].join('\n');
             var styleEl = null;
             function inject() {
@@ -798,6 +855,46 @@ jobs:
                 el.textContent = text;
               }
             }
+            // Own icons (24x24, drawn with currentColor): eye for "Turn off screen", shield + skip mark for SponsorBlock.
+            var SVGNS = 'http://www.w3.org/2000/svg';
+            var ICONS = {
+              off: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
+              sb: 'M12 2 4 5v6c0 5.25 3.4 9.74 8 11 4.6-1.26 8-5.75 8-11V5l-8-3zM9 8.5v7l5-3.5-5-3.5zM15 8.5h1.6v7H15z'
+            };
+            function makeIcon(kind) {
+              var w = document.createElement('span'); w.className = 'ytx-ico';
+              var svg = document.createElementNS(SVGNS, 'svg');
+              svg.setAttribute('viewBox', '0 0 24 24');
+              var path = document.createElementNS(SVGNS, 'path');
+              path.setAttribute('d', ICONS[kind]);
+              path.setAttribute('fill-rule', 'evenodd');
+              svg.appendChild(path); w.appendChild(svg);
+              return w;
+            }
+            function ensureIcon(row, kind, sp) {
+              var ico = null, c = row.children, i;
+              for (i = 0; i < c.length; i++) if (c[i].className === 'ytx-ico') { ico = c[i]; break; }
+              if (!ico) {
+                ico = makeIcon(kind);
+                if (getComputedStyle(row).position === 'static') row.style.position = 'relative';
+                row.appendChild(ico);
+              }
+              var foc = row.classList.contains('zylon-focus') || !!row.querySelector('.zylon-focus');
+              var f = foc ? '1' : '0';
+              if (ico.getAttribute('data-f') !== f) { ico.setAttribute('data-f', f); ico.style.color = foc ? '#000' : '#fff'; }
+              // hide YouTube's original icon of this row (everything small that sits left of the label)
+              var lx = sp.getBoundingClientRect().left, all = row.getElementsByTagName('*'), el, r;
+              for (i = 0; i < all.length; i++) {
+                el = all[i];
+                if (el === ico || ico.contains(el) || el.contains(sp)) continue;
+                r = el.getBoundingClientRect();
+                if (!r.width || !r.height || r.right > lx + 1) continue;
+                if (/icon|^img$|^svg$|^yt-img/i.test(el.tagName) ||
+                    (r.width <= row.offsetWidth * 0.14 && r.height <= row.offsetHeight * 0.8)) {
+                  if (!el.hasAttribute('data-ytx-hide')) el.setAttribute('data-ytx-hide', '1');
+                }
+              }
+            }
             function panelHasSpeed(row) {
               var p = row.parentElement, n = 0;
               while (p && n++ < 6) {
@@ -832,6 +929,8 @@ jobs:
                   row.setAttribute('data-ytx', kind);
                 }
                 setText(sp, kind === 'sb' ? ('SponsorBlock: ' + onOff(cfg.sb)) : 'Turn off screen');
+                if (kind === 'sb') row.setAttribute('data-ytx-off', cfg.sb ? '0' : '1');
+                ensureIcon(row, kind, sp);
               }
             }
             function rowKindOf(el) {
@@ -865,13 +964,29 @@ jobs:
               var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
               return typeof t.clientX === 'number' ? t : null;
             }
+            function opaque(el) {
+              try {
+                var m = getComputedStyle(el).backgroundColor.match(/rgba?\(([^)]+)\)/);
+                if (!m) return false;
+                var p = m[1].split(',').map(parseFloat);
+                return (p.length > 3 ? p[3] : 1) > 0.9;
+              } catch (e) { return false; }
+            }
             function kindAtPoint(e) {
               var k = rowKindOf(e.target);
               if (k) return k;
               var t = evPoint(e);
               if (!t || !document.elementsFromPoint) return null;
-              var st = document.elementsFromPoint(t.clientX, t.clientY), i;
-              for (i = 0; i < st.length; i++) { k = rowKindOf(st[i]); if (k) return k; }
+              var st = document.elementsFromPoint(t.clientX, t.clientY), i, el;
+              for (i = 0; i < st.length && i < 14; i++) {
+                el = st[i];
+                k = rowKindOf(el);
+                if (k) return k;
+                // Another YouTube row / button / panel is on top at this point (e.g. the Captions list opened over
+                // Settings): the Speed / SponsorBlock rows hidden underneath must NOT react.
+                if (el.closest && el.closest('ytlr-compact-link-renderer,ytlr-button,ytlr-playlist-loop-button-renderer,ytlr-menu-service-item-renderer')) return null;
+                if (opaque(el)) return null;
+              }
               return null;
             }
             function onPointer(e) {
@@ -1126,6 +1241,9 @@ jobs:
               var i = list.indexOf(cur);
               return list[(i + 1) % list.length];
             }
+            function fixOn() {
+              try { return localStorage.getItem('ytx-fixui') !== '0'; } catch (e) { return true; }
+            }
             function qmax() {
               try { return parseInt(localStorage.getItem('ytx-qmax') || '0', 10) || 0; } catch (e) { return 0; }
             }
@@ -1142,6 +1260,12 @@ jobs:
                       var n = cycle([0, 1080, 1440, 2160, 4320], qmax());
                       try { if (n) localStorage.setItem('ytx-qmax', String(n)); else localStorage.removeItem('ytx-qmax'); } catch (e) { }
                       toast('Max quality: ' + qname(n) + ' - reloading');
+                      setTimeout(function () { location.reload(); }, 900);
+                      return 'keep';
+                    } },
+                  { label: 'Fix UI (backgrounds)', sub: onOff(fixOn()) + ' (page reloads)', run: function () {
+                      try { localStorage.setItem('ytx-fixui', fixOn() ? '0' : '1'); } catch (e) { }
+                      toast('Fix UI ' + onOff(fixOn()) + ' - reloading');
                       setTimeout(function () { location.reload(); }, 900);
                       return 'keep';
                     } },
@@ -1558,6 +1682,8 @@ jobs:
 
                   String q = readAsset("quality.js");          // lifts the quality-menu cap (must run first)
                   if (!q.isEmpty()) scripts.add(q);
+                  String fix = readAsset("uifix.js");        // removes app-quality-root -> home / login backgrounds
+                  if (!fix.isEmpty()) scripts.add(fix);
                   String ad = readAsset("adblock.js");
                   if (!ad.isEmpty()) scripts.add(ad);
                   String glass = readAsset("glass.js");

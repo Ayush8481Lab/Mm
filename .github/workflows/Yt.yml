@@ -42,20 +42,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Locate TizenTube folder (works from repo root or any subfolder)
+        run: |
+          RC=$(find . -type f -path '*/mods/rollup.config.js' -not -path '*/node_modules/*' | head -n1)
+          if [ -z "$RC" ]; then
+            echo "::error::Could not find mods/rollup.config.js - TizenTube source is not in this repo."
+            echo "Repo contents:"; ls -la; find . -maxdepth 3 -not -path './.git/*' | head -80
+            exit 1
+          fi
+          ROOT=$(cd "$(dirname "$RC")/.." && pwd)
+          echo "TT_ROOT=$ROOT" >> "$GITHUB_ENV"
+          echo "TizenTube root: $ROOT"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: mods/package-lock.json
 
       - name: Build TizenTube userscript (mods -> dist/userScript.js)
-        working-directory: mods
         run: |
+          cd "$TT_ROOT/mods"
           npm ci --no-audit --no-fund || npm install --no-audit --no-fund
           npm run build
-          test -s ../dist/userScript.js
-          ls -lh ../dist/userScript.js
+          test -s "$TT_ROOT/dist/userScript.js"
+          ls -lh "$TT_ROOT/dist/userScript.js"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -75,7 +85,7 @@ jobs:
 
       - name: Read app version
         run: |
-          VER=$(grep -oP '<widget[^>]*\sversion="\K[^"]+' standalone/config.xml | head -n1 || true)
+          VER=$(grep -oP '<widget[^>]*\sversion="\K[^"]+' "$TT_ROOT/standalone/config.xml" 2>/dev/null | head -n1 || true)
           if [ -z "$VER" ]; then VER="1.0.0"; fi
           echo "APP_VER=$VER" >> "$GITHUB_ENV"
           echo "App version: $VER"
@@ -959,10 +969,18 @@ jobs:
         run: |
           set -e
           P=android-app/app/src/main
-          cp dist/userScript.js $P/assets/userScript.js
+          cp "$TT_ROOT/dist/userScript.js" $P/assets/userScript.js
           command -v convert >/dev/null 2>&1 || (sudo apt-get update -y && sudo apt-get install -y imagemagick)
-          convert standalone/icon.png -resize 192x192 $P/res/mipmap-xxxhdpi/ic_launcher.png
-          convert standalone/icon_16b9.png -resize 320x180! $P/res/drawable-xhdpi/banner.png
+          if [ -f "$TT_ROOT/standalone/icon.png" ]; then
+            convert "$TT_ROOT/standalone/icon.png" -resize 192x192 $P/res/mipmap-xxxhdpi/ic_launcher.png
+          else
+            convert -size 192x192 xc:'#cc0000' -gravity center -fill white -pointsize 90 -annotate 0 'TT' $P/res/mipmap-xxxhdpi/ic_launcher.png
+          fi
+          if [ -f "$TT_ROOT/standalone/icon_16b9.png" ]; then
+            convert "$TT_ROOT/standalone/icon_16b9.png" -resize 320x180! $P/res/drawable-xhdpi/banner.png
+          else
+            convert -size 320x180 xc:'#cc0000' -gravity center -fill white -pointsize 60 -annotate 0 'TizenTube' $P/res/drawable-xhdpi/banner.png
+          fi
           ls -lh $P/assets $P/res/mipmap-xxxhdpi $P/res/drawable-xhdpi
 
       - name: Prepare signing key

@@ -1,41 +1,27 @@
 name: Build YouTube AdBlock TV APK
 
 # Self-contained: no other files needed in the repo.
-# Generates a small Android TV app (WebView -> youtube.com/tv, original YouTube UI) and injects:
-#   0. quality.js - lifts the "one step lower" quality-menu cap (see comments inside)
-#   1. smooth.js  - Android-style smooth scrolling: rows / lists glide on the Material "standard" curve
-#                   (cubic-bezier(.2,0,0,1)), held D-pad = one continuous glide, off-screen rows never fly;
-#                   also tells glass.js when the user is scrolling so heavy scans wait (no dropped frames).
-#                   On / off: Tools panel -> "Smooth scrolling".
-#   2. adblock.js - ad-data stripper (technique from TizenTube's ad blocker, GPL-3.0)
-#   3. glass.js   - transparent-blur player controls (applied INSTANTLY when the player controls appear),
-#                   duration badges on thumbnails get the glass too,
-#                   no black boxes behind card titles / subtitles / separator dots on EVERY screen,
-#                   grey text (subtitles, channel names, views, menu hints ...) shown in light white everywhere
-#                   (text on a light / focused background keeps its dark colour),
-#                   7-dot circular loading spinner instead of "Loading...",
-#                   sign-in / welcome page background pictures forced back on,
-#                   soft black gradient behind the player controls (like the original app),
-#                   YouTube's base64 splash logo removed (the app shows its own animated splash)
-#   4. ytx.js     - ported from TizenTube: playback speed (native-looking picker opened from the
-#                   Settings > Speed row), SponsorBlock auto-skip, "Turn off screen" + auto-dim, tools panel.
-#                   Settings rows:  Speed (shows current speed) / SponsorBlock On-Off (own shield icon)
-#                                   / Turn off screen (eye icon)
-#                   Up next: the card of the video that is playing now gets the animated equalizer
-#                   (equalizer.webp) in its middle - still bars (equalizer-0.png) while paused.
-#                   Touch fix: taps on our menus never reach the YouTube panel underneath.
-#   Tools panel (Speed / SponsorBlock / Quality / Dim / Smooth scrolling): Menu or Yellow key on the remote,
-#         or the gear button on the on-screen remote.
-#   Also: on-screen remote (Back / Up / Down / Left / Right / OK / Tools) on the left edge, for tablets
-#         (set SHOW_REMOTE=false in MainActivity.java to remove it).
-#   Splash: assets/splash.html ("Powered by Ayush@8481") plays at start-up and on full reloads, and fades out
-#         as soon as YouTube is ready underneath (set SHOW_SPLASH=false in MainActivity.java to remove it).
-#   Wordmark: every white YouTube wordmark the page loads (e.g. .../youtube/wordmark/fullcolor_white_96px.png)
-#         is answered with the Premium wordmark (premium/wordmark_truncated/fullcolor_white_57_2x_v2.png),
-#         bundled into the APK at build time.
-# Also: ONE fixed User-Agent (PlayStation 5 / SmartTV), black screen while video loads, "No internet - Retry"
-# page, highest refresh rate on phones / tablets, app logos downloaded at build time
-# (falls back to a built-in red icon if a download fails).
+# Generates a small Android TV app (WebView -> youtube.com/tv) that runs the COMPLETE TizenTube UI:
+#   tizentube.js - TizenTube userScript, built at build time from reisxd/TizenTube commit f99945a
+#                  (v2.1.1-18, GPL-3.0) - ad blocker, SponsorBlock, DeArrow, speed, TizenTube settings,
+#                  theme, previews, clock, chapters ... exactly as TizenTube ships it.
+#                  If that build fails, the published @foxreis/tizentube build from jsDelivr is used instead.
+#                  Remote: Green key / Menu key = TizenTube settings, Blue = playback speed, Red = theme colours
+#                  (Android colour keys are passed on as the Tizen key codes 403-406).
+#   app.js       - only hides YouTube's own base64 splash logo.
+#   inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
+#                  1 = SVG + image URLs log, 2 = pick item, 3 = dump visible UI, 4 = page JS, 5 = HTML + CSS,
+#                  6 = share last capture, 7 = TizenTube settings, 8 = playback speed.
+# Native side:
+#   Splash video - assets/splash.mp4 downloaded at build time, played full-screen once at start-up
+#                  (always to the end; its last frame stays until YouTube is ready, max 4 s more).
+#   Wordmark     - every white YouTube wordmark the page loads (e.g. .../youtube/wordmark/fullcolor_white_96px.png)
+#                  is answered with the Premium wordmark (premium/wordmark_truncated/fullcolor_white_57_2x_v2.png),
+#                  bundled into the APK at build time.
+#   On-screen remote (Back / arrows / OK / TizenTube settings / Speed) on the left edge, for tablets
+#   (set SHOW_REMOTE=false in MainActivity.java to remove it).
+#   ONE fixed User-Agent (PlayStation 5 / SmartTV), black screen while video loads, "No internet - Retry" page,
+#   app logos downloaded at build time (falls back to a built-in red icon if a download fails).
 
 on:
   workflow_dispatch:
@@ -62,6 +48,11 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Set up Node.js (builds the TizenTube userScript)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Accept Android SDK licenses
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
@@ -69,7 +60,7 @@ jobs:
         run: |
           P="$GITHUB_WORKSPACE/_android"
           J="$P/app/src/main/java/com/local/ytadblock/tv"
-          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/drawable-nodpi"
+          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/drawable-nodpi" "$P/app/src/main/res/xml"
 
           cat > "$P/settings.gradle" <<'EOF'
           pluginManagement {
@@ -118,6 +109,11 @@ jobs:
                   versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "1")
               }
 
+              // the splash video is played straight from the APK (MediaPlayer needs it uncompressed)
+              androidResources {
+                  noCompress 'mp4'
+              }
+
               signingConfigs {
                   release {
                       storeFile file(System.getenv("KEYSTORE_PATH") ?: "release.jks")
@@ -142,6 +138,7 @@ jobs:
 
           dependencies {
               implementation 'androidx.webkit:webkit:1.11.0'
+              implementation 'androidx.core:core:1.13.1'
           }
           EOF
 
@@ -179,2339 +176,466 @@ jobs:
                       </intent-filter>
                   </activity>
 
+                  <!-- Lets the capture tool share saved files through the Android share sheet -->
+                  <provider
+                      android:name="androidx.core.content.FileProvider"
+                      android:authorities="com.local.ytadblock.tv.fileprovider"
+                      android:exported="false"
+                      android:grantUriPermissions="true">
+                      <meta-data
+                          android:name="android.support.FILE_PROVIDER_PATHS"
+                          android:resource="@xml/file_paths" />
+                  </provider>
               </application>
           </manifest>
           EOF
 
-          # ---- Script 0: quality-menu cap fix ----
-          # YouTube TV limits the Quality list by the display height it reads from the page
-          # (innerHeight x devicePixelRatio, rounded DOWN to a standard step). System bars / window
-          # insets make that number a little smaller than the real panel, so 1080p -> 720p max and
-          # 4K -> 1440p max, while "Auto" (bandwidth based) still plays the higher one.
-          # Here devicePixelRatio is reported slightly higher so the number lands on the real step.
-          # Manual override: Tools panel -> "Unlock max quality" (auto / 1080p / 1440p / 4K / 8K).
-          cat > "$P/app/src/main/assets/quality.js" <<'EOF'
+          # ---- app.js: hides YouTube's own base64 splash logo (the app plays its splash video) ----
+          cat > "$P/app/src/main/assets/app.js" <<'EOF'
           (function () {
-            if (window.__ytq) return;
-            window.__ytq = true;
-            try {
-              var d = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
-              if (!d || !d.get) return;
-              var realGet = d.get;
-              window.__realDpr = function () { return realGet.call(window); };
-              var STEPS = [144, 240, 360, 480, 720, 1080, 1440, 2160, 4320];
+            if (window.__ytApp) return;
+            window.__ytApp = true;
+            // YouTube's own base64 splash logo is hidden - the app plays its own splash video instead.
+            var CSS = '#loader,.splash-screen-loader{background-image:none !important;}';
+            function add() {
+              try {
+                if (document.getElementById('yt-app-css')) return;
+                var s = document.createElement('style');
+                s.id = 'yt-app-css';
+                s.textContent = CSS;
+                (document.head || document.documentElement).appendChild(s);
+              } catch (e) { }
+            }
+            add();
+            document.addEventListener('DOMContentLoaded', add);
+          })();
+          EOF
 
-              function forced() {
-                try { return parseInt(localStorage.getItem('ytx-qmax') || '0', 10) || 0; } catch (e) { return 0; }
-              }
+          cat > "$P/app/src/main/res/xml/file_paths.xml" <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths>
+              <external-files-path name="captures_ext" path="captures/" />
+              <files-path name="captures_int" path="captures/" />
+          </paths>
+          EOF
 
-              Object.defineProperty(window, 'devicePixelRatio', {
-                configurable: true,
-                enumerable: d.enumerable,
-                get: function () {
-                  var r = realGet.call(window);
-                  try {
-                    var ih = window.innerHeight;
-                    if (!ih) return r;
-                    var target = forced();
-                    if (!target) {
-                      var sc = window.screen || {};
-                      var sh = Math.min(sc.width || 0, sc.height || 0);   // display height in CSS px
-                      var phys = Math.max(ih, sh) * r;                    // physical pixels
-                      for (var i = 0; i < STEPS.length; i++) {
-                        if (phys <= STEPS[i] * 1.06) { target = STEPS[i]; break; }
-                      }
-                      if (!target) target = STEPS[STEPS.length - 1];
-                    }
-                    var f = target / ih;
-                    if (f > r && f < r * 8) return f;
-                  } catch (e) { }
-                  return r;
-                }
+          # ---- inspector.js: CAP capture helpers (passive until a CAP menu button is used) ----
+          cat > "$P/app/src/main/assets/inspector.js" <<'EOF'
+          (function () {
+            if (window.__cap) return;
+            var cap = window.__cap = {};
+            var picking = false;
+
+            function pad(n) { return (n < 10 ? '0' : '') + n; }
+            function stamp() {
+              var d = new Date();
+              return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' +
+                pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+            }
+            function toast(m) { try { if (window.YTCap) YTCap.toast(String(m)); } catch (e) { } }
+            function send(name, text) {
+              if (!window.YTCap) return;
+              YTCap.begin();
+              var n = 200000;
+              for (var i = 0; i < text.length; i += n) YTCap.chunk(text.slice(i, i + n));
+              YTCap.end(name);
+            }
+            function safeJson(o, space) {
+              var seen = new WeakSet();
+              try {
+                return JSON.stringify(o, function (k, v) {
+                  if (typeof v === 'function') return '[fn]';
+                  if (v && typeof v === 'object') {
+                    if (v.nodeType) return '[node]';
+                    if (seen.has(v)) return '[circular]';
+                    seen.add(v);
+                  }
+                  return v;
+                }, space);
+              } catch (e) { return '"[unserializable: ' + e + ']"'; }
+            }
+
+            function cls(el) {
+              var c = el.getAttribute && el.getAttribute('class');
+              return c ? c.trim() : '';
+            }
+            function sel(el) {
+              var s = (el.tagName || '?').toLowerCase();
+              if (el.id) s += '#' + el.id;
+              var c = cls(el).split(/\s+/).filter(Boolean).slice(0, 6).join('.');
+              if (c) s += '.' + c;
+              var k = el.getAttribute && el.getAttribute('idomkey');
+              if (k) s += '[idomkey="' + k + '"]';
+              return s;
+            }
+            function r1(n) { return Math.round(n * 10) / 10; }
+
+            var PROPS = ['backgroundColor', 'backgroundImage', 'color', 'opacity', 'borderRadius', 'boxShadow',
+              'display', 'position', 'zIndex', 'visibility', 'filter', 'transform', 'mixBlendMode',
+              'overflow', 'width', 'height'];
+
+            function info(el) {
+              var r = el.getBoundingClientRect(), cs = getComputedStyle(el), st = {};
+              PROPS.forEach(function (p) {
+                var v = cs[p];
+                if (v && v !== 'none' && v !== 'normal' && v !== 'auto') st[p] = String(v).slice(0, 220);
               });
-            } catch (e) { }
-          })();
-          EOF
-
-          # ---- Script 1: strips ad data from YouTube responses ----
-          cat > "$P/app/src/main/assets/adblock.js" <<'EOF'
-          (function () {
-            if (window.__ytAdBlockMin) return;
-            window.__ytAdBlockMin = true;
-
-            function prune(r) {
-              try {
-                if (!r || typeof r !== 'object' || Array.isArray(r)) return r;
-
-                if (r.adPlacements) r.adPlacements = [];
-                if (r.playerAds) r.playerAds = false;
-                if (r.adSlots) r.adSlots = [];
-
-                var shelves = r.contents && r.contents.tvBrowseRenderer &&
-                  r.contents.tvBrowseRenderer.content &&
-                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer &&
-                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content &&
-                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer &&
-                  r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer.contents;
-                if (Array.isArray(shelves)) {
-                  var list = r.contents.tvBrowseRenderer.content.tvSurfaceContentRenderer.content.sectionListRenderer;
-                  list.contents = shelves.filter(function (s) { return !s.adSlotRenderer; });
-                  list.contents.forEach(function (s) {
-                    var h = s.shelfRenderer && s.shelfRenderer.content &&
-                      s.shelfRenderer.content.horizontalListRenderer;
-                    if (h && Array.isArray(h.items)) {
-                      h.items = h.items.filter(function (i) { return !i.adSlotRenderer; });
-                    }
-                  });
-                }
-
-                if (Array.isArray(r.entries)) {
-                  r.entries = r.entries.filter(function (e) {
-                    return !(e && e.command && e.command.reelWatchEndpoint &&
-                      e.command.reelWatchEndpoint.adClientParams &&
-                      e.command.reelWatchEndpoint.adClientParams.isAd);
-                  });
-                }
-              } catch (e) { /* never break the page */ }
-              return r;
-            }
-
-            var origParse = JSON.parse;
-            JSON.parse = function () {
-              return prune(origParse.apply(this, arguments));
-            };
-
-            if (window.Response && Response.prototype.json) {
-              var origJson = Response.prototype.json;
-              Response.prototype.json = function () {
-                return origJson.apply(this, arguments).then(prune);
-              };
-            }
-
-            var origStringify = JSON.stringify;
-            JSON.stringify = function (value, replacer, space) {
-              try {
-                var ctx = value && value.playbackContext && value.playbackContext.contentPlaybackContext;
-                if (ctx && !ctx.isInlinePlaybackNoAd) {
-                  var copy = origParse(origStringify(value));
-                  copy.playbackContext.contentPlaybackContext.isInlinePlaybackNoAd = true;
-                  return origStringify.call(this, copy, replacer, space);
-                }
-              } catch (e) { /* fall through */ }
-              return origStringify.call(this, value, replacer, space);
-            };
-
-            // YouTube TV keeps its own JSON reference in window._yttv; point it at ours.
-            window.addEventListener('load', function () {
-              try {
-                var y = window._yttv;
-                if (y) for (var k in y) {
-                  if (y[k] && y[k].JSON && y[k].JSON.parse) y[k].JSON.parse = JSON.parse;
-                }
-              } catch (e) { }
-            });
-          })();
-          EOF
-
-          # ---- Script 1b: Android-style smooth scrolling (see header) ----
-          cat > "$P/app/src/main/assets/smooth.js" <<'EOF'
-          (function () {
-            if (window.__ytSmooth) return;
-            window.__ytSmooth = true;
-
-            // ======================= shared "user is scrolling" signal =======================
-            // glass.js waits with its heavy full-page scans while this is true, so every frame goes to the scroll.
-            var busyUntil = 0;
-            function busy(ms) { var t = performance.now() + ms; if (t > busyUntil) busyUntil = t; }
-            window.__ytIsBusy = function () { return performance.now() < busyUntil; };
-            var NAVK = { 33: 1, 34: 1, 37: 1, 38: 1, 39: 1, 40: 1 };
-            window.addEventListener('keydown', function (e) { if (NAVK[e.keyCode]) busy(e.repeat ? 450 : 320); }, true);
-            ['touchmove', 'wheel'].forEach(function (n) {
-              window.addEventListener(n, function () { busy(300); }, { capture: true, passive: true });
-            });
-
-            var on = true;
-            try { on = localStorage.getItem('ytx-smooth') !== '0'; } catch (e) { }
-            window.__ytSmoothOn = on;
-            if (!on) return;
-
-            // ======================= Android-style easing for the moving rows / lists =======================
-            // YouTube TV scrolls its rows and the vertical list by changing their inline transform.
-            //  - a container that already animates its transform gets the Android "standard" curve
-            //    (fast start, soft landing) instead of YouTube's own one          -> data-yts="ease"
-            //  - a container that JUMPS (no transition) gets a short glide on the same curve -> data-yts="add"
-            //    but ONLY while it holds the focused card: rows that YouTube recycles off-screen still jump,
-            //    so nothing ever flies across the screen.
-            // Held keys: CSS transitions re-target from wherever the row is, so a held D-pad gives one continuous glide.
-            // The transform animation runs on the GPU compositor, not on the page thread.
-            var EASE = 'cubic-bezier(.2,0,0,1)';
-            var DUR = 240;
-            var CSS = [
-              'html{-webkit-tap-highlight-color:transparent;}',
-              'html,body{overscroll-behavior:none;}',
-              '[data-yts="ease"]{transition-timing-function:' + EASE + ' !important;}',
-              '[data-yts="add"]{transition:transform ' + DUR + 'ms ' + EASE + ' !important;}'
-            ].join('\n');
-
-            var styleEl = null;
-            function inject() {
-              if (styleEl && styleEl.isConnected) return;
-              if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'yt-smooth-css'; styleEl.textContent = CSS; }
-              (document.head || document.documentElement).appendChild(styleEl);
-            }
-
-            var info = new WeakMap(), count = 0, MAX = 48;
-            var TR = /translate|matrix/i;
-
-            function excluded(el) {
-              var t = el.tagName;
-              if (t === 'VIDEO' || t === 'YTLR-PLAYER' || t === 'HTML' || t === 'BODY') return true;
-              if (/^(ytx|ytg)-/.test(el.id || '')) return true;
-              // seek bar / playhead / our own menus must follow instantly
-              if (el.closest && el.closest('ytlr-progress-bar,[idomkey="slider"],#ytx-modal,#ytg-spin')) return true;
-              return false;
-            }
-
-            function classify(el) {
-              if (excluded(el)) return 'x';
-              var r = el.getBoundingClientRect();
-              if (el.children.length < 2 || !(r.width >= innerWidth * 0.35 || r.height >= innerHeight * 0.35)) return null;
-              if (count >= MAX) return 'x';
-              var cs = getComputedStyle(el);
-              var props = (cs.transitionProperty || '').split(','), durs = (cs.transitionDuration || '0s').split(',');
-              count++;
-              for (var i = 0; i < props.length; i++) {
-                var p = props[i].trim(), d = parseFloat(durs[i % durs.length]) || 0;
-                if ((p === 'transform' || p === '-webkit-transform' || p === 'all') && d > 0) return 'ease';
+              var bf = cs.backdropFilter || cs.webkitBackdropFilter;
+              if (bf && bf !== 'none') st.backdropFilter = bf;
+              var attrs = {};
+              if (el.attributes) for (var i = 0; i < el.attributes.length; i++) {
+                var a = el.attributes[i];
+                if (a.name === 'class' || a.name === 'style') continue;
+                attrs[a.name] = String(a.value).slice(0, 80);
               }
-              return 'add';
-            }
-
-            function handle(recs) {
-              var focus, looked = false, seen = new Set(), i, el, st, m, want;
-              for (i = 0; i < recs.length; i++) {
-                el = recs[i].target;
-                if (!el || el.nodeType !== 1 || seen.has(el)) continue;
-                seen.add(el);
-                st = el.style && el.style.transform;
-                if (!st || !TR.test(st)) continue;
-                m = info.get(el);
-                if (!m) { m = { mode: null, tries: 0 }; info.set(el, m); }
-                if (m.mode === null) {
-                  var c = classify(el);
-                  if (!c) { if (++m.tries >= 3) m.mode = 'x'; continue; }   // too small / not a list (yet)
-                  m.mode = c;
-                }
-                if (m.mode === 'x') continue;
-                want = m.mode;
-                if (want === 'add') {
-                  if (!looked) { focus = document.querySelector('.zylon-focus'); looked = true; }
-                  if (!focus || !el.contains(focus)) want = null;           // off-screen recycle: let it jump
-                }
-                if (want) { if (el.getAttribute('data-yts') !== want) el.setAttribute('data-yts', want); }
-                else if (el.hasAttribute('data-yts')) el.removeAttribute('data-yts');
-              }
-            }
-
-            // The attribute is set inside the mutation callback = before the style recalculation of the same frame,
-            // so the transition already applies to the move that triggered it.
-            function start() {
-              if (!document.body) { setTimeout(start, 50); return; }
-              inject();
-              try {
-                new MutationObserver(function (recs) { try { handle(recs); } catch (e) { } })
-                  .observe(document.body, { attributes: true, attributeFilter: ['style'], subtree: true });
-              } catch (e) { }
-            }
-            start();
-            setInterval(inject, 1000);
-          })();
-          EOF
-
-          # ---- Splash page (shown natively on top of the WebView while YouTube loads) ----
-          # The wordmark is the bundled assets/wordmark_premium.png (gstatic as fallback).
-          cat > "$P/app/src/main/assets/splash.html" <<'EOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>YouTube Premium Splash</title>
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-          <style>
-          /* ============================================================
-             BASE
-             ============================================================ */
-          *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-          html,body{height:100%}
-          body{
-            background:#000;
-            overflow:hidden;
-            color:#fff;
-            user-select:none;
-            -webkit-user-select:none;
-            font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-            -webkit-font-smoothing:antialiased;
-            text-rendering:optimizeLegibility;
-          }
-
-          /* ============================================================
-             STAGE
-             ============================================================ */
-          .stage{
-            position:fixed; inset:0;
-            overflow:hidden;
-            isolation:isolate;
-            will-change:opacity,transform;
-          }
-          /* started by the app (window.splashOut) once YouTube has loaded underneath */
-          .stage.out{animation:stageOut .72s cubic-bezier(.7,0,.9,.3) both}
-          @keyframes stageOut{
-            0%  {opacity:1; transform:scale(1);    filter:blur(0)}
-            100%{opacity:0; transform:scale(1.06); filter:blur(10px)}
-          }
-
-          /* ============================================================
-             BACKGROUND — LAYER 1: base
-             ============================================================ */
-          .bg-base{
-            position:absolute; inset:0;
-            background:
-              radial-gradient(ellipse 75% 55% at 50% 42%, #1a0010 0%, #0a0a14 48%, #000 100%);
-            opacity:0;
-            animation:fadeIn 1.6s ease .1s both;
-          }
-
-          /* ============================================================
-             BACKGROUND — LAYER 2: perspective tech floor
-             ============================================================ */
-          .tech-floor{
-            position:absolute;
-            left:-50%; right:-50%;
-            top:48%; bottom:-80%;
-            background-image:
-              linear-gradient(rgba(255,30,60,.22) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,30,60,.22) 1px, transparent 1px);
-            background-size:60px 60px;
-            transform:perspective(320px) rotateX(64deg);
-            transform-origin:center top;
-            animation:
-              fadeIn 1.4s ease .25s both,
-              floorScroll 3.4s linear infinite;
-            will-change:background-position;
-            opacity:0;
-          }
-          @keyframes floorScroll{
-            from{background-position:0 0}
-            to  {background-position:0 -60px}
-          }
-
-          /* fade grid into horizon */
-          .floor-fade{
-            position:absolute;
-            left:0; right:0; top:0;
-            height:56%;
-            background:linear-gradient(180deg,
-              #08080e 0%,
-              rgba(8,8,14,.85) 42%,
-              transparent 100%);
-            pointer-events:none;
-            z-index:1;
-          }
-
-          /* red glow at horizon */
-          .horizon-glow{
-            position:absolute;
-            left:0; right:0;
-            top:46%;
-            height:180px;
-            background:radial-gradient(ellipse 55% 100% at 50% 0%,
-              rgba(255,20,55,.45) 0%,
-              rgba(255,20,55,.12) 45%,
-              transparent 75%);
-            pointer-events:none;
-            z-index:1;
-            opacity:0;
-            animation:fadeIn 1.6s ease .4s both;
-          }
-
-          /* ============================================================
-             BACKGROUND — LAYER 3: data streams (cheap vertical falls)
-             ============================================================ */
-          .data-lines{position:absolute; inset:0; pointer-events:none; z-index:2}
-          .dl{
-            position:absolute;
-            width:1px;
-            height:38%;
-            top:-40%;
-            background:linear-gradient(180deg, transparent, rgba(255,30,60,.7), transparent);
-            animation:dataFall 5s linear infinite;
-            will-change:top;
-            opacity:0;
-          }
-          @keyframes dataFall{
-            0%  {top:-40%; opacity:0}
-            10% {opacity:.9}
-            90% {opacity:.9}
-            100%{top:100%; opacity:0}
-          }
-
-          /* ============================================================
-             BACKGROUND — LAYER 4: floating nodes
-             ============================================================ */
-          .nodes{position:absolute; inset:0; pointer-events:none; z-index:2}
-          .nd{
-            position:absolute;
-            width:4px; height:4px;
-            border-radius:50%;
-            background:#ff1e3c;
-            box-shadow:
-              0 0 8px #ff1e3c,
-              0 0 18px rgba(255,30,60,.55);
-            animation:nodeFloat 5s ease-in-out infinite;
-            will-change:transform,opacity;
-            opacity:0;
-          }
-          @keyframes nodeFloat{
-            0%,100%{transform:translate3d(0,0,0); opacity:.55}
-            50%    {transform:translate3d(12px,-18px,0); opacity:1}
-          }
-
-          /* ============================================================
-             BACKGROUND — LAYER 5: canvas + scanlines + vignette
-             ============================================================ */
-          #fx{
-            position:absolute; inset:0;
-            width:100%; height:100%;
-            pointer-events:none;
-            z-index:3;
-          }
-          .scanlines{
-            position:absolute; inset:0;
-            z-index:4;
-            pointer-events:none;
-            background:repeating-linear-gradient(
-              0deg,
-              transparent 0px,
-              transparent 2px,
-              rgba(255,255,255,.014) 3px,
-              transparent 4px
-            );
-            opacity:.75;
-          }
-          .vignette{
-            position:absolute; inset:0;
-            z-index:4;
-            pointer-events:none;
-            background:radial-gradient(circle at 50% 42%, transparent 26%, rgba(0,0,0,.94) 100%);
-          }
-
-          /* ============================================================
-             SCREEN HUD CORNERS
-             ============================================================ */
-          .hud-corner{
-            position:absolute;
-            width:44px; height:44px;
-            border-color:rgba(255,30,60,.32);
-            border-style:solid;
-            pointer-events:none;
-            z-index:5;
-            opacity:0;
-            animation:fadeIn 1.6s ease .8s both;
-          }
-          .hud-tl{top:26px;    left:26px;    border-width:1px 0 0 1px}
-          .hud-tr{top:26px;    right:26px;   border-width:1px 1px 0 0}
-          .hud-bl{bottom:26px; left:26px;    border-width:0 0 1px 1px}
-          .hud-br{bottom:26px; right:26px;   border-width:0 1px 1px 0}
-
-          /* ============================================================
-             CONTENT
-             ============================================================ */
-          .content{
-            position:relative; z-index:6;
-            height:100%;
-            display:flex; flex-direction:column;
-            align-items:center; justify-content:center;
-            gap:clamp(34px, 5.2vmin, 92px);
-            padding:0 5vw;
-          }
-
-          /* ============================================================
-             LOGO AREA — white wordmark on dark
-             ============================================================ */
-          .logo-wrap{
-            position:relative;
-            width:clamp(420px, 68vw, 1500px);
-            max-width:94vw;
-            display:flex; flex-direction:column; align-items:center;
-            animation:logoReveal 1.35s cubic-bezier(.16,1.02,.3,1.12) .35s both;
-            will-change:transform,opacity;
-          }
-          @keyframes logoReveal{
-            0%  {opacity:0; transform:scale(.58) translateY(70px); filter:blur(30px)}
-            55% {opacity:1; transform:scale(1.04) translateY(0);  filter:blur(0)}
-            75% {transform:scale(.98) translateY(0)}
-            90% {transform:scale(1.015) translateY(0)}
-            100%{opacity:1; transform:scale(1) translateY(0)}
-          }
-
-          /* red aura behind the wordmark */
-          .logo-glow{
-            position:absolute;
-            top:50%; left:50%;
-            width:90%; height:220%;
-            transform:translate(-50%,-50%);
-            background:radial-gradient(closest-side,
-              rgba(255,20,55,.45) 0%,
-              rgba(255,20,55,.14) 42%,
-              transparent 72%);
-            filter:blur(50px);
-            opacity:0;
-            animation:fadeIn 1s ease .8s both, glowPulse 3.8s ease-in-out 1.9s infinite;
-            pointer-events:none;
-            will-change:transform,opacity;
-          }
-          @keyframes glowPulse{
-            0%,100%{transform:translate(-50%,-50%) scale(1);    opacity:.7}
-            50%    {transform:translate(-50%,-50%) scale(1.12); opacity:1}
-          }
-
-          /* orbit ring around the wordmark */
-          .logo-ring{
-            position:absolute;
-            top:50%; left:50%;
-            width:104%; height:170%;
-            transform:translate(-50%,-50%);
-            border-radius:999px;
-            background:conic-gradient(from 0deg,
-              transparent 0deg,
-              rgba(255,0,51,0) 40deg,
-              rgba(255,60,100,.9) 120deg,
-              rgba(255,255,255,.95) 148deg,
-              rgba(255,60,100,.9) 176deg,
-              transparent 264deg);
-            -webkit-mask:radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-            mask:radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
-            opacity:0;
-            animation:fadeIn .9s ease 1.05s both, spin 4.6s linear 1.05s infinite;
-            pointer-events:none;
-            will-change:transform;
-          }
-          @keyframes spin{to{transform:translate(-50%,-50%) rotate(360deg)}}
-
-          /* shockwaves */
-          .wave{
-            position:absolute;
-            top:50%; left:50%;
-            width:100%; height:160%;
-            transform:translate(-50%,-50%);
-            border-radius:999px;
-            border:2px solid rgba(255,60,100,.9);
-            opacity:0;
-            animation:waveOut 1.25s cubic-bezier(.2,.75,.3,1) 1.46s both;
-            pointer-events:none;
-          }
-          .wave:nth-of-type(2){
-            animation-delay:1.62s;
-            border-color:rgba(255,255,255,.6);
-          }
-          @keyframes waveOut{
-            0%  {opacity:0; transform:translate(-50%,-50%) scale(.78); border-width:7px}
-            18% {opacity:.92}
-            100%{opacity:0; transform:translate(-50%,-50%) scale(1.6); border-width:1px}
-          }
-
-          /* the white wordmark PNG */
-          .yt-wordmark{
-            position:relative; z-index:2;
-            display:block;
-            width:100%;
-            height:auto;
-            image-rendering:-webkit-optimize-contrast;
-            filter:
-              drop-shadow(0 6px 18px rgba(0,0,0,.75))
-              drop-shadow(0 0 40px rgba(255,20,55,.28))
-              contrast(1.06)
-              brightness(1.04);
-            animation:logoFloat 4.4s ease-in-out 1.9s infinite;
-            will-change:transform;
-          }
-          @keyframes logoFloat{
-            0%,100%{transform:translate3d(0,0,0)}
-            50%    {transform:translate3d(0,-7px,0)}
-          }
-
-          /* scan sweep over the wordmark (red tint, shows on white) */
-          .logo-scan{
-            position:absolute;
-            inset:-8% -4%;
-            z-index:3;
-            pointer-events:none;
-            overflow:hidden;
-            border-radius:8px;
-            mix-blend-mode:multiply;
-          }
-          .logo-scan::after{
-            content:"";
-            position:absolute;
-            top:-40%; bottom:-40%; left:0;
-            width:22%;
-            background:linear-gradient(100deg,
-              transparent 0%,
-              rgba(255,70,100,.0) 14%,
-              rgba(255,70,100,.42) 50%,
-              rgba(255,70,100,.0) 86%,
-              transparent 100%);
-            transform:translateX(-360%) skewX(-18deg);
-            animation:scanSweep 1.25s cubic-bezier(.4,0,.2,1) 2.2s both;
-          }
-          @keyframes scanSweep{
-            0%  {transform:translateX(-360%) skewX(-18deg)}
-            100%{transform:translateX(560%) skewX(-18deg)}
-          }
-
-          /* ============================================================
-             CREDIT — "Powered by Ayush@8481" HUD panel
-             ============================================================ */
-          .credit{
-            position:relative;
-            display:inline-flex;
-            align-items:center;
-            padding:clamp(14px, 2.2vmin, 30px) clamp(28px, 4.4vmin, 62px);
-            border-radius:14px;
-            background:linear-gradient(135deg,
-              rgba(32,10,22,.96) 0%,
-              rgba(15,5,12,.98) 50%,
-              rgba(32,10,22,.96) 100%);
-            border:1px solid rgba(255,30,60,.3);
-            box-shadow:
-              inset 0 1px 0 rgba(255,255,255,.07),
-              inset 0 -1px 0 rgba(0,0,0,.55),
-              0 26px 64px rgba(0,0,0,.78),
-              0 0 100px rgba(255,20,55,.16),
-              0 0 40px rgba(255,20,55,.08);
-            overflow:hidden;
-            opacity:0;
-            transform:translateY(26px) scale(.92);
-            animation:
-              creditIn 1s cubic-bezier(.16,1,.3,1.2) 2.05s both,
-              creditPulse 4s ease-in-out 3.4s infinite;
-            white-space:nowrap;
-            max-width:94vw;
-          }
-          @keyframes creditIn{
-            to{opacity:1; transform:translateY(0) scale(1)}
-          }
-          @keyframes creditPulse{
-            0%,100%{
-              box-shadow:
-                inset 0 1px 0 rgba(255,255,255,.07),
-                inset 0 -1px 0 rgba(0,0,0,.55),
-                0 26px 64px rgba(0,0,0,.78),
-                0 0 100px rgba(255,20,55,.16),
-                0 0 40px rgba(255,20,55,.08);
-            }
-            50%{
-              box-shadow:
-                inset 0 1px 0 rgba(255,255,255,.09),
-                inset 0 -1px 0 rgba(0,0,0,.55),
-                0 26px 64px rgba(0,0,0,.78),
-                0 0 140px rgba(255,20,55,.32),
-                0 0 60px rgba(255,20,55,.18);
-            }
-          }
-
-          /* inner data-grid texture */
-          .credit::before{
-            content:"";
-            position:absolute; inset:0;
-            background-image:
-              linear-gradient(rgba(255,30,60,.045) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(255,30,60,.045) 1px, transparent 1px);
-            background-size:18px 18px;
-            pointer-events:none;
-            border-radius:inherit;
-          }
-
-          /* top accent line */
-          .credit::after{
-            content:"";
-            position:absolute;
-            top:0; left:9%; right:9%;
-            height:1px;
-            background:linear-gradient(90deg, transparent, rgba(255,30,60,.85) 30%, rgba(255,30,60,.85) 70%, transparent);
-            opacity:.6;
-            pointer-events:none;
-          }
-
-          /* corner brackets */
-          .c-corner{
-            position:absolute;
-            width:15px; height:15px;
-            border-color:#ff1e3c;
-            border-style:solid;
-            filter:drop-shadow(0 0 5px rgba(255,30,60,.9));
-            pointer-events:none;
-          }
-          .c-tl{top:-1px; left:-1px; border-width:2px 0 0 2px; border-top-left-radius:14px}
-          .c-tr{top:-1px; right:-1px; border-width:2px 2px 0 0; border-top-right-radius:14px}
-          .c-bl{bottom:-1px; left:-1px; border-width:0 0 2px 2px; border-bottom-left-radius:14px}
-          .c-br{bottom:-1px; right:-1px; border-width:0 2px 2px 0; border-bottom-right-radius:14px}
-
-          /* scanning line inside the panel */
-          .c-scan{
-            position:absolute;
-            left:0; right:0;
-            height:1px;
-            top:0;
-            background:linear-gradient(90deg,
-              transparent,
-              rgba(255,30,60,.7) 30%,
-              rgba(255,30,60,.7) 70%,
-              transparent);
-            opacity:0;
-            animation:cScan 3.2s linear 3s infinite;
-            pointer-events:none;
-          }
-          @keyframes cScan{
-            0%  {top:0;    opacity:0}
-            10% {opacity:.55}
-            90% {opacity:.55}
-            100%{top:100%; opacity:0}
-          }
-
-          /* left group */
-          .c-left{
-            display:inline-flex;
-            align-items:center;
-            gap:clamp(8px, 1.2vmin, 16px);
-          }
-          .c-dot{
-            width:8px; height:8px;
-            border-radius:50%;
-            background:#ff1e3c;
-            box-shadow:
-              0 0 8px #ff1e3c,
-              0 0 16px rgba(255,30,60,.6),
-              0 0 24px rgba(255,30,60,.3);
-            flex-shrink:0;
-            animation:dotPulse 1.5s ease-in-out infinite;
-          }
-          @keyframes dotPulse{
-            0%,100%{transform:scale(1);   opacity:1}
-            50%    {transform:scale(.72); opacity:.55}
-          }
-          .c-label{
-            font-family:'JetBrains Mono', ui-monospace, monospace;
-            font-size:clamp(10px, 1.15vmin, 16px);
-            font-weight:500;
-            letter-spacing:.34em;
-            color:rgba(255,255,255,.42);
-            text-transform:uppercase;
-            text-indent:.34em;
-            white-space:nowrap;
-          }
-
-          /* divider */
-          .c-divider{
-            width:1px;
-            height:clamp(20px, 3vmin, 40px);
-            background:linear-gradient(180deg,
-              transparent,
-              rgba(255,30,60,.5),
-              rgba(255,30,60,.5),
-              transparent);
-            flex-shrink:0;
-            margin:0 clamp(16px, 2.6vmin, 34px);
-          }
-
-          /* name */
-          .c-name{
-            font-family:'Inter',sans-serif;
-            font-size:clamp(20px, 3.2vmin, 48px);
-            font-weight:900;
-            letter-spacing:-.022em;
-            line-height:1;
-            display:inline-flex;
-            white-space:nowrap;
-          }
-          .c-a{
-            color:#fff;
-            text-shadow:0 0 24px rgba(255,255,255,.22);
-          }
-          .c-b{
-            background:linear-gradient(180deg, #ff6f88 0%, #ff1e3c 100%);
-            -webkit-background-clip:text;
-            background-clip:text;
-            -webkit-text-fill-color:transparent;
-            filter:drop-shadow(0 0 12px rgba(255,30,60,.55));
-            animation:nameGlow 3.4s ease-in-out 3s infinite;
-          }
-          @keyframes nameGlow{
-            0%,100%{filter:drop-shadow(0 0 10px rgba(255,30,60,.42))}
-            50%    {filter:drop-shadow(0 0 22px rgba(255,30,60,.9))}
-          }
-
-          /* ============================================================
-             PROGRESS
-             ============================================================ */
-          .progress{
-            position:absolute;
-            left:50%; bottom:clamp(30px, 5.6vmin, 84px);
-            transform:translateX(-50%);
-            width:clamp(200px, 26vmin, 440px);
-            height:3px;
-            border-radius:3px;
-            background:rgba(255,255,255,.07);
-            overflow:hidden;
-            opacity:0;
-            animation:fadeIn .6s ease 1.6s both;
-            box-shadow:0 0 20px rgba(255,20,55,.12);
-            z-index:7;
-          }
-          .progress i{
-            display:block;
-            height:100%;
-            width:100%;
-            background:linear-gradient(90deg,#ff0033,#ff8a9c);
-            transform-origin:left center;
-            transform:scaleX(0);
-            box-shadow:0 0 16px rgba(255,30,60,.95);
-            animation:fill 2.6s cubic-bezier(.45,0,.2,1) 1.7s both;
-          }
-          @keyframes fill{to{transform:scaleX(1)}}
-
-          /* ============================================================
-             SHARED
-             ============================================================ */
-          @keyframes fadeIn{from{opacity:0} to{opacity:1}}
-
-          /* reduced motion */
-          @media (prefers-reduced-motion: reduce){
-            *,*::before,*::after{
-              animation-duration:.01ms !important;
-              animation-iteration-count:1 !important;
-              transition-duration:.01ms !important;
-            }
-          }
-          </style>
-          </head>
-          <body>
-
-          <div class="stage" id="stage">
-
-            <!-- BACKGROUND -->
-            <div class="bg-base"></div>
-            <div class="tech-floor"></div>
-            <div class="floor-fade"></div>
-            <div class="horizon-glow"></div>
-
-            <div class="data-lines">
-              <span class="dl" style="left:12%; animation-delay:0s"></span>
-              <span class="dl" style="left:28%; animation-delay:1.2s"></span>
-              <span class="dl" style="left:55%; animation-delay:.5s"></span>
-              <span class="dl" style="left:72%; animation-delay:2s"></span>
-              <span class="dl" style="left:88%; animation-delay:1.8s"></span>
-            </div>
-
-            <div class="nodes">
-              <span class="nd" style="top:18%; left:14%; animation-delay:0s"></span>
-              <span class="nd" style="top:32%; left:83%; animation-delay:1.1s"></span>
-              <span class="nd" style="top:68%; left:22%; animation-delay:.6s"></span>
-              <span class="nd" style="top:78%; left:76%; animation-delay:1.7s"></span>
-              <span class="nd" style="top:14%; left:62%; animation-delay:2.2s"></span>
-              <span class="nd" style="top:86%; left:44%; animation-delay:.9s"></span>
-            </div>
-
-            <canvas id="fx"></canvas>
-            <div class="scanlines"></div>
-            <div class="vignette"></div>
-
-            <!-- SCREEN HUD CORNERS -->
-            <span class="hud-corner hud-tl"></span>
-            <span class="hud-corner hud-tr"></span>
-            <span class="hud-corner hud-bl"></span>
-            <span class="hud-corner hud-br"></span>
-
-            <!-- CONTENT -->
-            <div class="content">
-
-              <div class="logo-wrap">
-                <div class="logo-glow"></div>
-                <div class="logo-ring"></div>
-                <div class="wave"></div>
-                <div class="wave"></div>
-
-                <img class="yt-wordmark"
-                  src="wordmark_premium.png"
-                  alt="YouTube Premium"
-                  draggable="false"
-                  decoding="async"
-                  onerror="if(!this.dataset.r){this.dataset.r=1;this.src='https://www.gstatic.com/youtube/img/branding/livingroom/premium/wordmark_truncated/fullcolor_white_57_2x_v2.png';}else{this.onerror=null;this.style.visibility='hidden';}">
-                <div class="logo-scan"></div>
-              </div>
-
-              <!-- PREMIUM HUD CREDIT -->
-              <div class="credit">
-                <span class="c-corner c-tl"></span>
-                <span class="c-corner c-tr"></span>
-                <span class="c-corner c-bl"></span>
-                <span class="c-corner c-br"></span>
-                <span class="c-scan"></span>
-
-                <div class="c-left">
-                  <span class="c-dot"></span>
-                  <span class="c-label">Powered by</span>
-                </div>
-
-                <span class="c-divider"></span>
-
-                <span class="c-name">
-                  <span class="c-a">Ayush</span><span class="c-b">@8481</span>
-                </span>
-              </div>
-
-            </div>
-
-            <div class="progress"><i></i></div>
-          </div>
-
-
-          <script>
-          (function () {
-            'use strict';
-
-            const canvas = document.getElementById('fx');
-            const ctx    = canvas.getContext('2d', { alpha: true, desynchronized: true });
-            const stage  = document.getElementById('stage');
-
-            let W = 0, H = 0, DPR = 1;
-            let dust = [];
-            let sparks = [];
-            let rafId = 0;
-            let timers = [];
-            let leaving = false;
-
-            /* ==========================================================
-               PARTICLE ENGINE  (optimized: few particles, fillRect dust)
-               ========================================================== */
-            function makeDust(anywhere) {
+              var inline = el.getAttribute && el.getAttribute('style');
               return {
-                x: Math.random() * W,
-                y: anywhere ? Math.random() * H : H + 20 * DPR,
-                s: (Math.random() * 1.4 + 0.5) * DPR,
-                vx: (Math.random() - 0.5) * 0.10 * DPR,
-                vy: -(Math.random() * 0.22 + 0.05) * DPR,
-                a: Math.random() * 0.4 + 0.08,
-                tw: Math.random() * Math.PI * 2,
-                ts: Math.random() * 0.03 + 0.008,
-                c: Math.random() < 0.32 ? '255,70,110'
-                  : Math.random() < 0.18 ? '175,135,255'
-                  : '255,255,255'
+                selector: sel(el),
+                tag: (el.tagName || '').toLowerCase(),
+                id: el.id || undefined,
+                class: cls(el) || undefined,
+                idomkey: (el.getAttribute && el.getAttribute('idomkey')) || undefined,
+                rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
+                attrs: attrs,
+                inlineStyle: inline ? inline.slice(0, 300) : undefined,
+                text: ((el.innerText || '') + '').trim().slice(0, 80) || undefined,
+                computed: st
               };
             }
-
-            function buildDust() {
-              dust = [];
-              const n = Math.min(60, Math.round((window.innerWidth * window.innerHeight) / 32000));
-              for (let i = 0; i < n; i++) dust.push(makeDust(true));
+            function chain(el) {
+              var out = [], n = 0;
+              while (el && el.nodeType === 1 && n++ < 12) { out.push(sel(el)); el = el.parentElement; }
+              return out;
             }
-
-            function resize() {
-              DPR = Math.min(window.devicePixelRatio || 1, 1.5);
-              W = canvas.width  = Math.floor(window.innerWidth  * DPR);
-              H = canvas.height = Math.floor(window.innerHeight * DPR);
-              canvas.style.width  = window.innerWidth  + 'px';
-              canvas.style.height = window.innerHeight + 'px';
-              buildDust();
-            }
-
-            function burst() {
-              const cx = W / 2;
-              const cy = H * 0.42;
-              const n  = 120;
-              for (let i = 0; i < n; i++) {
-                const ang = Math.random() * Math.PI * 2;
-                const sp  = (Math.random() * 6.5 + 2) * DPR * (Math.random() < 0.13 ? 1.8 : 1);
-                sparks.push({
-                  x: cx + Math.cos(ang) * 55 * DPR,
-                  y: cy + Math.sin(ang) * 55 * DPR,
-                  vx: Math.cos(ang) * sp,
-                  vy: Math.sin(ang) * sp,
-                  r: (Math.random() * 2 + 0.6) * DPR,
-                  life: 1,
-                  decay: Math.random() * 0.012 + 0.009,
-                  c: Math.random() < 0.55 ? '255,60,100'
-                    : Math.random() < 0.6  ? '255,255,255'
-                    : '195,145,255'
-                });
-              }
-            }
-
-            function frame() {
-              ctx.clearRect(0, 0, W, H);
-              ctx.globalCompositeOperation = 'lighter';
-
-              /* dust — fillRect is faster than arc */
-              for (let i = 0; i < dust.length; i++) {
-                const p = dust[i];
-                p.x += p.vx;
-                p.y += p.vy;
-                p.tw += p.ts;
-
-                if (p.y < -12 * DPR) { dust[i] = makeDust(false); continue; }
-                if (p.x < -12 * DPR) p.x = W + 12 * DPR;
-                if (p.x > W + 12 * DPR) p.x = -12 * DPR;
-
-                const a = p.a * (0.55 + 0.45 * Math.sin(p.tw));
-                ctx.fillStyle = 'rgba(' + p.c + ',' + a.toFixed(3) + ')';
-                ctx.fillRect(p.x, p.y, p.s, p.s);
-              }
-
-              /* sparks */
-              for (let i = sparks.length - 1; i >= 0; i--) {
-                const s = sparks[i];
-                s.x += s.vx;
-                s.y += s.vy;
-                s.vx *= 0.965;
-                s.vy *= 0.965;
-                s.life -= s.decay;
-
-                if (s.life <= 0) { sparks.splice(i, 1); continue; }
-
-                ctx.beginPath();
-                ctx.fillStyle = 'rgba(' + s.c + ',' + (s.life * 0.9).toFixed(3) + ')';
-                ctx.arc(s.x, s.y, Math.max(s.r * s.life, 0.2), 0, Math.PI * 2);
-                ctx.fill();
-              }
-
-              ctx.globalCompositeOperation = 'source-over';
-              rafId = requestAnimationFrame(frame);
-            }
-
-            function startLoop() {
-              if (!rafId) rafId = requestAnimationFrame(frame);
-            }
-            function stopLoop() {
-              if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
-            }
-
-            /* ==========================================================
-               TIMELINE  (the app calls window.splashOut() when YouTube is ready)
-               ========================================================== */
-            function schedule() {
-              timers.push(setTimeout(burst, 1480));
-            }
-
-            window.splashOut = function () {
-              if (leaving) return;
-              leaving = true;
-              stage.classList.add('out');
-              timers.push(setTimeout(stopLoop, 760));
-            };
-
-            /* ==========================================================
-               BOOT
-               ========================================================== */
-            window.addEventListener('resize', resize);
-            resize();
-            startLoop();
-            schedule();
-
-            document.addEventListener('visibilitychange', () => {
-              if (document.hidden) stopLoop();
-              else if (!leaving) startLoop();
-            });
-
-          })();
-          </script>
-          </body>
-          </html>
-          EOF
-
-          # ---- Script 2: transparent-blur player controls + 7-dot loading spinner + welcome backgrounds ----
-          # Class names on YouTube TV are obfuscated, so glass.js reads the real colour of small
-          # elements on the watch page and tags them (dark pill -> light transparent blur,
-          # white -> soft white). Menus / side panels (Settings) are left untouched. No shadows anywhere.
-          #
-          # TIMING FIX: the old version ran the (heavy) full scan at most every 60 ms, so when the player controls
-          # appeared the first frames were un-glassed. Now the MutationObserver callback glasses the nodes that
-          # were just added / changed RIGHT AWAY (synchronously, before the next paint), the full scan only
-          # cleans up afterwards, and every key press / touch on the player triggers a short burst of scans.
-          #
-          # Card titles / subtitles (yt-formatted-string) never get a box behind them, on every screen.
-          #
-          # Grey text -> light white (TEXT_LIGHT): real colours are read with the rule switched off, and re-read
-          # whenever focus moves, so text on a light (focused) background never turns white-on-white.
-          # Scroll fix: style changes that only move a row (transform) are ignored by the observers.
-          cat > "$P/app/src/main/assets/glass.js" <<'EOF'
-          (function () {
-            if (window.__ytGlass) return;
-            window.__ytGlass = true;
-
-            var BG_IMMERSIVE = 'https://www.gstatic.com/ytlr/img/ftux_immersive_1280x720_v2.jpg';
-            var BG_GRADIENT = 'https://www.gstatic.com/ytlr/img/uni_tube_gradient_1280x720.jpg';
-
-            // Grey text (subtitles, channel names, views, times, menu hints ...) is shown in this light white instead.
-            var TEXT_LIGHT = '#eeeeee';
-
-            var CSS = [
-              /* card titles / subtitles / separator dots: NO box behind them - every screen (home, player, music ...) */
-              'yt-formatted-string,yt-core-attributed-string{',
-              '  background:transparent !important;background-color:transparent !important;}',
-              'yt-formatted-string::before,yt-formatted-string::after,',
-              'yt-core-attributed-string::before,yt-core-attributed-string::after,',
-              '[idomkey^="detail-text"],[idomkey^="detail-text"] *,',
-              '[idomkey^="detail-text"]::before,[idomkey^="detail-text"]::after,',
-              '[idomkey^="detail-text"] *::before,[idomkey^="detail-text"] *::after{',
-              '  background:transparent !important;background-color:transparent !important;box-shadow:none !important;',
-              '  text-shadow:none !important;-webkit-backdrop-filter:none !important;backdrop-filter:none !important;}',
-
-              /* text spans on the watch page */
-              'body.WEB_PAGE_TYPE_WATCH span[idomkey]{',
-              '  background:transparent !important;background-color:transparent !important;}',
-              'body.WEB_PAGE_TYPE_WATCH span[idomkey]::before,body.WEB_PAGE_TYPE_WATCH span[idomkey]::after{',
-              '  background:transparent !important;background-color:transparent !important;box-shadow:none !important;}',
-
-              /* video area is always plain black (no grey poster) */
-              'video{background-color:#000 !important;}',
-
-              /* YouTube's own base64 splash logo is gone - the app shows its own animated splash instead */
-              '#loader,.splash-screen-loader{background-image:none !important;}',
-
-              /* the YouTube wordmark is served as the Premium wordmark (MainActivity) - keep its proportions */
-              'img[src*="/wordmark/fullcolor_white"]{object-fit:contain !important;}',
-              '.t6OPnf{background-size:contain !important;background-repeat:no-repeat !important;',
-              '  background-position:left center !important;}',
-
-              /* grey text -> light white (switched off while the real colours are read = probe) */
-              'html:not([data-ytl-probe]) [data-ytl]{color:' + TEXT_LIGHT + ' !important;}',
-
-              /* soft black gradient from the seek bar down to the bottom while the player controls are shown */
-              '#ytg-scrim{position:absolute;left:0;right:0;bottom:0;height:0;pointer-events:none;z-index:2;opacity:0;',
-              '  transition:opacity .3s;background:linear-gradient(to bottom,rgba(0,0,0,0),rgba(0,0,0,.28) 50%,rgba(0,0,0,.62));}',
-
-              /* sign-in / welcome pages keep their background pictures */
-              'html body ytlr-welcome-immersive-value-prop[class]{',
-              '  background-image:url(' + BG_IMMERSIVE + ') !important;background-size:cover !important;',
-              '  background-position:center !important;background-repeat:no-repeat !important;}',
-              'html body ytlr-welcome[class]{',
-              '  background-image:url(' + BG_GRADIENT + ') !important;background-size:cover !important;',
-              '  background-position:center !important;background-repeat:no-repeat !important;}',
-
-              /* transparent glass: low opacity, low blur, no shadow */
-              'html:not([data-ytg-probe]) [data-ytg="dark"]{',
-              '  background:rgba(255,255,255,.09) !important;',
-              '  -webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);}',
-              'html:not([data-ytg-probe]) [data-ytg="mid"]{',
-              '  background:rgba(255,255,255,.20) !important;',
-              '  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}',
-              'html:not([data-ytg-probe]) [data-ytg="light"]{',
-              '  background:rgba(255,255,255,.88) !important;}',
-              /* thin parts (seek bar track / buffered / played) */
-              'html:not([data-ytg-probe]) [data-ytg="tdark"]{background:rgba(255,255,255,.22) !important;}',
-              'html:not([data-ytg-probe]) [data-ytg="tmid"]{background:rgba(255,255,255,.36) !important;}',
-              'html:not([data-ytg-probe]) [data-ytg="tlight"]{background:rgba(255,255,255,.95) !important;}',
-
-              /* "Loading..." text hidden; 7-dot spinner drawn instead */
-              '[data-ytg-loadtext]{color:transparent !important;-webkit-text-fill-color:transparent !important;text-shadow:none !important;}',
-              '[data-ytg-hide]{visibility:hidden !important;}',
-              '#ytg-spin{position:fixed;width:60px;height:60px;z-index:2147483647;pointer-events:none;display:none;}',
-              '#ytg-spin i{position:absolute;left:50%;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;',
-              '  border-radius:50%;background:#fff;opacity:.15;animation:ytg-fade 1.05s linear infinite;}',
-              '@keyframes ytg-fade{0%{opacity:1}100%{opacity:.15}}'
-            ].join('\n');
-
-            var style = null;
-            function inject() {
-              if (style && style.isConnected) return;
-              if (!style) { style = document.createElement('style'); style.id = 'yt-glass-css'; }
-              style.textContent = CSS;
-              (document.head || document.documentElement).appendChild(style);
-            }
-
-            function isWatch() {
-              return !!document.body && /WEB_PAGE_TYPE_WATCH/.test(document.body.className);
-            }
-
-            // true while the user is scrolling (set by smooth.js): heavy full scans wait so every frame goes to the animation
-            function busyNow() {
-              try { return !!(window.__ytIsBusy && window.__ytIsBusy()); } catch (e) { return false; }
-            }
-
-            function parse(c) {
-              var m = c && c.match(/rgba?\(([^)]+)\)/);
-              if (!m) return null;
-              var p = m[1].split(',').map(parseFloat);
-              return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
-            }
-
-            function mark(el, state) {
-              if (state) {
-                if (el.getAttribute('data-ytg') !== state) el.setAttribute('data-ytg', state);
-              } else if (el.hasAttribute('data-ytg')) {
-                el.removeAttribute('data-ytg');
-              }
-            }
-
-            // formatted strings / SVG are never glassed. SPAN is NOT skipped: the duration badge
-            // on thumbnails ("2:06:42") is a dark <span> and must get the glass like the other badges.
-            var SKIP = { VIDEO: 1, IMG: 1, IMAGE: 1, 'YTLR-PLAYER': 1, SCRIPT: 1, STYLE: 1,
-              'YT-FORMATTED-STRING': 1, 'YT-CORE-ATTRIBUTED-STRING': 1, SVG: 1, PATH: 1 };
-
-            function skipped(el) {
-              if (SKIP[el.tagName.toUpperCase()]) return true;
-              // title / channel / views / time row: never gets glass (no box behind the dots)
-              if (el.closest && el.closest('[idomkey^="detail-text"],.ytx-eq')) return true;
-              return false;
-            }
-
-            // Anything inside a menu / dialog (the panel that opens from Settings) is left untouched.
-            var MENU_TAG = /menu|dialog|popup|modal|dropdown/i;
-            var MENU_ROLE = /^(menu|menubar|dialog|alertdialog|listbox)$/i;
-            function inMenu(el) {
-              for (var n = 0, p = el; p && p.nodeType === 1 && n < 12; p = p.parentElement, n++) {
-                if (MENU_TAG.test(p.tagName) || MENU_ROLE.test(p.getAttribute('role') || '') ||
-                    p.getAttribute('aria-modal') === 'true') return true;
-              }
-              return false;
-            }
-            function inAny(rects, x, y) {
-              for (var i = 0; i < rects.length; i++) {
-                var r = rects[i];
-                if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return true;
-              }
-              return false;
-            }
-
-            // ---------- sign-in / welcome pages: put the background pictures back ----------
-            var BGS = [
-              ['ytlr-welcome-immersive-value-prop', BG_IMMERSIVE],
-              ['ytlr-welcome', BG_GRADIENT]
-            ];
-            function bgPass() {
-              for (var b = 0; b < BGS.length; b++) {
-                var list = document.getElementsByTagName(BGS[b][0]);
-                var file = BGS[b][1].substring(BGS[b][1].lastIndexOf('/') + 1);
-                for (var i = 0; i < list.length; i++) {
-                  var el = list[i];
-                  if ((el.style.backgroundImage || '').indexOf(file) < 0) {
-                    el.style.setProperty('background-image', 'url("' + BGS[b][1] + '")', 'important');
-                    el.style.setProperty('background-size', 'cover', 'important');
-                    el.style.setProperty('background-position', 'center', 'important');
-                    el.style.setProperty('background-repeat', 'no-repeat', 'important');
-                  }
-                }
-              }
-            }
-
-            // ---------- decide the glass state of ONE element (glass rules must be switched off = probe) ----------
-            function classify(el, r, W, H, panels) {
-              if (r.width < 6 || r.height < 3 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) return null;
-              var thin = r.height <= 12;
-              if (!thin && (r.height > 80 || r.width > 400)) return null;
-              if (panels.length && inAny(panels, r.left + r.width / 2, r.top + r.height / 2)) return null;
-              var cs = getComputedStyle(el);
-              if (cs.visibility === 'hidden' || cs.display === 'none' ||
-                  (cs.backgroundImage && cs.backgroundImage !== 'none')) return null;
-              var bg = parse(cs.backgroundColor);
-              if (!bg || bg.a < 0.05) return null;
-              var lum = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b) / 255;
-              var base = lum < 0.55 ? 'dark' : (bg.a < 0.6 ? 'mid' : 'light');
-              var p = el.parentElement;
-              if (!thin && base === 'dark' && p && p.getAttribute('data-ytg') === 'dark') return null;
-              if (inMenu(el)) return null;
-              return (thin ? 't' : '') + base;
-            }
-
-            var lastPanels = [];
-
-            // ---------- full scan (watch page only) ----------
-            // Glass rules are switched OFF while the real colours are read, then ON again in the
-            // same task, so the screen never shows the un-glassed state.
-            function pass() {
-              if (document.hidden || !document.body || !isWatch()) return;
-              var root = document.documentElement;
-              var all = document.body.getElementsByTagName('*');
-              var W = innerWidth, H = innerHeight;
-              root.setAttribute('data-ytg-probe', '1');
-              try {
-                var els = [], rects = [], panels = [], i, el, r, cs;
-                for (i = 0; i < all.length; i++) {
-                  el = all[i];
-                  if (skipped(el)) { mark(el, null); continue; }
-                  r = el.getBoundingClientRect();
-                  els.push(el); rects.push(r);
-                  // tall side panel (Settings menu) -> nothing inside it gets glass
-                  if (r.height >= H * 0.85 && r.width >= 180 && r.width <= W * 0.7 && r.right > 0 && r.left < W) {
-                    cs = getComputedStyle(el);
-                    var pb = parse(cs.backgroundColor);
-                    if ((pb && pb.a > 0.05) || (cs.backgroundImage && cs.backgroundImage !== 'none')) panels.push(r);
-                  }
-                }
-                lastPanels = panels;
-                for (i = 0; i < els.length; i++) mark(els[i], classify(els[i], rects[i], W, H, panels));
-              } finally {
-                root.removeAttribute('data-ytg-probe');
-              }
-            }
-
-            // ---------- which nodes does a batch of mutations concern? ----------
-            // SCROLL FIX: while a list scrolls, YouTube rewrites the inline "transform" of the moving row on every step.
-            // Those style changes do not change any colour, so they are ignored completely (old value vs new value
-            // with transform / transition stripped). Before, every scroll step re-scanned up to 700 nodes with forced
-            // layout, which is what made scrolling stutter.
-            var T_RE = /(^|;)\s*(-webkit-)?(transform|transition|will-change)[^:]*:[^;]*/gi;
-            function stripT(s) { return (s || '').replace(T_RE, '$1').replace(/[;\s]+/g, ';'); }
-
-            function expand(recs) {
-              var set = new Set(), list = [], deep = [], i, j, n, rec, sub, k;
-              for (i = 0; i < recs.length && deep.length < 60; i++) {
-                rec = recs[i];
-                if (rec.type === 'childList') {
-                  for (j = 0; j < rec.addedNodes.length; j++) {
-                    n = rec.addedNodes[j];
-                    if (n.nodeType === 1) deep.push(n);
-                  }
-                } else if (rec.target && rec.target.nodeType === 1) {
-                  if (rec.attributeName === 'style' &&
-                      stripT(rec.oldValue) === stripT(rec.target.getAttribute('style'))) continue;   // only moved
-                  deep.push(rec.target);
-                }
-              }
-              for (i = 0; i < deep.length && list.length < 700; i++) {
-                n = deep[i];
-                if (!set.has(n)) { set.add(n); list.push(n); }
-                sub = n.getElementsByTagName ? n.getElementsByTagName('*') : [];
-                for (k = 0; k < sub.length && list.length < 700; k++) {
-                  if (!set.has(sub[k])) { set.add(sub[k]); list.push(sub[k]); }
-                }
-              }
-              return list;
-            }
-
-            // ---------- FAST glass scan: only the nodes that were just added / changed ----------
-            // Runs synchronously inside the MutationObserver callback, so new player controls are glassed
-            // before the browser paints them. Reads first, writes after (no layout thrashing).
-            function fastPass(list) {
-              if (!list.length || document.hidden || !document.body || !isWatch()) return;
-              var root = document.documentElement, W = innerWidth, H = innerHeight, i, el, r;
-              var states = new Array(list.length);
-              root.setAttribute('data-ytg-probe', '1');
-              try {
-                for (i = 0; i < list.length; i++) {
-                  el = list[i];
-                  if (!el.isConnected || skipped(el)) { states[i] = null; continue; }
-                  r = el.getBoundingClientRect();
-                  states[i] = classify(el, r, W, H, lastPanels);
-                }
-              } finally {
-                root.removeAttribute('data-ytg-probe');
-              }
-              for (i = 0; i < list.length; i++) if (list[i].isConnected) mark(list[i], states[i]);
-            }
-
-            // ---------- grey text -> light white (every page) ----------
-            // A text element whose real colour is a neutral grey, sitting on a dark background, gets data-ytl
-            // (= light white). Text on a light background (focused Settings row, focused button) keeps its dark colour,
-            // and the state is re-checked every time the focus moves, so it never turns white-on-white.
-            var TEXT_SKIP = { SCRIPT: 1, STYLE: 1, VIDEO: 1, IMG: 1, SVG: 1, PATH: 1, TEXTAREA: 1, INPUT: 1, NOSCRIPT: 1 };
-            function hasText(el) {
-              for (var c = el.firstChild; c; c = c.nextSibling) {
-                if (c.nodeType === 3 && /\S/.test(c.nodeValue)) return true;
-              }
-              return false;
-            }
-            function greyish(c) {
-              if (!c || c.a < 0.25) return false;
-              var mx = Math.max(c.r, c.g, c.b), mn = Math.min(c.r, c.g, c.b);
-              if (mx - mn > 22) return false;              // coloured text (red LIVE badge, links ...) stays as it is
-              var v = mx * c.a;                            // brightness as seen on a dark background
-              return v >= 70 && v <= 215;
-            }
-            function bgLumOf(el, cache) {
-              var path = [], p = el, n = 0, lum = 0, b;
-              while (p && p.nodeType === 1 && n++ < 30) {
-                if (cache.has(p)) { lum = cache.get(p); break; }
-                path.push(p);
-                b = parse(getComputedStyle(p).backgroundColor);
-                if (b && b.a >= 0.5) { lum = (0.299 * b.r + 0.587 * b.g + 0.114 * b.b) / 255; break; }
-                p = p.parentElement;
-              }
-              for (var i = 0; i < path.length; i++) cache.set(path[i], lum);
-              return lum;
-            }
-            function textState(el, cache) {
-              if (TEXT_SKIP[el.tagName.toUpperCase()] || !hasText(el)) return 0;
-              if (el.closest && el.closest('#ytx-modal,#ytx-toast')) return 0;
-              if (!greyish(parse(getComputedStyle(el).color))) return 0;
-              return bgLumOf(el, cache) < 0.45 ? 1 : 0;
-            }
-            function textApply(list, states) {
-              for (var i = 0; i < list.length; i++) {
-                var el = list[i];
-                if (!el.isConnected) continue;
-                if (states[i]) { if (!el.hasAttribute('data-ytl')) el.setAttribute('data-ytl', '1'); }
-                else if (el.hasAttribute('data-ytl')) el.removeAttribute('data-ytl');
-              }
-            }
-            function textFull() {
-              if (document.hidden || !document.body) return;
-              var all = document.body.getElementsByTagName('*'), list = [], i;
-              for (i = 0; i < all.length; i++) if (hasText(all[i])) list.push(all[i]);
-              var root = document.documentElement, states = new Array(list.length), cache = new Map();
-              root.setAttribute('data-ytl-probe', '1');
-              try {
-                for (i = 0; i < list.length; i++) states[i] = textState(list[i], cache);
-              } finally {
-                root.removeAttribute('data-ytl-probe');
-              }
-              textApply(list, states);
-            }
-            // Only the changed nodes: their own marks are lifted for the read (no full-page style recalc).
-            function textFast(list) {
-              var cand = [], i, el;
-              for (i = 0; i < list.length; i++) {
-                el = list[i];
-                if (el.isConnected && hasText(el)) cand.push(el);
-              }
-              if (!cand.length) return;
-              for (i = 0; i < cand.length; i++) if (cand[i].hasAttribute('data-ytl')) cand[i].removeAttribute('data-ytl');
-              var states = new Array(cand.length), cache = new Map();
-              for (i = 0; i < cand.length; i++) states[i] = textState(cand[i], cache);
-              textApply(cand, states);
-            }
-
-            // ---------- 7-dot circular spinner instead of "Loading..." (every page) ----------
-            var spin = null;
-            function ensureSpin() {
-              if (spin && spin.isConnected) return spin;
-              spin = document.createElement('div');
-              spin.id = 'ytg-spin';
-              for (var i = 0; i < 7; i++) {
-                var d = document.createElement('i');
-                d.style.transform = 'rotate(' + (i * 360 / 7).toFixed(2) + 'deg) translateY(-22px)';
-                d.style.animationDelay = (i * 0.15 - 1.05).toFixed(2) + 's';
-                spin.appendChild(d);
-              }
-              document.documentElement.appendChild(spin);   // outside <body>: never triggers the observer
-              return spin;
-            }
-
-            var LOAD_RE = /^loading(…|\.{3})?$/i;
-            function visibleRect(el) {
-              var r = el.getBoundingClientRect();
-              return (r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight &&
-                      r.right > 0 && r.left < innerWidth) ? r : null;
-            }
-
-            function spinPass() {
-              if (!document.body) return;
-              var s = ensureSpin(), target = null, i, el, r;
-
-              var fs = document.getElementsByTagName('yt-formatted-string');
-              for (i = 0; i < fs.length; i++) {
-                el = fs[i];
-                var t = el.textContent;
-                if (t && t.length < 14 && LOAD_RE.test(t.trim()) && (r = visibleRect(el))) {
-                  if (!el.hasAttribute('data-ytg-loadtext')) el.setAttribute('data-ytg-loadtext', '1');
-                  if (!target) target = r;
-                } else if (el.hasAttribute('data-ytg-loadtext')) {
-                  el.removeAttribute('data-ytg-loadtext');
-                }
-              }
-
-              // YouTube's own spinner elements (if any) are hidden and replaced by ours
-              var ns = document.querySelectorAll('ytlr-spinner,yt-spinner,ytlr-loading-spinner,yt-loading-spinner');
-              for (i = 0; i < ns.length; i++) {
-                el = ns[i];
-                if ((r = visibleRect(el)) && r.width < 220 && r.height < 220) {
-                  if (!el.hasAttribute('data-ytg-hide')) el.setAttribute('data-ytg-hide', '1');
-                  if (!target) target = r;
-                }
-              }
-
-              // video buffering / loading on the player page
-              if (!target && isWatch()) {
-                var v = document.querySelector('video');
-                if (v && v.currentSrc && v.readyState < 3 && !v.error && (r = visibleRect(v)) && r.width > 50) target = r;
-              }
-
-              if (target) {
-                s.style.left = Math.round(target.left + target.width / 2 - 30) + 'px';
-                s.style.top = Math.round(target.top + target.height / 2 - 30) + 'px';
-                s.style.display = 'block';
-              } else {
-                s.style.display = 'none';
-              }
-            }
-
-            // ---------- black gradient behind the controls (seek bar -> bottom), like the original app ----------
-            var scrim = null, scrimH = -1, scrimO = '';
-            function effVisible(el) {
-              var o = 1, n = 0, p = el, cs;
-              while (p && p.nodeType === 1 && n++ < 12) {
-                cs = getComputedStyle(p);
-                if (cs.display === 'none' || cs.visibility === 'hidden') return false;
-                o *= parseFloat(cs.opacity);
-                p = p.parentElement;
-              }
-              return o > 0.05;
-            }
-            function scrimPass() {
-              var show = false, top = 0, el, r;
-              if (isWatch()) {
-                el = document.querySelector('span[idomkey="elapsedTime"]') || document.querySelector('div[idomkey="slider"]');
-                if (el) {
-                  r = el.getBoundingClientRect();
-                  if (r.width > 0 && r.bottom > 0 && r.top < innerHeight && effVisible(el)) { show = true; top = r.top; }
-                }
-              }
-              var host = document.getElementById('player-container');
-              if (!host) { var v = document.querySelector('video'); host = v && v.parentNode; }
-              if (!host) return;
-              if (!scrim || scrim.parentNode !== host) {
-                if (!scrim) { scrim = document.createElement('div'); scrim.id = 'ytg-scrim'; }
-                host.appendChild(scrim);
-                scrimH = -1; scrimO = '';
-              }
-              var H = innerHeight, op = show ? '1' : '0';
-              if (show) {
-                var h = Math.round(H - Math.max(H * 0.2, top - 70));
-                if (h !== scrimH) { scrim.style.height = h + 'px'; scrimH = h; }
-              }
-              if (op !== scrimO) { scrim.style.opacity = op; scrimO = op; }
-            }
-
-            // ---------- scheduling ----------
-            var last = 0, pending = false, deferred = false;
-            function run(force) {
-              if (!force && busyNow()) {                 // scrolling: try again right after it settles
-                if (!deferred) { deferred = true; setTimeout(function () { deferred = false; run(); }, 140); }
-                return;
-              }
-              last = performance.now();
-              try { inject(); bgPass(); pass(); } catch (e) { }
-              try { scrimPass(); } catch (e) { }
-              try { spinPass(); } catch (e) { }
-            }
-            function schedule() {
-              var now = performance.now();
-              if (now - last >= 60) { run(); }
-              else if (!pending) {
-                pending = true;
-                setTimeout(function () { pending = false; run(); }, 60 - (now - last) + 1);
-              }
-            }
-
-            // A key press / touch on the player while the controls are hidden makes them appear: a short burst of
-            // full scans, so nothing that fades in after the first frame is left without glass.
-            // Held keys (auto-repeat) and presses while the controls are already up are skipped - no work while scrolling.
-            var burstAt = 0;
-            function burst(e) {
-              if (!isWatch() || (e && e.repeat) || scrimO === '1') return;
-              var n = Date.now();
-              if (n - burstAt < 250) return;
-              burstAt = n;
-              [0, 30, 80, 160, 320, 600].forEach(function (t) { setTimeout(function () { run(true); }, t); });
-            }
-            ['keydown', 'touchstart', 'pointerdown'].forEach(function (n) {
-              window.addEventListener(n, burst, true);
-            });
-
-            var mo = null;
-            function observe() {
-              if (mo || !document.body) return;
-              mo = new MutationObserver(function (recs) {
-                var list;
-                try { list = expand(recs); } catch (e) { list = []; }
-                if (!list.length) return;                    // only rows moving (scroll): nothing to do
-                try { fastPass(list); } catch (e) { }        // glass the new / changed nodes before the next paint
-                try { textFast(list); } catch (e) { }        // grey -> light white, before the next paint
-                try { scrimPass(); } catch (e) { }
-                schedule();                                  // then the full clean-up scan
-              });
-              mo.observe(document.body, { childList: true, subtree: true,
-                attributes: true, attributeOldValue: true, attributeFilter: ['class', 'style'] });
-            }
-
-            inject();
-            observe();
-            setInterval(function () { observe(); run(); }, 250);
-            setInterval(function () { if (!busyNow()) { try { textFull(); } catch (e) { } } }, 1000);
-          })();
-          EOF
-
-          # ---- Script 3: ported from TizenTube - speed, SponsorBlock, turn off screen / dim, tools panel ----
-          cat > "$P/app/src/main/assets/ytx.js" <<'EOF'
-          (function () {
-            if (window.__ytx) return;
-            var X = window.__ytx = {};
-
-            // ======================= config (kept in localStorage) =======================
-            var KEY = 'ytx-config';
-            var DEF = {
-              speed: 1,
-              sb: true, sbToast: true,
-              sbCats: { sponsor: 1, intro: 1, outro: 1, interaction: 1, selfpromo: 1, preview: 1, music_offtopic: 1, filler: 0 },
-              dim: false, dimTimeout: 60, dimOpacity: 0.5
-            };
-            var cfg = load();
-            function load() {
-              var c = JSON.parse(JSON.stringify(DEF));
-              try {
-                var s = JSON.parse(localStorage.getItem(KEY) || '{}');
-                for (var k in s) {
-                  if (k === 'sbCats') { for (var j in s.sbCats) c.sbCats[j] = s.sbCats[j]; }
-                  else c[k] = s[k];
-                }
-              } catch (e) { }
-              return c;
-            }
-            function save() { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { } }
-
-            // ======================= styles (menus copy the YouTube TV Settings panel look) =======================
-            // Measured from the Settings capture: panel #181818 radius 1.83vw, rows #212121 radius .92vw,
-            // focused row #f1f1f1 with black text, same size / position as the real panel.
-            var CSS = [
-              '#ytx-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);max-width:80%;padding:9px 18px;',
-              '  border-radius:22px;background:rgba(30,30,30,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);',
-              '  color:#fff;font:500 15px Roboto,Arial,sans-serif;z-index:2147483600;pointer-events:none;opacity:0;transition:opacity .25s;}',
-              '#ytx-toast.show{opacity:1;}',
-              '#ytx-modal{position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483500;display:none;',
-              '  font-family:Roboto,Arial,sans-serif;}',
-              '#ytx-box{position:absolute;right:2.94vw;top:3.33vh;bottom:3.33vh;width:34.8vw;box-sizing:border-box;',
-              '  padding:1.83vw;border-radius:1.83vw;background:#181818;color:#fff;display:flex;flex-direction:column;}',
-              '#ytx-title{flex:none;font-size:2vw;line-height:2.45vw;font-weight:500;margin-bottom:1.83vw;',
-              '  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
-              '#ytx-list{flex:1;min-height:0;overflow-y:auto;scroll-behavior:smooth;overscroll-behavior:contain;}',
-              '#ytx-list::-webkit-scrollbar{display:none;}',
-              '.ytx-item{display:flex;align-items:center;justify-content:space-between;box-sizing:border-box;',
-              '  min-height:4.88vw;margin-bottom:.62vw;padding:.6vw 1.22vw;border-radius:.92vw;background:#212121;',
-              '  color:#fff;cursor:pointer;transition:background-color .14s ease,color .14s ease;}',
-              '.ytx-item .t{min-width:0;}',
-              '.ytx-item .l{font-size:1.75vw;line-height:2.1vw;}',
-              '.ytx-item .sub{font-size:1.25vw;line-height:1.5vw;margin-top:.15vw;color:#eeeeee;}',
-              '.ytx-item .chk{flex:none;margin-left:1vw;font-size:1.9vw;line-height:1;}',
-              '.ytx-item.focus{background:#f1f1f1;color:#000;}',
-              '.ytx-item.focus .sub{color:rgba(0,0,0,.65);}',
-              /* own icons placed inside the Settings rows (SponsorBlock shield, eye) */
-              '.ytx-ic{position:absolute;z-index:10;box-sizing:border-box;border-radius:8px;display:flex;',
-              '  align-items:center;justify-content:center;pointer-events:none;}',
-              '.ytx-ic svg{display:block;width:24px;height:24px;fill:currentColor;}',
-              '#ytx-dim{position:fixed;left:0;top:0;right:0;bottom:0;background:#000;opacity:0;pointer-events:none;',
-              '  z-index:2147483200;transition:opacity 1s;}',
-              '#ytx-sb{position:fixed;display:none;pointer-events:none;z-index:2147483000;}',
-              /* equalizer in the middle of the Up next card of the video playing now */
-              '.ytx-eq{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;',
-              '  justify-content:center;pointer-events:none;z-index:1;border-radius:inherit;background:rgba(0,0,0,.42);}',
-              '.ytx-eq img{display:block;width:24%;min-width:28px;max-width:84px;height:auto;}'
-            ].join('\n');
-            var styleEl = null;
-            function inject() {
-              if (styleEl && styleEl.isConnected) return;
-              if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'ytx-css'; styleEl.textContent = CSS; }
-              (document.head || document.documentElement).appendChild(styleEl);
-            }
-
-            // ======================= toast =======================
-            var toastEl = null, toastTimer = null;
-            function toast(msg) {
-              try {
-                if (!toastEl || !toastEl.isConnected) {
-                  toastEl = document.createElement('div'); toastEl.id = 'ytx-toast';
-                  document.documentElement.appendChild(toastEl);
-                }
-                toastEl.textContent = msg;
-                toastEl.className = 'show';
-                clearTimeout(toastTimer);
-                toastTimer = setTimeout(function () { toastEl.className = ''; }, 2500);
-              } catch (e) { }
-            }
-
-            // ======================= menu (native look, touch + D-pad) =======================
-            var modal = null, box = null, titleEl = null, listEl = null;
-            var mBuild = null, mOpts = {}, mItems = [], mIdx = 0, mOpen = false;
-            var blockUntil = 0;   // after a menu closes, ALL pointer events are swallowed for a moment
-            var NAV = { 37: 1, 38: 1, 39: 1, 40: 1, 13: 1, 32: 1, 27: 1, 8: 1, 4: 1, 10009: 1, 461: 1 };
-
-            function ensureModal() {
-              if (modal && modal.isConnected) return;
-              modal = document.createElement('div'); modal.id = 'ytx-modal';
-              box = document.createElement('div'); box.id = 'ytx-box';
-              titleEl = document.createElement('div'); titleEl.id = 'ytx-title';
-              listEl = document.createElement('div'); listEl.id = 'ytx-list';
-              box.appendChild(titleEl); box.appendChild(listEl); modal.appendChild(box);
-              document.documentElement.appendChild(modal);
-            }
-            function openMenu(title, build, opts) {
-              ensureModal();
-              mBuild = build; mOpts = opts || {}; mOpts.title = title; mOpen = true;
-              mIdx = typeof mOpts.index === 'number' ? mOpts.index : 0;
-              modal.style.display = 'block';
-              render();
-            }
-            function closeMenu() {
-              mOpen = false;
-              blockUntil = Date.now() + 800;       // the finger that closed us must not touch YouTube underneath
-              if (modal) modal.style.display = 'none';
-            }
-            function back() {
-              if (mOpts.back) mOpts.back(); else closeMenu();
-            }
-            function render() {
-              mItems = mBuild();
-              if (mIdx >= mItems.length) mIdx = mItems.length - 1;
-              if (mIdx < 0) mIdx = 0;
-              titleEl.textContent = mOpts.title;
-              while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
-              mItems.forEach(function (it, i) {
-                var d = document.createElement('div');
-                d.className = 'ytx-item' + (i === mIdx ? ' focus' : '');
-                var t = document.createElement('div'); t.className = 't';
-                var l = document.createElement('div'); l.className = 'l'; l.textContent = it.label; t.appendChild(l);
-                if (it.sub) { var s = document.createElement('div'); s.className = 'sub'; s.textContent = it.sub; t.appendChild(s); }
-                d.appendChild(t);
-                if (it.on) { var c = document.createElement('div'); c.className = 'chk'; c.textContent = '\u2713'; d.appendChild(c); }
-                d.setAttribute('data-i', String(i));
-                listEl.appendChild(d);
-              });
-              scrollToFocus();
-            }
-            function scrollToFocus() {
-              try { listEl.children[mIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) { }
-            }
-            function setFocus(i) {
-              if (!mItems.length) return;
-              i = Math.max(0, Math.min(mItems.length - 1, i));
-              var kids = listEl.children;
-              if (kids[mIdx]) kids[mIdx].classList.remove('focus');
-              mIdx = i;
-              if (kids[mIdx]) kids[mIdx].classList.add('focus');
-              scrollToFocus();
-            }
-            function choose(i) {
-              var it = mItems[i];
-              if (!it || !it.run) return;
-              var r = it.run();
-              if (r === 'keep') render();
-              else if (r !== 'nav') closeMenu();
-            }
-            function stop(e) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
-            function onMenuKey(e) {
-              if (!mOpen) return;
-              var k = e.keyCode;
-              if (!NAV[k]) return;
-              stop(e);
-              if (e.type !== 'keydown') return;
-              if (k === 38) setFocus(mIdx - 1);
-              else if (k === 40) setFocus(mIdx + 1);
-              else if (k === 13 || k === 32) choose(mIdx);
-              else if (k === 37 || k === 39) { /* ignore */ }
-              else back();
-            }
-
-            // ======================= playback speed =======================
-            var SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4, 5];
-
-            // YouTube TV tries to keep playbackRate at 1 on this device ("Not available on this device").
-            // Whenever the page writes the rate, our chosen speed is written instead.
-            (function patchRate() {
-              try {
-                var P = HTMLMediaElement.prototype, d = Object.getOwnPropertyDescriptor(P, 'playbackRate');
-                if (!d || !d.set) return;
-                Object.defineProperty(P, 'playbackRate', {
-                  configurable: true, enumerable: d.enumerable, get: d.get,
-                  set: function (v) { d.set.call(this, (this.tagName === 'VIDEO' && cfg.speed !== 1) ? cfg.speed : v); }
-                });
-              } catch (e) { }
-            })();
-
-            function speedText() {
-              return Math.abs(cfg.speed - 1) < 0.00001 ? 'Normal' : (cfg.speed + 'x');
-            }
-            function applySpeed() {
+            function header() {
               var v = document.querySelector('video');
-              if (v) { try { v.playbackRate = cfg.speed; } catch (e) { } }
+              return {
+                captured: new Date().toISOString(),
+                url: location.href,
+                userAgent: navigator.userAgent,
+                viewport: [innerWidth, innerHeight, window.devicePixelRatio],
+                realDpr: window.__realDpr ? window.__realDpr() : null,
+                screen: [screen.width, screen.height, screen.availWidth, screen.availHeight],
+                qmax: (function () { try { return localStorage.getItem('ytx-qmax'); } catch (e) { return null; } })(),
+                bodyClass: document.body ? document.body.className : '',
+                video: v ? {
+                  rect: (function () { var r = v.getBoundingClientRect(); return [r1(r.left), r1(r.top), r1(r.width), r1(r.height)]; })(),
+                  currentTime: v.currentTime, duration: v.duration, readyState: v.readyState,
+                  paused: v.paused, playbackRate: v.playbackRate,
+                  src: (v.currentSrc || v.src || '').slice(0, 80)
+                } : null
+              };
             }
-            function setSpeed(s) {
-              cfg.speed = s; save(); applySpeed(); patchSettings();
-              toast('Speed ' + speedText());
-            }
-            // every new video starts at the chosen speed, and stays there
-            ['loadedmetadata', 'canplay', 'playing', 'ratechange'].forEach(function (n) {
-              document.addEventListener(n, function (e) {
-                var v = e.target;
-                if (v && v.tagName === 'VIDEO' && cfg.speed !== 1 && Math.abs(v.playbackRate - cfg.speed) > 0.00001) {
-                  try { v.playbackRate = cfg.speed; } catch (x) { }
-                }
-              }, true);
-            });
-            function sendEscape() {
+            function flash(el) {
               try {
-                var kE = document.createEvent('Event');
-                kE.initEvent('keydown', true, true); kE.keyCode = 27; kE.which = 27;
-                document.dispatchEvent(kE);
+                var r = el.getBoundingClientRect(), d = document.createElement('div');
+                d.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;border:3px solid #0f0;' +
+                  'background:rgba(0,255,0,.15);left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
+                  'px;height:' + r.height + 'px';
+                document.documentElement.appendChild(d);
+                setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 1500);
               } catch (e) { }
             }
-            function speedMenu(backFn) {
-              var cur = 3;
-              SPEEDS.forEach(function (s, i) { if (Math.abs(cfg.speed - s) < 0.00001) cur = i; });
-              function pick(s) {
-                return function () {
-                  setSpeed(s);
-                  if (backFn) { backFn(); return 'nav'; }
-                  return null;                       // closes our panel, YouTube Settings stays as it was
-                };
+
+            // ---- 0. SVG + image URL log: every <svg>, every image URL, icon-font glyphs ----
+            // Open the screen that has the wrong icons (e.g. show the player controls, open Settings) BEFORE
+            // pressing it. Pressing the button starts a 5 s timer (set in MainActivity) so the screen can be shown.
+            cap.dumpSvg = function () {
+              toast('Collecting SVG + image URLs...');
+              var W = innerWidth, H = innerHeight, i, j, el, r, cs;
+              var head = header();
+              head.type = 'svg-and-images';
+
+              function isVis(r, cs) {
+                return r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < W && r.top < H &&
+                  cs.visibility !== 'hidden' && cs.display !== 'none';
               }
-              openMenu('Playback speed', function () {
-                var items = SPEEDS.map(function (s) {
-                  return { label: s === 1 ? 'Normal' : s + 'x', on: Math.abs(cfg.speed - s) < 0.00001, run: pick(s) };
+              function urlsIn(str) {
+                var res = [], re = /url\((['"]?)(.*?)\1\)/g, m;
+                while ((m = re.exec(str || ''))) res.push(m[2]);
+                return res;
+              }
+              function shortUrl(u) {
+                u = String(u);
+                return u.length > 700 ? u.slice(0, 700) + '...[' + u.length + ' chars]' : u;
+              }
+              function rowText(e) {
+                var p = e, n = 0, t;
+                while (p && n++ < 6) {
+                  t = ((p.innerText || '') + '').trim();
+                  if (t && t.length < 90) return t;
+                  p = p.parentElement;
+                }
+                return '';
+              }
+              function rectOf(e) { var q = e.getBoundingClientRect(); return [r1(q.left), r1(q.top), r1(q.width), r1(q.height)]; }
+
+              // ---- SVG elements ----
+              var svgs = [], all = document.getElementsByTagName('svg');
+              for (i = 0; i < all.length && i < 600; i++) {
+                el = all[i]; r = el.getBoundingClientRect(); cs = getComputedStyle(el);
+                var uses = [], imgs = [], us = el.querySelectorAll('use'), ims = el.querySelectorAll('image');
+                for (j = 0; j < us.length; j++) {
+                  uses.push(us[j].getAttribute('href') || us[j].getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '');
+                }
+                for (j = 0; j < ims.length; j++) {
+                  imgs.push(shortUrl(ims[j].getAttribute('href') || ims[j].getAttributeNS('http://www.w3.org/1999/xlink', 'href') || ''));
+                }
+                svgs.push({
+                  n: i,
+                  visible: isVis(r, cs),
+                  selector: sel(el),
+                  parents: chain(el).slice(1, 8),
+                  rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
+                  viewBox: el.getAttribute('viewBox') || undefined,
+                  fill: cs.fill, stroke: cs.stroke, color: cs.color, opacity: cs.opacity,
+                  rowText: rowText(el) || undefined,
+                  uses: uses.length ? uses : undefined,
+                  images: imgs.length ? imgs : undefined,
+                  outerHTML: (el.outerHTML || '').slice(0, 6000)
                 });
-                items.push({ label: 'Fix stuttering (1.0001x)', on: cfg.speed === 1.0001, run: pick(1.0001) });
-                return items;
-              }, { index: cur, back: backFn });
-            }
+              }
+              svgs.sort(function (a, b) { return (b.visible ? 1 : 0) - (a.visible ? 1 : 0); });
 
-            // ======================= YouTube Settings panel: Speed / SponsorBlock / Turn off screen =======================
-            // The existing rows are reused so the look and the D-pad focus are 100% native:
-            //   "Speed - Not available on this device"  -> "Speed - <current speed>"  (opens our speed list)
-            //   "Report"   -> "SponsorBlock: On/Off"    (Enter toggles)  + own shield icon
-            //   "Feedback" -> "Turn off screen"                          + eye icon
-            function onOff(b) { return b ? 'On' : 'Off'; }
-
-            // Icons drawn in the row's own icon slot (fill = currentColor, so they follow the focus colour).
-            // SponsorBlock: shield with a "skip" (play + bar) cut out of it.
-            var SVG_SB = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-              '<path fill-rule="evenodd" d="M12 2 4 5v6.2c0 4.9 3.3 9.4 8 10.8 4.7-1.4 8-5.9 8-10.8V5l-8-3z' +
-              'M9.2 8v8l5.3-4-5.3-4zM15.8 8h1.7v8h-1.7V8z"/></svg>';
-            // Turn off screen: eye.
-            var SVG_EYE = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
-              '<path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5z' +
-              'M12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
-
-            // The label "Speed" is a <span> INSIDE a yt-formatted-string, so the subtitle is the
-            // yt-formatted-string that does NOT contain that span.
-            function labelSpan(row) {
-              var s = row.getElementsByTagName('span'), i;
-              for (i = 0; i < s.length; i++) {
-                if (s[i].children.length === 0 && (s[i].textContent || '').trim()) return s[i];
+              // ---- image URLs ----
+              var found = [], glyphs = [];
+              function addUrl(kind, u, e, extra) {
+                if (!u || found.length >= 900) return;
+                var q = e.getBoundingClientRect ? e.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+                found.push({
+                  kind: kind, url: shortUrl(u),
+                  selector: sel(e), rect: [r1(q.left), r1(q.top), r1(q.width), r1(q.height)],
+                  extra: extra || undefined
+                });
               }
-              return null;
-            }
-            function subOf(row, sp) {
-              var l = row.getElementsByTagName('yt-formatted-string'), i;
-              for (i = 0; i < l.length; i++) {
-                if (l[i].contains(sp) || sp.contains(l[i])) continue;
-                return l[i];
-              }
-              return null;
-            }
-            function setText(el, text) {
-              if (!el) return;
-              if (el.childNodes.length === 1 && el.firstChild.nodeType === 3) {
-                if (el.firstChild.nodeValue !== text) el.firstChild.nodeValue = text;
-              } else if (el.children.length === 1 && el.firstElementChild.children.length === 0) {
-                if (el.firstElementChild.textContent !== text) el.firstElementChild.textContent = text;
-              } else if (el.textContent !== text) {
-                el.textContent = text;
-              }
-            }
-            function panelHasSpeed(row) {
-              var p = row.parentElement, n = 0;
-              while (p && n++ < 6) {
-                if (p.querySelector('[data-ytx="speed"]')) return true;
-                p = p.parentElement;
-              }
-              return false;
-            }
-
-            // Our icon is drawn as an OVERLAY on top of the row's original icon (Report flag / Feedback bubble).
-            // The overlay has the row's own grey (#212121, or #f1f1f1 while the row is focused), so the old
-            // icon is completely covered and our SVG sits in its place.
-            function iconPass(row, kind, sp) {
-              var rr = row.getBoundingClientRect(), sr = sp.getBoundingClientRect();
-              if (!rr.width || !sr.width) return;
-              var ic = row.querySelector('.ytx-ic');
-              if (!ic) {
-                ic = document.createElement('span');
-                ic.className = 'ytx-ic';
-                ic.innerHTML = kind === 'sb' ? SVG_SB : SVG_EYE;
-                if (getComputedStyle(row).position === 'static') row.style.setProperty('position', 'relative', 'important');
-                row.appendChild(ic);
-              }
-              var w = Math.max(24, Math.round(sr.left - rr.left - 10));
-              var h = Math.max(24, Math.round(rr.height - 8));
-              var focused = row.classList.contains('zylon-focus');
-              var col = getComputedStyle(sp).color;            // white, or black while focused
-              var key = [kind, w, h, focused ? 1 : 0, col].join('|');
-              if (ic.getAttribute('data-k') !== key) {
-                ic.setAttribute('data-k', key);
-                ic.style.cssText = 'left:4px;top:4px;width:' + w + 'px;height:' + h + 'px;background:' +
-                  (focused ? '#f1f1f1' : '#212121') + ';color:' + col + ';';
-              }
-              var svg = ic.firstChild, op = (kind === 'sb' && !cfg.sb) ? '0.45' : '1';
-              if (svg && svg.style && svg.style.opacity !== op) svg.style.opacity = op;
-            }
-
-            function patchSettings() {
-              var rows = document.getElementsByTagName('ytlr-compact-link-renderer');
-              if (!rows.length) return;
-              var i, row, sp, t;
-              for (i = 0; i < rows.length; i++) {
-                row = rows[i]; sp = labelSpan(row);
-                if (!sp) continue;
-                t = (sp.textContent || '').trim();
-                if (t === 'Speed' || row.getAttribute('data-ytx') === 'speed') {
-                  if (row.getAttribute('data-ytx') !== 'speed') row.setAttribute('data-ytx', 'speed');
-                  setText(subOf(row, sp), speedText());           // replaces "Not available on this device"
+              var ALLEL = document.getElementsByTagName('*');
+              var PUA = /^[\uE000-\uF8FF]{1,2}$/;
+              for (i = 0; i < ALLEL.length && i < 7000; i++) {
+                el = ALLEL[i];
+                var tg = el.tagName.toLowerCase();
+                if (tg === 'img') {
+                  addUrl('img', el.currentSrc || el.src, el, 'natural=' + el.naturalWidth + 'x' + el.naturalHeight);
+                } else if (tg === 'video' && el.poster) {
+                  addUrl('video-poster', el.poster, el);
+                } else if (tg === 'image') {
+                  addUrl('svg-image', el.getAttribute('href') || el.getAttributeNS('http://www.w3.org/1999/xlink', 'href'), el);
+                } else if (tg === 'source' && el.src) {
+                  addUrl('source', el.src, el);
                 }
-              }
-              for (i = 0; i < rows.length; i++) {
-                row = rows[i]; sp = labelSpan(row);
-                if (!sp) continue;
-                t = (sp.textContent || '').trim();
-                var kind = row.getAttribute('data-ytx');
-                if (kind === 'speed') continue;
-                if (!kind) {
-                  if (!panelHasSpeed(row)) continue;              // only inside the player Settings panel
-                  kind = t === 'Report' ? 'sb' : (t === 'Feedback' ? 'off' : null);
-                  if (!kind) continue;
-                  row.setAttribute('data-ytx', kind);
-                }
-                setText(sp, kind === 'sb' ? ('SponsorBlock: ' + onOff(cfg.sb)) : 'Turn off screen');
-                try { iconPass(row, kind, sp); } catch (e) { }
-              }
-            }
-            function rowKindOf(el) {
-              try { var r = el && el.closest ? el.closest('[data-ytx]') : null; return r ? r.getAttribute('data-ytx') : null; }
-              catch (e) { return null; }
-            }
-            function focusedKind() {
-              var fs = document.querySelectorAll('.zylon-focus'), i, k;
-              for (i = 0; i < fs.length; i++) { k = rowKindOf(fs[i]); if (k) return k; }
-              for (i = 0; i < fs.length; i++) {          // before the row was patched
-                var t = (fs[i].innerText || '').trim();
-                if (t && t.length < 90 && /^speed\b/i.test(t) && /not available/i.test(t)) return 'speed';
-              }
-              return null;
-            }
-            function activate(kind) {
-              if (kind === 'speed') speedMenu(null);
-              else if (kind === 'sb') {
-                cfg.sb = !cfg.sb; save(); sbRefresh(); patchSettings();
-                toast('SponsorBlock ' + onOff(cfg.sb));
-              } else if (kind === 'off') {
-                sendEscape();
-                setTimeout(screenOff, 350);
-              }
-            }
-
-            // YouTube TV hit-tests touches itself (and moves its focus on hover), so a tap on our panel also
-            // "pressed" the YouTube button underneath (a caption row, Stats for nerds...).
-            // While our menu is open - and for a moment after it closes - EVERY pointer / mouse / touch event
-            // (press, release, hover, move, click) is stopped here, first in line, before YouTube sees it.
-            var PTR = ['pointerdown', 'pointerup', 'pointermove', 'pointerover', 'pointerout', 'pointerenter',
-              'pointerleave', 'pointercancel', 'mousedown', 'mouseup', 'mousemove', 'mouseover', 'mouseout',
-              'mouseenter', 'mouseleave', 'touchstart', 'touchend', 'touchmove', 'touchcancel', 'click',
-              'dblclick', 'contextmenu'];
-            var PRESS = { pointerdown: 1, pointerup: 1, mousedown: 1, mouseup: 1, touchstart: 1, touchend: 1, click: 1 };
-            function evPoint(e) {
-              var t = (e.changedTouches && e.changedTouches[0]) || (e.touches && e.touches[0]) || e;
-              return typeof t.clientX === 'number' ? t : null;
-            }
-            function kindAtPoint(e) {
-              var k = rowKindOf(e.target);
-              if (k) return k;
-              var t = evPoint(e);
-              if (!t || !document.elementsFromPoint) return null;
-              var st = document.elementsFromPoint(t.clientX, t.clientY), i;
-              for (i = 0; i < st.length; i++) { k = rowKindOf(st[i]); if (k) return k; }
-              return null;
-            }
-            function onPointer(e) {
-              if (mOpen || Date.now() < blockUntil) {
-                e.stopPropagation(); e.stopImmediatePropagation();
-                if (e.type === 'click') {
-                  e.preventDefault();
-                  if (mOpen) {
-                    var el = e.target, it = el && el.closest ? el.closest('.ytx-item') : null;
-                    if (it) {
-                      var n = parseInt(it.getAttribute('data-i'), 10);
-                      if (n >= 0) { mIdx = n; choose(n); }
-                    } else if (!box.contains(el)) back();
+                if (tg === 'script' || tg === 'style' || tg === 'path') continue;
+                cs = getComputedStyle(el);
+                var props = [['background-image', cs.backgroundImage], ['mask-image', cs.webkitMaskImage || cs.maskImage],
+                  ['border-image', cs.borderImageSource], ['list-style-image', cs.listStyleImage], ['content', cs.content]];
+                for (j = 0; j < props.length; j++) {
+                  if (props[j][1] && props[j][1] !== 'none' && props[j][1].indexOf('url(') >= 0) {
+                    urlsIn(props[j][1]).forEach(function (u) { addUrl('css:' + props[j][0], u, el, cs.backgroundSize || undefined); });
                   }
                 }
-                return;
-              }
-              if (!PRESS[e.type]) return;
-              var k = kindAtPoint(e);
-              if (!k) return;
-              e.stopPropagation(); e.stopImmediatePropagation();
-              if (e.type === 'click') { e.preventDefault(); activate(k); }
-            }
-            PTR.forEach(function (n) { window.addEventListener(n, onPointer, true); });
-
-            // keys: Enter on our rows, colour buttons (blue 406 / 191) open the speed picker
-            var swallowEnterUntil = 0;
-            function onGlobalKey(e) {
-              if (mOpen) return;
-              var k = e.keyCode;
-              if (k === 13) {
-                if (e.type === 'keydown') {
-                  var kind = focusedKind();
-                  if (kind) {
-                    swallowEnterUntil = Date.now() + 500;
-                    stop(e);
-                    activate(kind);
-                  }
-                } else if (Date.now() < swallowEnterUntil) {
-                  stop(e);
-                }
-              } else if (k === 406 || k === 191) {
-                stop(e);
-                if (e.type === 'keydown') speedMenu(null);
-              }
-            }
-
-            // ======================= SponsorBlock =======================
-            var SBCATS = {
-              sponsor: ['Sponsor', '#00d400'], intro: ['Intro', '#00ffff'], outro: ['Outro', '#0202ed'],
-              interaction: ['Interaction reminder', '#cc00ff'], selfpromo: ['Self-promotion', '#ffff00'],
-              preview: ['Recap / preview', '#008fd6'], filler: ['Tangents / jokes', '#7300ff'],
-              music_offtopic: ['Non-music part', '#ff9900'], poi_highlight: ['Highlight', '#9b044c']
-            };
-            var sb = { id: null, segs: null, video: null, timer: null, done: {}, ov: null, ovKey: '' };
-            var SB_EVENTS = ['timeupdate', 'play', 'playing', 'seeked', 'ratechange'];
-
-            function sha256hex(s) {
-              return crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)).then(function (buf) {
-                var a = new Uint8Array(buf), h = '';
-                for (var i = 0; i < a.length; i++) h += ('0' + a[i].toString(16)).slice(-2);
-                return h;
-              });
-            }
-            function sbDetach() {
-              clearTimeout(sb.timer); sb.timer = null;
-              if (sb.video) {
-                SB_EVENTS.forEach(function (n) { sb.video.removeEventListener(n, sbTick); });
-                sb.video = null;
-              }
-            }
-            function sbStop() {
-              sbDetach();
-              sb.id = null; sb.segs = null; sb.done = {};
-              sbHideOverlay();
-            }
-            function sbStart(id) {
-              sbStop();
-              sb.id = id;
-              if (!cfg.sb) return;
-              var cats = Object.keys(SBCATS);
-              sha256hex(id).then(function (h) {
-                return fetch('https://sponsor.ajay.app/api/skipSegments/' + h.substring(0, 4) +
-                  '?categories=' + encodeURIComponent(JSON.stringify(cats)));
-              }).then(function (r) {
-                if (!r.ok) throw new Error('none');
-                return r.json();
-              }).then(function (list) {
-                if (sb.id !== id) return;
-                var res = null;
-                for (var i = 0; i < list.length; i++) if (list[i].videoID === id) { res = list[i]; break; }
-                if (!res || !res.segments || !res.segments.length) return;
-                sb.segs = res.segments;
-                sbAttach();
-              }).catch(function () { });
-            }
-            function sbAttach() {
-              var v = document.querySelector('video');
-              if (!v) { sb.timer = setTimeout(sbAttach, 300); return; }
-              sbDetach();
-              sb.video = v;
-              SB_EVENTS.forEach(function (n) { v.addEventListener(n, sbTick); });
-              sbTick();
-            }
-            function sbTick() {
-              clearTimeout(sb.timer); sb.timer = null;
-              var v = sb.video;
-              if (!v || !sb.segs || !cfg.sb || v.paused) return;
-              var t = v.currentTime, next = null;
-              for (var i = 0; i < sb.segs.length; i++) {
-                var seg = sb.segs[i];
-                if (!cfg.sbCats[seg.category]) continue;
-                var s = seg.segment[0], e = seg.segment[1];
-                if (t >= s - 0.05 && t < e - 0.25) { sbSkip(seg); return; }
-                if (s > t && (!next || s < next.segment[0])) next = seg;
-              }
-              if (next) {
-                var d = (next.segment[0] - t) / (v.playbackRate || 1) * 1000;
-                sb.timer = setTimeout(sbTick, Math.max(0, d - 30));
-              }
-            }
-            function sbSkip(seg) {
-              var v = sb.video, now = Date.now(), rec = sb.done[seg.UUID];
-              if (rec && now - rec.t < 1500) {            // loop guard (user rewound into the segment)
-                if (!rec.warned) { rec.warned = true; if (cfg.sbToast) toast('SponsorBlock: not skipping again'); }
-                return;
-              }
-              sb.done[seg.UUID] = { t: now };
-              var e = seg.segment[1];
-              v.currentTime = (v.duration - e < 1) ? Math.max(0, e - 1) : e;
-              if (cfg.sbToast) toast('SponsorBlock: skipped ' + (SBCATS[seg.category] ? SBCATS[seg.category][0].toLowerCase() : seg.category));
-            }
-            function sbRefresh() {
-              var id = sb.id || currentVid();
-              if (!id) return;
-              if (cfg.sb) sbStart(id); else sbStop();
-              lastVid = id;
-            }
-
-            // coloured segments drawn over the seek bar (best effort)
-            function sbHideOverlay() { if (sb.ov) sb.ov.style.display = 'none'; }
-            function sbOverlay() {
-              try {
-                var v = sb.video;
-                if (!sb.segs || !v || !cfg.sb || !v.duration || !isFinite(v.duration)) { sbHideOverlay(); return; }
-                var sl = document.querySelector('div[idomkey="slider"]');
-                if (!sl) { sbHideOverlay(); return; }
-                var r = sl.getBoundingClientRect(), pb = document.querySelector('ytlr-progress-bar');
-                if (r.width < 100 || r.bottom < 0 || r.top > innerHeight ||
-                    (pb && pb.getAttribute('hybridnavfocusable') === 'false')) { sbHideOverlay(); return; }
-                if (!sb.ov || !sb.ov.isConnected) {
-                  sb.ov = document.createElement('div'); sb.ov.id = 'ytx-sb'; sb.ovKey = '';
-                  document.documentElement.appendChild(sb.ov);
-                }
-                var key = sb.id + '|' + v.duration + '|' + JSON.stringify(cfg.sbCats);
-                if (key !== sb.ovKey) {
-                  sb.ovKey = key;
-                  while (sb.ov.firstChild) sb.ov.removeChild(sb.ov.firstChild);
-                  sb.segs.forEach(function (seg) {
-                    if (seg.category !== 'poi_highlight' && !cfg.sbCats[seg.category]) return;
-                    var c = SBCATS[seg.category] ? SBCATS[seg.category][1] : '#0000ff';
-                    var a = seg.segment[0], b = seg.segment[1], d = document.createElement('div');
-                    d.style.cssText = 'position:absolute;top:0;height:100%;opacity:.75;background:' + c +
-                      ';left:' + (100 * a / v.duration) + '%;width:' +
-                      (seg.category === 'poi_highlight' ? 0.4 : 100 * (b - a) / v.duration) + '%';
-                    sb.ov.appendChild(d);
+                ['::before', '::after'].forEach(function (ps) {
+                  try {
+                    var pc = getComputedStyle(el, ps);
+                    if (!pc || pc.content === 'none' || pc.content === 'normal') return;
+                    var pv = [pc.backgroundImage, pc.webkitMaskImage || pc.maskImage, pc.content];
+                    pv.forEach(function (s) {
+                      if (s && s.indexOf('url(') >= 0) urlsIn(s).forEach(function (u) { addUrl('pseudo' + ps, u, el); });
+                    });
+                  } catch (e) { }
+                });
+                // icon-font glyphs (private-use characters)
+                var own = '';
+                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) own += c.nodeValue;
+                own = own.trim();
+                if (own && PUA.test(own) && glyphs.length < 300) {
+                  glyphs.push({
+                    codepoints: own.split('').map(function (ch) { return 'U+' + ch.charCodeAt(0).toString(16).toUpperCase(); }).join(' '),
+                    fontFamily: cs.fontFamily, selector: sel(el), rect: rectOf(el), color: cs.color
                   });
                 }
-                var st = sb.ov.style;
-                st.left = r.left + 'px'; st.top = r.top + 'px'; st.width = r.width + 'px';
-                st.height = Math.max(3, r.height) + 'px'; st.display = 'block';
-              } catch (e) { }
-            }
-
-            // follow the video in the URL:  .../tv#/watch?v=VIDEOID
-            var lastVid = null;
-            function currentVid() {
-              try {
-                var m = (location.hash || '').match(/[?&]v=([\w-]{6,})/);
-                return m ? m[1] : null;
-              } catch (e) { return null; }
-            }
-            function checkVideo() {
-              var id = currentVid();
-              if (id !== lastVid) {
-                lastVid = id;
-                if (id) sbStart(id); else sbStop();
-              } else if (id && sb.segs && cfg.sb) {
-                var v = document.querySelector('video');
-                if (v && v !== sb.video) sbAttach();       // YouTube swapped the <video> element
               }
-            }
-            window.addEventListener('hashchange', checkVideo);
 
-            // ======================= turn off screen / auto dim =======================
-            var off = null, offAt = 0;
-            function capUi(visible) { try { if (window.YTApp && YTApp.setUiVisible) YTApp.setUiVisible(!!visible); } catch (e) { } }
-            function screenOff() {
-              if (off || !document.body) return;
-              off = [];
-              var ch = document.body.children;
-              for (var i = 0; i < ch.length; i++) {
-                var c = ch[i], tg = c.tagName.toLowerCase();
-                if (tg === 'script' || tg === 'svg') continue;
-                off.push([c, c.style.getPropertyValue('display'), c.style.getPropertyPriority('display')]);
-                c.style.setProperty('display', 'none', 'important');
-              }
-              document.documentElement.style.setProperty('background', '#000', 'important');
-              offAt = Date.now();
-              capUi(false);
-            }
-            function wake() {
-              if (!off) return;
-              off.forEach(function (o) {
-                if (o[1]) o[0].style.setProperty('display', o[1], o[2]); else o[0].style.removeProperty('display');
-              });
-              off = null;
-              document.documentElement.style.removeProperty('background');
-              capUi(true);
-            }
-            function onWakeEvent(e) {
-              if (!off) return;
-              e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-              if (Date.now() - offAt > 1000 && (e.type === 'keydown' || e.type === 'touchstart' || e.type === 'mousedown')) wake();
-            }
-
-            var dimEl = null, dimTimer = null, dimVisible = false, lastArm = 0;
-            function dimShow(on) {
-              if (!dimEl || !dimEl.isConnected) {
-                if (!on) return;
-                dimEl = document.createElement('div'); dimEl.id = 'ytx-dim';
-                document.documentElement.appendChild(dimEl);
-              }
-              dimVisible = on;
-              dimEl.style.opacity = on ? String(cfg.dimOpacity) : '0';
-            }
-            function armDim() {
-              clearTimeout(dimTimer);
-              dimShow(false);
-              if (!cfg.dim) return;
-              dimTimer = setTimeout(function () {
-                var v = document.querySelector('video');
-                if (v && !v.paused && !v.ended) { armDim(); return; }   // never dim while playing
-                dimShow(true);
-              }, cfg.dimTimeout * 1000);
-            }
-            function onUser() {
-              var n = Date.now();
-              if (dimVisible || n - lastArm > 500) { lastArm = n; armDim(); }
-            }
-
-            // ======================= tools panel (Menu / Yellow key, or the gear on the on-screen remote) =======================
-            function cycle(list, cur) {
-              var i = list.indexOf(cur);
-              return list[(i + 1) % list.length];
-            }
-            function qmax() {
-              try { return parseInt(localStorage.getItem('ytx-qmax') || '0', 10) || 0; } catch (e) { return 0; }
-            }
-            function smoothOn() {
-              try { return localStorage.getItem('ytx-smooth') !== '0'; } catch (e) { return true; }
-            }
-            function qname(v) { return v ? (v === 1440 ? '1440p (2K)' : v === 2160 ? '2160p (4K)' : v === 4320 ? '4320p (8K)' : v + 'p') : 'Auto-detect'; }
-            function panel() {
-              openMenu('Tools', function () {
-                return [
-                  { label: 'Playback speed', sub: speedText(), run: function () { speedMenu(panel); return 'nav'; } },
-                  { label: 'SponsorBlock', sub: onOff(cfg.sb), run: function () { cfg.sb = !cfg.sb; save(); sbRefresh(); patchSettings(); return 'keep'; } },
-                  { label: 'Turn off screen', sub: 'Audio keeps playing. Press any key or tap to wake.', run: function () { setTimeout(screenOff, 200); return null; } },
-                  { label: 'SponsorBlock categories', run: function () { sbCatsMenu(); return 'nav'; } },
-                  { label: 'SponsorBlock toasts', sub: onOff(cfg.sbToast), run: function () { cfg.sbToast = !cfg.sbToast; save(); return 'keep'; } },
-                  { label: 'Unlock max quality', sub: qname(qmax()) + ' (page reloads)', run: function () {
-                      var n = cycle([0, 1080, 1440, 2160, 4320], qmax());
-                      try { if (n) localStorage.setItem('ytx-qmax', String(n)); else localStorage.removeItem('ytx-qmax'); } catch (e) { }
-                      toast('Max quality: ' + qname(n) + ' - reloading');
-                      setTimeout(function () { location.reload(); }, 900);
-                      return 'keep';
-                    } },
-                  { label: 'Auto-dim when paused', sub: onOff(cfg.dim), run: function () { cfg.dim = !cfg.dim; save(); armDim(); return 'keep'; } },
-                  { label: 'Dim after', sub: cfg.dimTimeout + ' s', run: function () { cfg.dimTimeout = cycle([30, 60, 120, 300], cfg.dimTimeout); save(); armDim(); return 'keep'; } },
-                  { label: 'Dim strength', sub: Math.round(cfg.dimOpacity * 100) + '%', run: function () { cfg.dimOpacity = cycle([0.3, 0.5, 0.7, 0.9], cfg.dimOpacity); save(); return 'keep'; } },
-                  { label: 'Smooth scrolling', sub: onOff(smoothOn()) + ' (page reloads)', run: function () {
-                      var n = !smoothOn();
-                      try { localStorage.setItem('ytx-smooth', n ? '1' : '0'); } catch (e) { }
-                      toast('Smooth scrolling ' + onOff(n) + ' - reloading');
-                      setTimeout(function () { location.reload(); }, 900);
-                      return 'keep';
-                    } }
-                ];
-              }, { back: null });
-            }
-            function sbCatsMenu() {
-              openMenu('SponsorBlock categories', function () {
-                return Object.keys(cfg.sbCats).map(function (k) {
-                  return {
-                    label: SBCATS[k] ? SBCATS[k][0] : k, sub: cfg.sbCats[k] ? 'Skip' : 'Don\'t skip',
-                    on: !!cfg.sbCats[k],
-                    run: function () { cfg.sbCats[k] = cfg.sbCats[k] ? 0 : 1; save(); return 'keep'; }
-                  };
-                });
-              }, { back: panel });
-            }
-
-            // ======================= Up next: equalizer on the card of the video playing now =======================
-            // The card whose thumbnail is .../vi/<current video id>/... gets equalizer.webp in its middle
-            // (animated while playing, still bars while paused - the same pictures YouTube TV uses itself).
-            var EQ_PLAY = 'https://www.gstatic.com/ytlr/img/equalizer.webp';
-            var EQ_PAUSE = 'https://www.gstatic.com/ytlr/img/equalizer-0.png';
-            var eqEl = null, eqImg = null;
-            var VI_RE = /\/vi(?:_webp)?\/([\w-]{6,})\//;
-            function thumbVid(el) {
-              var s = el.style.backgroundImage || '';
-              if (s.indexOf('/vi') < 0) s = getComputedStyle(el).backgroundImage || '';
-              var m = s.match(VI_RE);
-              return m ? m[1] : null;
-            }
-            function eqRemove() { if (eqEl && eqEl.parentNode) eqEl.parentNode.removeChild(eqEl); }
-            function eqPass() {
-              var id = currentVid(), target = null, i;
-              if (id && document.body && !off) {
-                var list = document.getElementsByTagName('ytlr-thumbnail-details');
-                for (i = 0; i < list.length; i++) {
-                  if (thumbVid(list[i]) === id) { target = list[i]; break; }
+              // ---- url() inside stylesheets (sprites, masks, data:image/svg+xml icons) ----
+              var sheetUrls = [], seenSheet = {};
+              function scanRules(rules, label) {
+                for (var a = 0; a < rules.length && sheetUrls.length < 600; a++) {
+                  var rule = rules[a], txt = rule.cssText || '';
+                  if (rule.cssRules && !rule.selectorText) { try { scanRules(rule.cssRules, label); } catch (e) { } continue; }
+                  if (txt.indexOf('url(') < 0) continue;
+                  urlsIn(txt).forEach(function (u) {
+                    var k = (rule.selectorText || '') + '|' + u;
+                    if (seenSheet[k] || /^data:font|\.woff|\.ttf|\.otf/i.test(u)) return;
+                    seenSheet[k] = 1;
+                    sheetUrls.push({ sheet: label, selector: (rule.selectorText || '').slice(0, 160), url: shortUrl(u) });
+                  });
                 }
               }
-              if (!target) { eqRemove(); return; }
-              if (!eqEl) {
-                eqEl = document.createElement('div'); eqEl.className = 'ytx-eq';
-                eqImg = document.createElement('img'); eqImg.alt = '';
-                eqEl.appendChild(eqImg);
+              for (i = 0; i < document.styleSheets.length; i++) {
+                var ss = document.styleSheets[i];
+                try { scanRules(ss.cssRules, ss.href || ('inline #' + i)); } catch (e) { }
               }
-              if (eqEl.parentNode !== target) {
-                if (getComputedStyle(target).position === 'static') target.style.setProperty('position', 'relative', 'important');
-                target.insertBefore(eqEl, target.firstChild);
-              }
-              var v = document.querySelector('video');
-              var src = (v && v.paused) ? EQ_PAUSE : EQ_PLAY;
-              if (eqImg.getAttribute('src') !== src) eqImg.setAttribute('src', src);
+
+              // ---- <link rel=icon>, meta og:image, resource list ----
+              var links = [];
+              [].forEach.call(document.querySelectorAll('link[rel*="icon"],link[rel="image_src"],meta[property="og:image"]'), function (l) {
+                links.push(l.href || l.content || '');
+              });
+              var res = [];
+              try {
+                performance.getEntriesByType('resource').forEach(function (e) {
+                  if (e.initiatorType === 'img' || e.initiatorType === 'image' ||
+                      /\.(png|jpe?g|webp|gif|svg|ico)(\?|$)/i.test(e.name) || /ytimg|gstatic.*img|ggpht/i.test(e.name)) {
+                    if (res.length < 500) res.push({ type: e.initiatorType, size: e.transferSize || e.decodedBodySize || 0, url: shortUrl(e.name) });
+                  }
+                });
+              } catch (e) { }
+
+              var vis = svgs.filter(function (s) { return s.visible; }).length;
+              var text = 'YTCAP SVG + image URL log\n' + safeJson(head, 1) + '\n\n' +
+                '===== SUMMARY =====\n' +
+                'svg elements: ' + all.length + ' (visible: ' + vis + ')\n' +
+                'image urls found in DOM/CSS: ' + found.length + '\n' +
+                'icon-font glyphs: ' + glyphs.length + '\n' +
+                'stylesheet url() rules: ' + sheetUrls.length + '\n' +
+                'resource entries (images): ' + res.length + '\n\n' +
+                '===== SVG ELEMENTS (visible first) =====\n' + safeJson(svgs, 1) + '\n\n' +
+                '===== IMAGE URLS (img / svg-image / css background / mask / pseudo) =====\n' + safeJson(found, 1) + '\n\n' +
+                '===== ICON-FONT GLYPHS =====\n' + safeJson(glyphs, 1) + '\n\n' +
+                '===== STYLESHEET url() RULES =====\n' + safeJson(sheetUrls, 1) + '\n\n' +
+                '===== LINK / META IMAGES =====\n' + safeJson(links, 1) + '\n\n' +
+                '===== RESOURCE LIST (images) =====\n' + safeJson(res, 1) + '\n';
+              send('svg_images_' + stamp() + '.txt', text);
+            };
+
+            // ---- 1. Pick: tap an item, capture everything stacked at that point ----
+            function capturePoint(x, y) {
+              var stack = document.elementsFromPoint(x, y).slice(0, 14);
+              if (!stack.length) { toast('Nothing found at that point'); return; }
+              flash(stack[0]);
+              var out = header();
+              out.type = 'element-pick';
+              out.point = [Math.round(x), Math.round(y)];
+              out.ancestorsOfTop = chain(stack[0]);
+              out.topOuterHTML = (stack[0].outerHTML || '').slice(0, 1500);
+              out.stackTopToBottom = stack.map(info);
+              out.tectonicConfig = window.tectonicConfig ? JSON.parse(safeJson(window.tectonicConfig)) : null;
+              send('element_' + stamp() + '.txt', safeJson(out, 1));
             }
-
-            // ======================= wiring =======================
-            window.addEventListener('keydown', onMenuKey, true);
-            window.addEventListener('keyup', onMenuKey, true);
-            window.addEventListener('keypress', onMenuKey, true);
-            ['keydown', 'keyup', 'keypress'].forEach(function (n) { window.addEventListener(n, onGlobalKey, true); });
-            ['keydown', 'keyup', 'keypress', 'touchstart', 'mousedown'].forEach(function (n) { window.addEventListener(n, onWakeEvent, true); });
-            ['keydown', 'touchstart', 'mousedown', 'mousemove'].forEach(function (n) { window.addEventListener(n, onUser, true); });
-
-            // YouTube re-renders the Settings rows when focus moves; our row patches / icons are re-applied in the
-            // same task (before the next paint), so the original icon never flashes back.
-            (function () {
-              var queued = false, mo = null;
-              function go() {
-                queued = false;
-                try { patchSettings(); } catch (e) { }
-                try { mo.takeRecords(); } catch (e) { }
+            cap.pick = function () {
+              if (picking) return;
+              picking = true;
+              toast('Tap the item you want to capture');
+              var types = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click'];
+              var done = false;
+              function handler(e) {
+                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+                if (done) return;
+                if (e.type === 'pointerup' || e.type === 'touchend' || e.type === 'mouseup' || e.type === 'click') {
+                  var t = (e.changedTouches && e.changedTouches[0]) || e;
+                  if (typeof t.clientX !== 'number') return;
+                  done = true;
+                  capturePoint(t.clientX, t.clientY);
+                  setTimeout(function () {
+                    types.forEach(function (n) { window.removeEventListener(n, handler, true); });
+                    picking = false;
+                  }, 600);
+                }
               }
-              function start() {
-                if (!document.body) { setTimeout(start, 100); return; }
+              types.forEach(function (n) { window.addEventListener(n, handler, true); });
+            };
+
+            // ---- 2. Dump visible UI: every visible, styled element (use after showing the controls) ----
+            cap.dumpUi = function () {
+              var lines = [], all = document.body.getElementsByTagName('*'), W = innerWidth, H = innerHeight;
+              for (var i = 0; i < all.length && lines.length < 1800; i++) {
+                var el = all[i], r = el.getBoundingClientRect();
+                if (r.width < 8 || r.height < 8 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) continue;
+                var cs = getComputedStyle(el);
+                if (cs.visibility === 'hidden' || cs.display === 'none') continue;
+                var bg = cs.backgroundColor, bgi = cs.backgroundImage, bf = cs.backdropFilter || cs.webkitBackdropFilter;
+                var hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+                var hasImg = bgi && bgi !== 'none';
+                var hasBf = bf && bf !== 'none';
+                var ownText = '';
+                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) ownText += c.nodeValue;
+                ownText = ownText.trim().slice(0, 40);
+                if (!hasBg && !hasImg && !hasBf && !ownText && el.tagName !== 'VIDEO' && el.tagName !== 'IMG') continue;
+                lines.push(sel(el) + ' | rect=' + [r1(r.left), r1(r.top), r1(r.width), r1(r.height)].join(',') +
+                  (hasBg ? ' | bg=' + bg : '') + (hasImg ? ' | bgimg=' + bgi.slice(0, 90) : '') +
+                  (hasBf ? ' | backdrop=' + bf : '') +
+                  (cs.opacity !== '1' ? ' | opacity=' + cs.opacity : '') +
+                  (cs.borderRadius !== '0px' ? ' | radius=' + cs.borderRadius : '') +
+                  (cs.zIndex !== 'auto' ? ' | z=' + cs.zIndex : '') +
+                  (ownText ? ' | text="' + ownText + '"' : ''));
+              }
+              var text = 'YTCAP visible-UI dump\n' + safeJson(header(), 1) + '\n\n' + lines.join('\n') + '\n';
+              send('ui_' + stamp() + '.txt', text);
+            };
+
+            // ---- 3. Full HTML + all CSS ----
+            cap.dumpDom = function () {
+              var out = ['<!-- YTCAP DOM dump ' + new Date().toISOString() + ' | ' + location.href + ' -->',
+                document.documentElement.outerHTML, '', '/* ===== CSS (all stylesheets) ===== */'];
+              function addSheet(ss, label) {
                 try {
-                  mo = new MutationObserver(function () {
-                    if (!queued) { queued = true; Promise.resolve().then(go); }
-                  });
-                  mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
-                } catch (e) { }
+                  var rules = ss.cssRules, parts = [];
+                  for (var i = 0; i < rules.length; i++) parts.push(rules[i].cssText);
+                  out.push('\n/* --- ' + label + ' (' + rules.length + ' rules) --- */\n' + parts.join('\n'));
+                } catch (e) { out.push('\n/* --- ' + label + ' unreadable (cross-origin) --- */'); }
               }
-              start();
-            })();
+              for (var i = 0; i < document.styleSheets.length; i++) {
+                var ss = document.styleSheets[i];
+                addSheet(ss, ss.href || ('inline #' + i));
+              }
+              try { (document.adoptedStyleSheets || []).forEach(function (ss, i) { addSheet(ss, 'adopted #' + i); }); } catch (e) { }
+              send('dom_' + stamp() + '.txt', out.join('\n'));
+            };
 
-            X.panel = panel;
-            X.speed = function () { speedMenu(null); };
-            X.setSpeed = setSpeed;
-            X.screenOff = function () { setTimeout(screenOff, 200); };
-            X.toast = toast;
-            X._sb = sb; X._tick = sbTick; X._cfg = cfg;
+            // ---- 4. Complete JS: inline scripts + every external script the page loaded ----
+            cap.dumpJs = function () {
+              toast('Collecting page JS, please wait...');
+              var urls = [], seen = {};
+              function add(u) { if (u && !seen[u]) { seen[u] = 1; urls.push(u); } }
+              [].forEach.call(document.scripts, function (s) { if (s.src) add(s.src); });
+              try {
+                performance.getEntriesByType('resource').forEach(function (e) {
+                  if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) add(e.name);
+                });
+              } catch (e) { }
 
-            inject();
-            if (cfg.dim) armDim();
-            setInterval(function () { try { patchSettings(); } catch (e) { } }, 120);
-            setInterval(function () {
-              try { inject(); checkVideo(); sbOverlay(); } catch (e) { }
-              try { eqPass(); } catch (e) { }
-            }, 400);
+              var out = ['/* YTCAP JS dump ' + new Date().toISOString() + ' */',
+                '/* url: ' + location.href + ' */',
+                '/* ua: ' + navigator.userAgent + ' */',
+                '/* body class: ' + (document.body ? document.body.className : '') + ' */',
+                '/* window._yttv keys: ' + (window._yttv ? Object.keys(window._yttv).join(',') : 'none') + ' */',
+                '/* tectonicConfig: */', safeJson(window.tectonicConfig, 1)];
+              [].forEach.call(document.scripts, function (s, i) {
+                if (!s.src && s.textContent) {
+                  out.push('\n/* ===== inline script #' + i + ' (' + s.textContent.length + ' chars) ===== */\n' + s.textContent);
+                }
+              });
+
+              var total = 0, idx = 0;
+              function next() {
+                if (idx >= urls.length) {
+                  out.push('\n/* total external chars: ' + total + ' in ' + urls.length + ' files */');
+                  send('js_' + stamp() + '.txt', out.join('\n'));
+                  return;
+                }
+                var u = urls[idx++];
+                if (total > 14000000) {
+                  out.push('\n/* ===== ' + u + ' SKIPPED (size cap reached) ===== */');
+                  return next();
+                }
+                fetch(u, { credentials: 'include' })
+                  .then(function (r) { return r.text().then(function (t) { return { s: r.status, t: t }; }); })
+                  .then(function (r) {
+                    total += r.t.length;
+                    out.push('\n/* ===== ' + u + ' [' + r.s + ', ' + r.t.length + ' chars] ===== */\n' + r.t);
+                  })
+                  .catch(function (e) { out.push('\n/* ===== ' + u + ' FAILED: ' + e + ' ===== */'); })
+                  .then(next);
+              }
+              next();
+            };
           })();
           EOF
 
@@ -2520,24 +644,32 @@ jobs:
 
           import android.annotation.SuppressLint;
           import android.app.Activity;
-          import android.app.UiModeManager;
-          import android.content.res.Configuration;
+          import android.content.ContentValues;
+          import android.content.Intent;
+          import android.content.res.AssetFileDescriptor;
           import android.graphics.Bitmap;
           import android.graphics.Color;
+          import android.graphics.Matrix;
+          import android.graphics.SurfaceTexture;
           import android.graphics.drawable.GradientDrawable;
+          import android.media.MediaPlayer;
           import android.net.ConnectivityManager;
           import android.net.Network;
           import android.net.NetworkCapabilities;
           import android.net.NetworkRequest;
+          import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
+          import android.os.Environment;
           import android.os.Handler;
           import android.os.Looper;
           import android.os.SystemClock;
-          import android.view.Display;
+          import android.provider.MediaStore;
           import android.view.Gravity;
           import android.view.KeyEvent;
           import android.view.MotionEvent;
+          import android.view.Surface;
+          import android.view.TextureView;
           import android.view.View;
           import android.view.ViewGroup;
           import android.view.WindowManager;
@@ -2554,15 +686,21 @@ jobs:
           import android.widget.FrameLayout;
           import android.widget.LinearLayout;
           import android.widget.TextView;
+          import android.widget.Toast;
 
+          import androidx.core.content.FileProvider;
           import androidx.webkit.WebViewCompat;
           import androidx.webkit.WebViewFeature;
 
           import java.io.ByteArrayInputStream;
           import java.io.ByteArrayOutputStream;
+          import java.io.File;
+          import java.io.FileOutputStream;
           import java.io.InputStream;
+          import java.io.OutputStream;
           import java.net.HttpURLConnection;
           import java.net.URL;
+          import java.nio.charset.StandardCharsets;
           import java.util.ArrayList;
           import java.util.Collections;
           import java.util.HashMap;
@@ -2571,11 +709,15 @@ jobs:
 
           public class MainActivity extends Activity {
 
-              // On-screen remote (Back / Up / Down / Left / Right / OK / Tools) on the left edge - for tablets / phones.
+              // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
+              private static final boolean DEBUG_TOOLS = true;
+
+              // On-screen remote (Back / arrows / OK / TizenTube settings / Speed) on the left edge - for tablets / phones.
               // Set to false to remove it.
               private static final boolean SHOW_REMOTE = true;
 
-              // Animated "Powered by" splash (assets/splash.html) shown while YouTube loads. Set to false to remove it.
+              // Splash video (assets/splash.mp4, downloaded at build time) played full-screen at start-up.
+              // Set to false to remove it. If the video was not bundled, the app simply starts without it.
               private static final boolean SHOW_SPLASH = true;
 
               private static final String START_URL = "https://www.youtube.com/tv";
@@ -2590,11 +732,14 @@ jobs:
                       "https://www.gstatic.com/youtube/img/branding/livingroom/premium/wordmark_truncated/fullcolor_white_57_2x_v2.png";
               private static final String WORDMARK_MATCH = "/img/branding/livingroom/youtube/wordmark/fullcolor_white";
 
-              // Splash: shown at least SPLASH_MIN_MS (its intro animation), then fades out as soon as YouTube is ready,
-              // never longer than SPLASH_MAX_MS.
-              private static final long SPLASH_MIN_MS = 4300;
-              private static final long SPLASH_MAX_MS = 10000;
-              private static final long SPLASH_SETTLE_MS = 1800;
+              // TizenTube colour keys (Red / Green / Yellow / Blue as the Tizen remote sends them).
+              // Green = TizenTube settings, Blue = playback speed, Red = theme colours.
+              private static final int TT_RED = 403, TT_GREEN = 404, TT_YELLOW = 405, TT_BLUE = 406;
+
+              // Splash: the video always plays to the end; if YouTube is still loading then, its last frame stays
+              // until YouTube is ready (at most SPLASH_HOLD_MS). SPLASH_MAX_MS is a safety net for a stuck video.
+              private static final long SPLASH_HOLD_MS = 4000;
+              private static final long SPLASH_MAX_MS = 15000;
               private static final String READY_JS =
                       "(function(){try{var b=document.body;if(!b||!/WEB_PAGE_TYPE_/.test(b.className))return 0;"
                       + "var l=document.getElementById('loader');if(!l)return 2;"
@@ -2603,11 +748,9 @@ jobs:
                       + "||r.width<2||r.height<2)?2:1;}catch(e){return 2}})()";
 
               private WebView web;
-              private WebView splash;
-              private boolean splashLeaving = false;
-              private long splashStart = 0;
-              private long splashPageAt = 0;
               private FrameLayout root;
+              private LinearLayout panel;
+              private LinearLayout capBox;
               private LinearLayout remoteBox;
               private Runnable repeater;
               private LinearLayout offlineView;
@@ -2619,10 +762,20 @@ jobs:
               private boolean loadFailed = false;
               private String failedUrl = null;
               private long lastBack = 0;
+              private File lastCapture = null;
               private volatile byte[] wordmark = null;
               private long wordmarkFailAt = 0;
               private final Object wordmarkLock = new Object();
               private final Handler ui = new Handler(Looper.getMainLooper());
+
+              private FrameLayout splashBox;
+              private TextureView splashView;
+              private MediaPlayer splashPlayer;
+              private Surface splashSurface;
+              private boolean splashLeaving = false;
+              private boolean splashPrepared = false;
+              private long splashEndedAt = 0;
+              private int splashVideoW = 0, splashVideoH = 0;
 
               @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
               @Override
@@ -2630,28 +783,18 @@ jobs:
                   super.onCreate(savedInstanceState);
                   getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
                           | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
-                  preferHighRefreshRate();
 
-                  String q = readAsset("quality.js");          // lifts the quality-menu cap (must run first)
-                  if (!q.isEmpty()) scripts.add(q);
-                  String sm = readAsset("smooth.js");          // Android-style scrolling + "busy" signal for glass.js
-                  if (!sm.isEmpty()) scripts.add(sm);
-                  String ad = readAsset("adblock.js");
-                  if (!ad.isEmpty()) scripts.add(ad);
-                  String glass = readAsset("glass.js");
-                  if (!glass.isEmpty()) scripts.add(glass);
-                  String ytx = readAsset("ytx.js");            // speed, SponsorBlock, screen off / dim, tools panel, equalizer
-                  if (!ytx.isEmpty()) scripts.add(ytx);
+                  String app = readAsset("app.js");            // hides YouTube's own base64 splash logo
+                  if (!app.isEmpty()) scripts.add(app);
+                  String tt = readAsset("tizentube.js");       // TizenTube userScript (complete UI + features)
+                  if (!tt.isEmpty()) scripts.add(tt);
+                  if (DEBUG_TOOLS) {
+                      String insp = readAsset("inspector.js");
+                      if (!insp.isEmpty()) scripts.add(insp);
+                  }
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
-                  // Smooth scrolling: no over-scroll glow / bounce, no scrollbars, renderer kept at high priority.
-                  web.setOverScrollMode(View.OVER_SCROLL_NEVER);
-                  web.setVerticalScrollBarEnabled(false);
-                  web.setHorizontalScrollBarEnabled(false);
-                  if (Build.VERSION.SDK_INT >= 26) {
-                      web.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true);
-                  }
                   root = new FrameLayout(this);
                   root.setBackgroundColor(Color.BLACK);
                   root.addView(web, new FrameLayout.LayoutParams(
@@ -2667,19 +810,19 @@ jobs:
                   s.setUserAgentString(USER_AGENT);
                   s.setLoadWithOverviewMode(true);
                   s.setUseWideViewPort(true);
-                  // Full-screen WebView: also raster the area just outside the screen, so rows that scroll in
-                  // are already drawn (no blank / late tiles while scrolling).
-                  if (Build.VERSION.SDK_INT >= 23) s.setOffscreenPreRaster(true);
 
                   CookieManager cm = CookieManager.getInstance();
                   cm.setAcceptCookie(true);
                   cm.setAcceptThirdPartyCookies(web, true);
 
-                  // Only used to hide the on-screen remote while "Turn off screen" is active.
-                  web.addJavascriptInterface(new AppBridge(), "YTApp");
+                  if (DEBUG_TOOLS) {
+                      WebView.setWebContentsDebuggingEnabled(true);   // chrome://inspect from a PC
+                      web.addJavascriptInterface(new CapBridge(), "YTCap");
+                      buildDebugUi();
+                  }
                   if (SHOW_REMOTE) buildRemote();
 
-                  // Preferred: run before any page script so nothing can capture JSON.parse first.
+                  // Run before any page script (TizenTube's ad blocker must hook JSON.parse first).
                   if (!scripts.isEmpty()
                           && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
                       for (String js : scripts) {
@@ -2739,12 +882,6 @@ jobs:
                           if (!scriptAtDocumentStart) {
                               for (String js : scripts) v.evaluateJavascript(js, null);
                           }
-                          // A full reload of the app (account switch, "Unlock max quality") shows the splash again,
-                          // where YouTube would show its own loading logo.
-                          if (SHOW_SPLASH && url != null && url.startsWith(START_URL)
-                                  && offlineView.getVisibility() != View.VISIBLE) {
-                              showSplash();
-                          }
                       }
 
                       @Override
@@ -2774,7 +911,7 @@ jobs:
 
                   registerNetworkWatcher();
 
-                  if (SHOW_SPLASH) showSplash();
+                  if (SHOW_SPLASH && savedInstanceState == null) showSplash();
                   if (savedInstanceState != null) {
                       web.restoreState(savedInstanceState);
                   } else {
@@ -2799,12 +936,7 @@ jobs:
 
               private String readAsset(String name) {
                   byte[] b = readAssetBytes(name);
-                  if (b == null) return "";
-                  try {
-                      return new String(b, "UTF-8");
-                  } catch (Exception e) {
-                      return "";
-                  }
+                  return b == null ? "" : new String(b, StandardCharsets.UTF_8);
               }
 
               // ------------------------------------------------------------------
@@ -2849,105 +981,137 @@ jobs:
               }
 
               // ------------------------------------------------------------------
-              // Smooth display: highest refresh rate at the current resolution (phones / tablets only -
-              // on a TV a mode change can blank the screen, so TVs keep their mode).
+              // Splash video (assets/splash.mp4) on top of the WebView while YouTube loads underneath
               // ------------------------------------------------------------------
-              @SuppressWarnings("deprecation")
-              private void preferHighRefreshRate() {
-                  try {
-                      UiModeManager um = (UiModeManager) getSystemService(UI_MODE_SERVICE);
-                      if (um != null && um.getCurrentModeType() == Configuration.UI_MODE_TYPE_TELEVISION) return;
-                      if (Build.VERSION.SDK_INT >= 23) {
-                          Display d = getWindowManager().getDefaultDisplay();
-                          Display.Mode cur = d.getMode();
-                          Display.Mode best = cur;
-                          for (Display.Mode m : d.getSupportedModes()) {
-                              if (m.getPhysicalWidth() == cur.getPhysicalWidth()
-                                      && m.getPhysicalHeight() == cur.getPhysicalHeight()
-                                      && m.getRefreshRate() > best.getRefreshRate() + 0.5f) {
-                                  best = m;
-                              }
-                          }
-                          if (best.getModeId() != cur.getModeId()) {
-                              WindowManager.LayoutParams lp = getWindow().getAttributes();
-                              lp.preferredDisplayModeId = best.getModeId();
-                              getWindow().setAttributes(lp);
-                          }
-                      }
-                  } catch (Exception ignored) { }
-              }
-
-              // ------------------------------------------------------------------
-              // Animated splash (assets/splash.html) on top of the WebView while YouTube loads
-              // ------------------------------------------------------------------
-              @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
               private void showSplash() {
-                  if (splash != null) return;
+                  if (splashBox != null) return;
+                  final AssetFileDescriptor afd;
+                  try {
+                      afd = getAssets().openFd("splash.mp4");
+                  } catch (Exception e) {
+                      return;                                      // no video bundled -> start without splash
+                  }
                   splashLeaving = false;
-                  splashPageAt = 0;
-                  splashStart = SystemClock.uptimeMillis();
+                  splashPrepared = false;
+                  splashEndedAt = 0;
+                  splashVideoW = 0;
+                  splashVideoH = 0;
 
-                  splash = new WebView(this);
-                  splash.setBackgroundColor(Color.BLACK);
-                  splash.setFocusable(false);
-                  splash.setFocusableInTouchMode(false);
-                  splash.setOverScrollMode(View.OVER_SCROLL_NEVER);
-                  splash.setVerticalScrollBarEnabled(false);
-                  splash.setHorizontalScrollBarEnabled(false);
-                  splash.setOnTouchListener(new View.OnTouchListener() {
+                  splashBox = new FrameLayout(this);
+                  splashBox.setBackgroundColor(Color.BLACK);
+                  splashBox.setClickable(true);                    // swallow touches meant for the WebView
+                  splashView = new TextureView(this);
+                  splashView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
                       @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          return true;                     // the splash swallows touches
+                      public void onSurfaceTextureAvailable(SurfaceTexture st, int w, int h) {
+                          startSplashPlayer(st, afd);
                       }
-                  });
-                  WebSettings ss = splash.getSettings();
-                  ss.setJavaScriptEnabled(true);
-                  splash.setWebViewClient(new WebViewClient() {
+
                       @Override
-                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                      public void onSurfaceTextureSizeChanged(SurfaceTexture st, int w, int h) {
+                          fitSplash();
+                      }
+
+                      @Override
+                      public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
                           return true;
                       }
-                  });
-                  root.addView(splash, new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                  splash.loadUrl("file:///android_asset/splash.html");
 
-                  ui.removeCallbacks(splashCheck);
-                  ui.postDelayed(splashCheck, SPLASH_MIN_MS);
+                      @Override
+                      public void onSurfaceTextureUpdated(SurfaceTexture st) { }
+                  });
+                  splashBox.addView(splashView, new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  root.addView(splashBox, new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  ui.postDelayed(splashSafety, SPLASH_MAX_MS);
+              }
+
+              private void startSplashPlayer(SurfaceTexture st, AssetFileDescriptor afd) {
+                  try {
+                      splashSurface = new Surface(st);
+                      splashPlayer = new MediaPlayer();
+                      splashPlayer.setSurface(splashSurface);
+                      splashPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                      afd.close();
+                      splashPlayer.setOnVideoSizeChangedListener(new MediaPlayer.OnVideoSizeChangedListener() {
+                          @Override
+                          public void onVideoSizeChanged(MediaPlayer mp, int w, int h) {
+                              splashVideoW = w;
+                              splashVideoH = h;
+                              fitSplash();
+                          }
+                      });
+                      splashPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
+                          @Override
+                          public void onPrepared(MediaPlayer mp) {
+                              splashPrepared = true;
+                              mp.start();
+                          }
+                      });
+                      splashPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
+                          @Override
+                          public void onCompletion(MediaPlayer mp) {
+                              splashEndedAt = SystemClock.uptimeMillis();
+                              splashCheck.run();                   // the last frame stays until YouTube is ready
+                          }
+                      });
+                      splashPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
+                          @Override
+                          public boolean onError(MediaPlayer mp, int what, int extra) {
+                              hideSplash(true);
+                              return true;
+                          }
+                      });
+                      splashPlayer.prepareAsync();
+                  } catch (Exception e) {
+                      try { afd.close(); } catch (Exception ignored) { }
+                      hideSplash(true);
+                  }
+              }
+
+              /** Whole video visible, centred, black bars if the screen has another shape. */
+              private void fitSplash() {
+                  if (splashView == null || splashVideoW <= 0 || splashVideoH <= 0) return;
+                  float vw = splashView.getWidth(), vh = splashView.getHeight();
+                  if (vw <= 0 || vh <= 0) return;
+                  float scale = Math.min(vw / splashVideoW, vh / splashVideoH);
+                  Matrix m = new Matrix();
+                  m.setScale(splashVideoW * scale / vw, splashVideoH * scale / vh, vw / 2f, vh / 2f);
+                  splashView.setTransform(m);
               }
 
               private final Runnable splashCheck = new Runnable() {
                   @Override
                   public void run() {
-                      if (splash == null || splashLeaving) return;
-                      if (loadFailed || SystemClock.uptimeMillis() - splashStart >= SPLASH_MAX_MS) {
+                      if (splashBox == null || splashLeaving || splashEndedAt == 0) return;
+                      if (loadFailed || SystemClock.uptimeMillis() - splashEndedAt >= SPLASH_HOLD_MS) {
                           hideSplash(false);
                           return;
                       }
                       web.evaluateJavascript(READY_JS, new ValueCallback<String>() {
                           @Override
                           public void onReceiveValue(String v) {
-                              if (splash == null || splashLeaving) return;
-                              long t = SystemClock.uptimeMillis();
-                              if ("2".equals(v)) {                       // page shown, YouTube's loader gone
+                              if (splashBox == null || splashLeaving) return;
+                              if ("2".equals(v)) {
                                   hideSplash(false);
                                   return;
                               }
-                              if ("1".equals(v)) {                       // page shown, loader still in the DOM
-                                  if (splashPageAt == 0) splashPageAt = t;
-                                  else if (t - splashPageAt >= SPLASH_SETTLE_MS) {
-                                      hideSplash(false);
-                                      return;
-                                  }
-                              }
-                              ui.postDelayed(splashCheck, 250);
+                              ui.postDelayed(splashCheck, 200);
                           }
                       });
                   }
               };
 
+              private final Runnable splashSafety = new Runnable() {
+                  @Override
+                  public void run() {
+                      hideSplash(false);
+                  }
+              };
+
               private void hideSplash(boolean instant) {
-                  if (splash == null) return;
+                  if (splashBox == null) return;
                   if (instant) {
                       removeSplash();
                       return;
@@ -2955,34 +1119,37 @@ jobs:
                   if (splashLeaving) return;
                   splashLeaving = true;
                   ui.removeCallbacks(splashCheck);
-                  final WebView s = splash;
-                  s.evaluateJavascript("window.splashOut&&window.splashOut()", null);   // 0.72 s zoom + blur out
-                  ui.postDelayed(new Runnable() {
+                  ui.removeCallbacks(splashSafety);
+                  final FrameLayout box = splashBox;
+                  box.animate().alpha(0f).setDuration(280).withEndAction(new Runnable() {
                       @Override
                       public void run() {
-                          if (splash != s) return;
-                          s.animate().alpha(0f).setDuration(160).withEndAction(new Runnable() {
-                              @Override
-                              public void run() {
-                                  if (splash == s) removeSplash();
-                              }
-                          }).start();
+                          if (splashBox == box) removeSplash();
                       }
-                  }, 700);
+                  }).start();
               }
 
               private void removeSplash() {
                   ui.removeCallbacks(splashCheck);
-                  WebView s = splash;
-                  splash = null;
+                  ui.removeCallbacks(splashSafety);
+                  FrameLayout box = splashBox;
+                  splashBox = null;
                   splashLeaving = false;
-                  if (s == null) return;
-                  try {
-                      s.animate().cancel();
-                      root.removeView(s);
-                      s.stopLoading();
-                      s.destroy();
-                  } catch (Exception ignored) { }
+                  if (splashPlayer != null) {
+                      try { splashPlayer.release(); } catch (Exception ignored) { }
+                      splashPlayer = null;
+                  }
+                  if (splashSurface != null) {
+                      try { splashSurface.release(); } catch (Exception ignored) { }
+                      splashSurface = null;
+                  }
+                  splashView = null;
+                  if (box != null) {
+                      try {
+                          box.animate().cancel();
+                          root.removeView(box);
+                      } catch (Exception ignored) { }
+                  }
                   if (offlineView.getVisibility() != View.VISIBLE) web.requestFocus();
               }
 
@@ -3021,7 +1188,7 @@ jobs:
 
                   TextView msg = new TextView(this);
                   msg.setText("Check your connection and try again");
-                  msg.setTextColor(0xFFEEEEEE);            // light white (was grey)
+                  msg.setTextColor(0xFFAAAAAA);
                   msg.setTextSize(14);
                   msg.setGravity(Gravity.CENTER);
                   LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
@@ -3064,6 +1231,7 @@ jobs:
                   retryBtn.setText("Retry");
                   offlineView.setVisibility(View.VISIBLE);
                   offlineView.bringToFront();
+                  if (capBox != null) capBox.bringToFront();
                   web.clearFocus();
                   retryBtn.requestFocus();
               }
@@ -3126,16 +1294,145 @@ jobs:
                   }
               }
 
+              // ------------------------------------------------------------------
+              // TizenTube colour keys: sent to the page as the Tizen key codes TizenTube listens for
+              // ------------------------------------------------------------------
               private void runJs(String js) {
-                  web.evaluateJavascript("try{" + js + "}catch(e){}", null);
+                  web.evaluateJavascript("try{" + js + "}catch(e){window.YTCap&&YTCap.toast('Error: '+e)}", null);
               }
 
-              private void openTools() {
-                  runJs("window.__ytx&&window.__ytx.panel()");
+              private void sendTizenKey(int code) {
+                  web.evaluateJavascript("(function(k){function f(t){var e;"
+                          + "try{e=new KeyboardEvent(t,{bubbles:true,cancelable:true});}"
+                          + "catch(x){e=document.createEvent('Event');e.initEvent(t,true,true);}"
+                          + "try{Object.defineProperty(e,'keyCode',{get:function(){return k}});"
+                          + "Object.defineProperty(e,'which',{get:function(){return k}});}catch(x){}"
+                          + "(document.activeElement||document.body||document).dispatchEvent(e);}"
+                          + "f('keydown');f('keyup');})(" + code + ")", null);
               }
 
               // ------------------------------------------------------------------
-              // On-screen remote: Back / Up / Down / Left / Right / OK / Tools, left edge of the screen
+              // Debug / tools menu: small "CAP" button -> menu
+              // ------------------------------------------------------------------
+              private TextView menuButton(String label, View.OnClickListener l) {
+                  TextView t = new TextView(this);
+                  t.setText(label);
+                  t.setTextColor(Color.WHITE);
+                  t.setTextSize(14);
+                  t.setSingleLine(true);
+                  t.setMinWidth(dp(label.equals("CAP") ? 56 : 250));
+                  t.setPadding(dp(14), dp(10), dp(14), dp(10));
+                  t.setBackgroundColor(0xE6202020);
+                  t.setFocusable(false);
+                  t.setOnClickListener(l);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  lp.topMargin = dp(4);
+                  t.setLayoutParams(lp);
+                  return t;
+              }
+
+              private void buildDebugUi() {
+                  capBox = new LinearLayout(this);
+                  capBox.setOrientation(LinearLayout.VERTICAL);
+                  capBox.setGravity(Gravity.END);
+
+                  panel = new LinearLayout(this);
+                  panel.setOrientation(LinearLayout.VERTICAL);
+                  panel.setVisibility(View.GONE);
+
+                  TextView bubble = menuButton("CAP", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+                      }
+                  });
+                  bubble.setAlpha(0.55f);
+
+                  panel.addView(menuButton("1. SVG + image URLs log (in 5 s)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          Toast.makeText(MainActivity.this,
+                                  "Capturing SVG + image URLs in 5 seconds - show the screen with the icons",
+                                  Toast.LENGTH_LONG).show();
+                          ui.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  runJs("window.__cap.dumpSvg()");
+                              }
+                          }, 5000);
+                      }
+                  }));
+                  panel.addView(menuButton("2. Pick item (then tap it)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.pick()");
+                      }
+                  }));
+                  panel.addView(menuButton("3. Dump visible UI (in 5 s)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          Toast.makeText(MainActivity.this,
+                                  "Capturing in 5 seconds - show the screen you want", Toast.LENGTH_LONG).show();
+                          ui.postDelayed(new Runnable() {
+                              @Override
+                              public void run() {
+                                  runJs("window.__cap.dumpUi()");
+                              }
+                          }, 5000);
+                      }
+                  }));
+                  panel.addView(menuButton("4. Save complete page JS", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.dumpJs()");
+                      }
+                  }));
+                  panel.addView(menuButton("5. Save HTML + CSS", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          runJs("window.__cap.dumpDom()");
+                      }
+                  }));
+                  panel.addView(menuButton("6. Share last capture", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          shareFile(lastCapture);
+                      }
+                  }));
+                  panel.addView(menuButton("7. TizenTube settings (Green key)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          sendTizenKey(TT_GREEN);
+                      }
+                  }));
+                  panel.addView(menuButton("8. Playback speed (Blue key)", new View.OnClickListener() {
+                      @Override
+                      public void onClick(View v) {
+                          panel.setVisibility(View.GONE);
+                          sendTizenKey(TT_BLUE);
+                      }
+                  }));
+
+                  capBox.addView(bubble);
+                  capBox.addView(panel);
+
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.TOP | Gravity.END);
+                  lp.setMargins(0, dp(8), dp(8), 0);
+                  root.addView(capBox, lp);
+              }
+
+              // ------------------------------------------------------------------
+              // On-screen remote: Back / Up / Down / Left / Right / OK + TizenTube settings / speed, left edge
               // ------------------------------------------------------------------
               private void sendKey(int keyCode, boolean down) {
                   if (web == null) return;
@@ -3176,7 +1473,7 @@ jobs:
                   t.setTextColor(pressed ? Color.BLACK : Color.WHITE);
               }
 
-              /** keyCode = 0 -> the Tools button (opens the Speed / SponsorBlock / Quality panel). */
+              /** keyCode >= 400 = a TizenTube colour key (sent to the page on release). */
               @SuppressLint("ClickableViewAccessibility")
               private TextView remoteBtn(String label, final int keyCode, final boolean repeat) {
                   final TextView t = new TextView(this);
@@ -3188,21 +1485,22 @@ jobs:
                   LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(42), dp(42));
                   lp.setMargins(dp(3), dp(3), dp(3), dp(3));
                   t.setLayoutParams(lp);
+                  final boolean colour = keyCode >= 400;
                   t.setOnTouchListener(new View.OnTouchListener() {
                       @Override
                       public boolean onTouch(View v, MotionEvent e) {
                           int a = e.getActionMasked();
                           if (a == MotionEvent.ACTION_DOWN) {
                               styleRemote(t, true);
-                              if (keyCode != 0) {
+                              if (!colour) {
                                   sendKey(keyCode, true);
                                   if (repeat) startRepeat(keyCode);
                               }
                           } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
                               styleRemote(t, false);
                               stopRepeat();
-                              if (keyCode != 0) sendKey(keyCode, false);
-                              else if (a == MotionEvent.ACTION_UP) openTools();
+                              if (!colour) sendKey(keyCode, false);
+                              else if (a == MotionEvent.ACTION_UP) sendTizenKey(keyCode);
                           }
                           return true;
                       }
@@ -3230,7 +1528,13 @@ jobs:
                           ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                   remoteBox.addView(remoteBtn("▼", KeyEvent.KEYCODE_DPAD_DOWN, true));
-                  remoteBox.addView(remoteBtn("⚙", 0, false));     // Tools panel
+
+                  LinearLayout extra = new LinearLayout(this);
+                  extra.setOrientation(LinearLayout.HORIZONTAL);
+                  extra.addView(remoteBtn("⚙", TT_GREEN, false));    // TizenTube settings
+                  extra.addView(remoteBtn("SPD", TT_BLUE, false));        // playback speed
+                  remoteBox.addView(extra, new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                   FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                           ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -3239,33 +1543,150 @@ jobs:
                   root.addView(remoteBox, lp);
               }
 
-              /** Hides / shows the on-screen remote (used by "Turn off screen" so the screen is fully black). */
-              private class AppBridge {
+              /** Receives capture text from inspector.js in chunks, then saves + shares it. */
+              private class CapBridge {
+                  private final StringBuilder buf = new StringBuilder();
+
+                  @JavascriptInterface
+                  public synchronized void begin() {
+                      buf.setLength(0);
+                  }
+
+                  @JavascriptInterface
+                  public synchronized void chunk(String s) {
+                      buf.append(s);
+                  }
+
+                  @JavascriptInterface
+                  public void end(String name) {
+                      final String text;
+                      synchronized (this) {
+                          text = buf.toString();
+                          buf.setLength(0);
+                      }
+                      final String fileName = name.replaceAll("[^A-Za-z0-9._-]", "_");
+                      new Thread(new Runnable() {
+                          @Override
+                          public void run() {
+                              saveCapture(fileName, text);
+                          }
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void toast(final String msg) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+
+                  /** Hides / shows the CAP button and the on-screen remote. */
                   @JavascriptInterface
                   public void setUiVisible(final boolean visible) {
                       runOnUiThread(new Runnable() {
                           @Override
                           public void run() {
+                              if (capBox != null) capBox.setVisibility(visible ? View.VISIBLE : View.GONE);
                               if (remoteBox != null) remoteBox.setVisibility(visible ? View.VISIBLE : View.GONE);
+                              if (!visible && panel != null) panel.setVisibility(View.GONE);
                           }
                       });
                   }
               }
 
-              // ------------------------------------------------------------------
+              private void saveCapture(String name, String text) {
+                  try {
+                      byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+                      File base = getExternalFilesDir(null);
+                      if (base == null) base = getFilesDir();
+                      File dir = new File(base, "captures");
+                      dir.mkdirs();
+                      final File f = new File(dir, name);
+                      try (FileOutputStream o = new FileOutputStream(f)) {
+                          o.write(bytes);
+                      }
+                      lastCapture = f;
+                      String where = f.getAbsolutePath();
+                      if (copyToDownloads(name, bytes)) where = "Downloads/YTCapture/" + name;
+                      final String msg = "Saved " + (bytes.length / 1024) + " KB: " + where;
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
+                              shareFile(f);
+                          }
+                      });
+                  } catch (final Exception e) {
+                      runOnUiThread(new Runnable() {
+                          @Override
+                          public void run() {
+                              Toast.makeText(MainActivity.this, "Save failed: " + e, Toast.LENGTH_LONG).show();
+                          }
+                      });
+                  }
+              }
 
-              // Menu key / yellow key on a TV remote opens the Tools panel (Speed, SponsorBlock, Quality, Smooth scrolling ...).
-              @Override
-              public boolean dispatchKeyEvent(KeyEvent event) {
-                  int k = event.getKeyCode();
-                  if (k == KeyEvent.KEYCODE_MENU || k == KeyEvent.KEYCODE_PROG_YELLOW) {
-                      if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
-                              && offlineView.getVisibility() != View.VISIBLE) {
-                          openTools();
+              @SuppressLint("NewApi")
+              private boolean copyToDownloads(String name, byte[] bytes) {
+                  if (Build.VERSION.SDK_INT < 29) return false;
+                  try {
+                      ContentValues v = new ContentValues();
+                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
+                      v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
+                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YTCapture");
+                      Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                      if (u == null) return false;
+                      try (OutputStream os = getContentResolver().openOutputStream(u)) {
+                          if (os == null) return false;
+                          os.write(bytes);
                       }
                       return true;
+                  } catch (Exception e) {
+                      return false;
                   }
-                  return super.dispatchKeyEvent(event);
+              }
+
+              private void shareFile(File f) {
+                  if (f == null || !f.exists()) {
+                      Toast.makeText(this, "No capture saved yet", Toast.LENGTH_SHORT).show();
+                      return;
+                  }
+                  try {
+                      Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
+                      Intent i = new Intent(Intent.ACTION_SEND);
+                      i.setType("text/plain");
+                      i.putExtra(Intent.EXTRA_STREAM, uri);
+                      i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
+                      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                      startActivity(Intent.createChooser(i, "Send capture"));
+                  } catch (Exception e) {
+                      Toast.makeText(this, "Cannot share: " + e, Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              // ------------------------------------------------------------------
+
+              // Colour keys on an Android TV remote -> TizenTube (Green = settings, Blue = speed ...).
+              // The Menu key also opens the TizenTube settings.
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent event) {
+                  int code;
+                  switch (event.getKeyCode()) {
+                      case KeyEvent.KEYCODE_PROG_RED: code = TT_RED; break;
+                      case KeyEvent.KEYCODE_PROG_GREEN: code = TT_GREEN; break;
+                      case KeyEvent.KEYCODE_PROG_YELLOW: code = TT_YELLOW; break;
+                      case KeyEvent.KEYCODE_PROG_BLUE: code = TT_BLUE; break;
+                      case KeyEvent.KEYCODE_MENU: code = TT_GREEN; break;
+                      default: return super.dispatchKeyEvent(event);
+                  }
+                  if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
+                          && offlineView.getVisibility() != View.VISIBLE) {
+                      sendTizenKey(code);
+                  }
+                  return true;
               }
 
               @Override
@@ -3300,14 +1721,18 @@ jobs:
                   super.onResume();
                   web.onResume();
                   web.resumeTimers();
-                  if (splash != null) splash.onResume();
+                  if (splashPlayer != null && splashPrepared && splashEndedAt == 0) {
+                      try { splashPlayer.start(); } catch (Exception ignored) { }
+                  }
               }
 
               @Override
               protected void onPause() {
                   CookieManager.getInstance().flush();
                   web.onPause();
-                  if (splash != null) splash.onPause();
+                  if (splashPlayer != null) {
+                      try { if (splashPrepared && splashPlayer.isPlaying()) splashPlayer.pause(); } catch (Exception ignored) { }
+                  }
                   super.onPause();
               }
 
@@ -3330,6 +1755,36 @@ jobs:
           }
           EOF
 
+      - name: Build TizenTube userScript (reisxd/TizenTube @ f99945a)
+        run: |
+          ASSETS="$GITHUB_WORKSPACE/_android/app/src/main/assets"
+          OUT="$ASSETS/tizentube.js"
+          TT="$GITHUB_WORKSPACE/_tizentube"
+          BUILT=0
+          if git clone --quiet https://github.com/reisxd/TizenTube.git "$TT"; then
+            cd "$TT"
+            if ! git checkout --quiet f99945a; then
+              echo "::warning::Commit f99945a not found - building TizenTube from the default branch."
+            fi
+            echo "TizenTube source: $(git log -1 --format='%h %s')"
+            cd mods
+            if (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) && npx rollup -c rollup.config.js \
+               && [ -s "$TT/dist/userScript.js" ]; then
+              cp "$TT/dist/userScript.js" "$OUT"
+              BUILT=1
+            fi
+          fi
+          if [ "$BUILT" != "1" ]; then
+            echo "::warning::Building TizenTube failed - using the published @foxreis/tizentube build from jsDelivr."
+            curl -fsSL --retry 3 --max-time 120 -o "$OUT" \
+              "https://cdn.jsdelivr.net/npm/@foxreis/tizentube/dist/userScript.js"
+          fi
+          if [ ! -s "$OUT" ] || [ "$(stat -c %s "$OUT")" -lt 50000 ]; then
+            echo "::error::No TizenTube userScript - stopping."
+            exit 1
+          fi
+          ls -l "$OUT"
+
       - name: Fetch app logos
         run: |
           P="$GITHUB_WORKSPACE/_android"
@@ -3347,17 +1802,30 @@ jobs:
 
           BANNER_OK=0
           ICON_OK=0
+          ASSETS="$P/app/src/main/assets"
 
-          # Premium wordmark -> assets (used by the splash and served in place of the YouTube wordmark).
+          # Premium wordmark -> assets (served in place of the YouTube wordmark).
           # If this fails the app downloads it at runtime instead.
           WORDMARK_URL="https://www.gstatic.com/youtube/img/branding/livingroom/premium/wordmark_truncated/fullcolor_white_57_2x_v2.png"
-          WM="$P/app/src/main/assets/wordmark_premium.png"
+          WM="$ASSETS/wordmark_premium.png"
           if curl -fsSL --retry 3 --max-time 60 -A "$UA" -o "$WM" "$WORDMARK_URL" \
              && [ "$(head -c 4 "$WM" | od -An -tx1 | tr -d ' \n')" = "89504e47" ]; then
             echo "premium wordmark ok ($(stat -c %s "$WM") bytes)"
           else
             rm -f "$WM"
             echo "::warning::Could not fetch the Premium wordmark - the app will download it at runtime."
+          fi
+
+          # Splash video -> assets/splash.mp4 (played full-screen at start-up).
+          # If this fails the app starts without a splash.
+          SPLASH_URL="https://raw.githubusercontent.com/Ayush8481Lab/Mm/refs/heads/main/vidssave.com%2028%20November%202026%20720P.mp4"
+          SV="$ASSETS/splash.mp4"
+          if curl -fsSL --retry 3 --max-time 180 -o "$SV" "$SPLASH_URL" \
+             && [ "$(dd if="$SV" bs=1 skip=4 count=4 2>/dev/null)" = "ftyp" ]; then
+            echo "splash video ok ($(stat -c %s "$SV") bytes)"
+          else
+            rm -f "$SV"
+            echo "::warning::Could not fetch the splash video - the app will start without a splash."
           fi
 
           # Landscape logo -> Android TV banner (640x360, padded with the image's own corner colour)

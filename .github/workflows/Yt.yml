@@ -1,68 +1,96 @@
-name: Build YouTube AdBlock TV APK
+name: Build TizenTube Android APK
 
-# Self-contained: no other files needed in the repo.
-# Generates a small Android TV app (WebView -> youtube.com/tv) that runs the COMPLETE TizenTube UI:
-#   tizentube.js - TizenTube userScript, built at build time from reisxd/TizenTube commit f99945a
-#                  (v2.1.1-18, GPL-3.0) - ad blocker, SponsorBlock, DeArrow, speed, TizenTube settings,
-#                  theme, previews, clock, chapters ... exactly as TizenTube ships it.
-#                  If that build fails, the published @foxreis/tizentube build from jsDelivr is used instead.
-#                  Remote: Green key / Menu key = TizenTube settings, Blue = playback speed, Red = theme colours
-#                  (Android colour keys are passed on as the Tizen key codes 403-406).
-#   app.js       - only hides YouTube's own base64 splash logo.
-#   inspector.js - CAP capture tool (set DEBUG_TOOLS=false in MainActivity.java to remove it)
-#                  1 = SVG + image URLs log, 2 = pick item, 3 = dump visible UI, 4 = page JS, 5 = HTML + CSS,
-#                  6 = share last capture, 7 = TizenTube settings, 8 = playback speed.
-# Native side:
-#   Splash video - assets/splash.mp4 downloaded at build time, played full-screen once at start-up
-#                  (always to the end; its last frame stays until YouTube is ready, max 4 s more).
-#   Wordmark     - every white YouTube wordmark the page loads (e.g. .../youtube/wordmark/fullcolor_white_96px.png)
-#                  is answered with the Premium wordmark (premium/wordmark_truncated/fullcolor_white_57_2x_v2.png),
-#                  bundled into the APK at build time.
-#   On-screen remote (Back / arrows / OK / TizenTube settings / Speed) on the left edge, for tablets
-#   (set SHOW_REMOTE=false in MainActivity.java to remove it).
-#   ONE fixed User-Agent (PlayStation 5 / SmartTV), black screen while video loads, "No internet - Retry" page,
-#   app logos downloaded at build time (falls back to a built-in red icon if a download fails).
+# Put this file at: .github/workflows/build-android-apk.yml
+# Run: Actions tab -> "Build TizenTube Android APK" -> Run workflow
+# Result: artifact "TizenTube-Android-APK" (zip containing the .apk)
 
 on:
   workflow_dispatch:
+    inputs:
+      user_agent:
+        description: "User-Agent sent to YouTube TV"
+        type: choice
+        default: tv
+        options:
+          - tv
+          - amazon
+          - safari
+          - playstation
+      cap_button:
+        description: "Include the CAP (UI capture) button"
+        type: boolean
+        default: true
   push:
-    tags:
-      - 'v*'
+    branches: [main, master]
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
+    env:
+      UA_KEY: ${{ inputs.user_agent || 'tv' }}
+      CAP_ENABLED: ${{ format('{0}', inputs.cap_button) == 'false' && 'false' || 'true' }}
+
     steps:
-      - name: Set up JDK 17
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: mods/package-lock.json
+
+      - name: Build TizenTube userscript (mods -> dist/userScript.js)
+        working-directory: mods
+        run: |
+          npm ci --no-audit --no-fund || npm install --no-audit --no-fund
+          npm run build
+          test -s ../dist/userScript.js
+          ls -lh ../dist/userScript.js
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Set up Gradle
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-34 build-tools;34.0.0"
+
+      - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: "8.7"
 
-      - name: Set up Node.js (builds the TizenTube userScript)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Accept Android SDK licenses
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+      - name: Read app version
+        run: |
+          VER=$(grep -oP '<widget[^>]*\sversion="\K[^"]+' standalone/config.xml | head -n1 || true)
+          if [ -z "$VER" ]; then VER="1.0.0"; fi
+          echo "APP_VER=$VER" >> "$GITHUB_ENV"
+          echo "App version: $VER"
 
       - name: Generate Android project
         run: |
-          P="$GITHUB_WORKSPACE/_android"
-          J="$P/app/src/main/java/com/local/ytadblock/tv"
-          mkdir -p "$J" "$P/app/src/main/assets" "$P/app/src/main/res/drawable" "$P/app/src/main/res/drawable-nodpi" "$P/app/src/main/res/xml"
+          set -e
+          P=android-app
+          mkdir -p $P/app/src/main/java/com/local/tizentube
+          mkdir -p $P/app/src/main/assets
+          mkdir -p $P/app/src/main/res/values
+          mkdir -p $P/app/src/main/res/mipmap-xxxhdpi
+          mkdir -p $P/app/src/main/res/drawable-xhdpi
 
-          cat > "$P/settings.gradle" <<'EOF'
+          cat > $P/settings.gradle <<'EOF_SETTINGS'
           pluginManagement {
               repositories {
                   google()
@@ -71,1855 +99,899 @@ jobs:
               }
           }
           dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
               repositories {
                   google()
                   mavenCentral()
               }
           }
-          rootProject.name = "YtAdBlockTv"
-          include ':app'
-          EOF
+          rootProject.name = "TizenTubeAndroid"
+          include(":app")
+          EOF_SETTINGS
 
-          cat > "$P/build.gradle" <<'EOF'
+          cat > $P/build.gradle <<'EOF_ROOT'
           plugins {
               id 'com.android.application' version '8.5.2' apply false
           }
-          EOF
+          EOF_ROOT
 
-          cat > "$P/gradle.properties" <<'EOF'
-          org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
+          cat > $P/gradle.properties <<'EOF_PROPS'
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
           android.useAndroidX=true
           android.nonTransitiveRClass=true
-          EOF
+          EOF_PROPS
 
-          cat > "$P/app/build.gradle" <<'EOF'
+          cat > $P/app/build.gradle <<'EOF_APP'
           plugins {
               id 'com.android.application'
           }
 
+          def capEnabled = (project.findProperty('capEnabled') ?: 'true').toString()
+          def uaKey      = (project.findProperty('uaKey') ?: 'tv').toString()
+          def verName    = (project.findProperty('verName') ?: '1.0.0').toString()
+          def verCode    = (project.findProperty('verCode') ?: '1').toString().toInteger()
+
           android {
-              namespace 'com.local.ytadblock.tv'
+              namespace 'com.local.tizentube'
               compileSdk 34
 
               defaultConfig {
-                  applicationId 'com.local.ytadblock.tv'
+                  applicationId 'com.local.tizentube'
                   minSdk 21
                   targetSdk 34
-                  versionCode Integer.parseInt(System.getenv("GITHUB_RUN_NUMBER") ?: "1")
-                  versionName "1.0." + (System.getenv("GITHUB_RUN_NUMBER") ?: "1")
-              }
-
-              // the splash video is played straight from the APK (MediaPlayer needs it uncompressed)
-              androidResources {
-                  noCompress 'mp4'
+                  versionCode verCode
+                  versionName verName
+                  buildConfigField 'boolean', 'CAP_ENABLED', capEnabled
+                  buildConfigField 'String', 'UA_KEY', '"' + uaKey + '"'
               }
 
               signingConfigs {
                   release {
-                      storeFile file(System.getenv("KEYSTORE_PATH") ?: "release.jks")
-                      storePassword System.getenv("KEYSTORE_PASSWORD") ?: "android"
-                      keyAlias System.getenv("KEY_ALIAS") ?: "key"
-                      keyPassword System.getenv("KEY_PASSWORD") ?: "android"
+                      storeFile file(System.getenv('KS_FILE') ?: 'missing.p12')
+                      storePassword System.getenv('KS_PASS') ?: ''
+                      keyAlias System.getenv('KS_ALIAS') ?: ''
+                      keyPassword System.getenv('KS_PASS') ?: ''
                   }
               }
 
               buildTypes {
                   release {
                       minifyEnabled false
+                      shrinkResources false
                       signingConfig signingConfigs.release
                   }
+              }
+
+              buildFeatures {
+                  buildConfig true
               }
 
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
+
+              lint {
+                  checkReleaseBuilds false
+                  abortOnError false
+              }
           }
 
           dependencies {
               implementation 'androidx.webkit:webkit:1.11.0'
-              implementation 'androidx.core:core:1.13.1'
           }
-          EOF
+          EOF_APP
 
-          cat > "$P/app/src/main/AndroidManifest.xml" <<'EOF'
+          cat > $P/app/src/main/AndroidManifest.xml <<'EOF_MANIFEST'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
               <uses-permission android:name="android.permission.INTERNET" />
               <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission
+                  android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                  android:maxSdkVersion="28" />
 
               <uses-feature android:name="android.software.leanback" android:required="false" />
               <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
               <application
                   android:allowBackup="false"
-                  android:label="YouTube AdBlock"
-                  android:icon="@drawable/ic_launcher"
+                  android:icon="@mipmap/ic_launcher"
                   android:banner="@drawable/banner"
+                  android:label="TizenTube"
                   android:hardwareAccelerated="true"
-                  android:usesCleartextTraffic="false"
-                  android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen">
+                  android:theme="@style/AppTheme">
 
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
                       android:launchMode="singleTask"
-                      android:configChanges="orientation|screenSize|keyboard|keyboardHidden|navigation|uiMode|screenLayout|smallestScreenSize|layoutDirection">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-                      </intent-filter>
+                      android:screenOrientation="sensorLandscape"
+                      android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN" />
                           <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
                       </intent-filter>
                   </activity>
-
-                  <!-- Lets the capture tool share saved files through the Android share sheet -->
-                  <provider
-                      android:name="androidx.core.content.FileProvider"
-                      android:authorities="com.local.ytadblock.tv.fileprovider"
-                      android:exported="false"
-                      android:grantUriPermissions="true">
-                      <meta-data
-                          android:name="android.support.FILE_PROVIDER_PATHS"
-                          android:resource="@xml/file_paths" />
-                  </provider>
               </application>
           </manifest>
-          EOF
+          EOF_MANIFEST
 
-          # ---- app.js: hides YouTube's own base64 splash logo (the app plays its splash video) ----
-          cat > "$P/app/src/main/assets/app.js" <<'EOF'
-          (function () {
-            if (window.__ytApp) return;
-            window.__ytApp = true;
-            // YouTube's own base64 splash logo is hidden - the app plays its own splash video instead.
-            var CSS = '#loader,.splash-screen-loader{background-image:none !important;}';
-            function add() {
-              try {
-                if (document.getElementById('yt-app-css')) return;
-                var s = document.createElement('style');
-                s.id = 'yt-app-css';
-                s.textContent = CSS;
-                (document.head || document.documentElement).appendChild(s);
-              } catch (e) { }
-            }
-            add();
-            document.addEventListener('DOMContentLoaded', add);
-          })();
-          EOF
-
-          cat > "$P/app/src/main/res/xml/file_paths.xml" <<'EOF'
+          cat > $P/app/src/main/res/values/styles.xml <<'EOF_STYLES'
           <?xml version="1.0" encoding="utf-8"?>
-          <paths>
-              <external-files-path name="captures_ext" path="captures/" />
-              <files-path name="captures_int" path="captures/" />
-          </paths>
-          EOF
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+                  <item name="android:windowBackground">@android:color/black</item>
+                  <item name="android:windowFullscreen">true</item>
+                  <item name="android:windowContentOverlay">@null</item>
+                  <item name="android:statusBarColor">@android:color/black</item>
+                  <item name="android:navigationBarColor">@android:color/black</item>
+              </style>
+          </resources>
+          EOF_STYLES
 
-          # ---- inspector.js: CAP capture helpers (passive until a CAP menu button is used) ----
-          cat > "$P/app/src/main/assets/inspector.js" <<'EOF'
-          (function () {
-            if (window.__cap) return;
-            var cap = window.__cap = {};
-            var picking = false;
+          cat > $P/app/src/main/java/com/local/tizentube/MainActivity.java <<'EOF_JAVA'
+          package com.local.tizentube;
 
-            function pad(n) { return (n < 10 ? '0' : '') + n; }
-            function stamp() {
-              var d = new Date();
-              return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '_' +
-                pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
-            }
-            function toast(m) { try { if (window.YTCap) YTCap.toast(String(m)); } catch (e) { } }
-            function send(name, text) {
-              if (!window.YTCap) return;
-              YTCap.begin();
-              var n = 200000;
-              for (var i = 0; i < text.length; i += n) YTCap.chunk(text.slice(i, i + n));
-              YTCap.end(name);
-            }
-            function safeJson(o, space) {
-              var seen = new WeakSet();
-              try {
-                return JSON.stringify(o, function (k, v) {
-                  if (typeof v === 'function') return '[fn]';
-                  if (v && typeof v === 'object') {
-                    if (v.nodeType) return '[node]';
-                    if (seen.has(v)) return '[circular]';
-                    seen.add(v);
-                  }
-                  return v;
-                }, space);
-              } catch (e) { return '"[unserializable: ' + e + ']"'; }
-            }
-
-            function cls(el) {
-              var c = el.getAttribute && el.getAttribute('class');
-              return c ? c.trim() : '';
-            }
-            function sel(el) {
-              var s = (el.tagName || '?').toLowerCase();
-              if (el.id) s += '#' + el.id;
-              var c = cls(el).split(/\s+/).filter(Boolean).slice(0, 6).join('.');
-              if (c) s += '.' + c;
-              var k = el.getAttribute && el.getAttribute('idomkey');
-              if (k) s += '[idomkey="' + k + '"]';
-              return s;
-            }
-            function r1(n) { return Math.round(n * 10) / 10; }
-
-            var PROPS = ['backgroundColor', 'backgroundImage', 'color', 'opacity', 'borderRadius', 'boxShadow',
-              'display', 'position', 'zIndex', 'visibility', 'filter', 'transform', 'mixBlendMode',
-              'overflow', 'width', 'height'];
-
-            function info(el) {
-              var r = el.getBoundingClientRect(), cs = getComputedStyle(el), st = {};
-              PROPS.forEach(function (p) {
-                var v = cs[p];
-                if (v && v !== 'none' && v !== 'normal' && v !== 'auto') st[p] = String(v).slice(0, 220);
-              });
-              var bf = cs.backdropFilter || cs.webkitBackdropFilter;
-              if (bf && bf !== 'none') st.backdropFilter = bf;
-              var attrs = {};
-              if (el.attributes) for (var i = 0; i < el.attributes.length; i++) {
-                var a = el.attributes[i];
-                if (a.name === 'class' || a.name === 'style') continue;
-                attrs[a.name] = String(a.value).slice(0, 80);
-              }
-              var inline = el.getAttribute && el.getAttribute('style');
-              return {
-                selector: sel(el),
-                tag: (el.tagName || '').toLowerCase(),
-                id: el.id || undefined,
-                class: cls(el) || undefined,
-                idomkey: (el.getAttribute && el.getAttribute('idomkey')) || undefined,
-                rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
-                attrs: attrs,
-                inlineStyle: inline ? inline.slice(0, 300) : undefined,
-                text: ((el.innerText || '') + '').trim().slice(0, 80) || undefined,
-                computed: st
-              };
-            }
-            function chain(el) {
-              var out = [], n = 0;
-              while (el && el.nodeType === 1 && n++ < 12) { out.push(sel(el)); el = el.parentElement; }
-              return out;
-            }
-            function header() {
-              var v = document.querySelector('video');
-              return {
-                captured: new Date().toISOString(),
-                url: location.href,
-                userAgent: navigator.userAgent,
-                viewport: [innerWidth, innerHeight, window.devicePixelRatio],
-                realDpr: window.__realDpr ? window.__realDpr() : null,
-                screen: [screen.width, screen.height, screen.availWidth, screen.availHeight],
-                qmax: (function () { try { return localStorage.getItem('ytx-qmax'); } catch (e) { return null; } })(),
-                bodyClass: document.body ? document.body.className : '',
-                video: v ? {
-                  rect: (function () { var r = v.getBoundingClientRect(); return [r1(r.left), r1(r.top), r1(r.width), r1(r.height)]; })(),
-                  currentTime: v.currentTime, duration: v.duration, readyState: v.readyState,
-                  paused: v.paused, playbackRate: v.playbackRate,
-                  src: (v.currentSrc || v.src || '').slice(0, 80)
-                } : null
-              };
-            }
-            function flash(el) {
-              try {
-                var r = el.getBoundingClientRect(), d = document.createElement('div');
-                d.style.cssText = 'position:fixed;z-index:2147483647;pointer-events:none;border:3px solid #0f0;' +
-                  'background:rgba(0,255,0,.15);left:' + r.left + 'px;top:' + r.top + 'px;width:' + r.width +
-                  'px;height:' + r.height + 'px';
-                document.documentElement.appendChild(d);
-                setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 1500);
-              } catch (e) { }
-            }
-
-            // ---- 0. SVG + image URL log: every <svg>, every image URL, icon-font glyphs ----
-            // Open the screen that has the wrong icons (e.g. show the player controls, open Settings) BEFORE
-            // pressing it. Pressing the button starts a 5 s timer (set in MainActivity) so the screen can be shown.
-            cap.dumpSvg = function () {
-              toast('Collecting SVG + image URLs...');
-              var W = innerWidth, H = innerHeight, i, j, el, r, cs;
-              var head = header();
-              head.type = 'svg-and-images';
-
-              function isVis(r, cs) {
-                return r.width > 0 && r.height > 0 && r.right > 0 && r.bottom > 0 && r.left < W && r.top < H &&
-                  cs.visibility !== 'hidden' && cs.display !== 'none';
-              }
-              function urlsIn(str) {
-                var res = [], re = /url\((['"]?)(.*?)\1\)/g, m;
-                while ((m = re.exec(str || ''))) res.push(m[2]);
-                return res;
-              }
-              function shortUrl(u) {
-                u = String(u);
-                return u.length > 700 ? u.slice(0, 700) + '...[' + u.length + ' chars]' : u;
-              }
-              function rowText(e) {
-                var p = e, n = 0, t;
-                while (p && n++ < 6) {
-                  t = ((p.innerText || '') + '').trim();
-                  if (t && t.length < 90) return t;
-                  p = p.parentElement;
-                }
-                return '';
-              }
-              function rectOf(e) { var q = e.getBoundingClientRect(); return [r1(q.left), r1(q.top), r1(q.width), r1(q.height)]; }
-
-              // ---- SVG elements ----
-              var svgs = [], all = document.getElementsByTagName('svg');
-              for (i = 0; i < all.length && i < 600; i++) {
-                el = all[i]; r = el.getBoundingClientRect(); cs = getComputedStyle(el);
-                var uses = [], imgs = [], us = el.querySelectorAll('use'), ims = el.querySelectorAll('image');
-                for (j = 0; j < us.length; j++) {
-                  uses.push(us[j].getAttribute('href') || us[j].getAttributeNS('http://www.w3.org/1999/xlink', 'href') || '');
-                }
-                for (j = 0; j < ims.length; j++) {
-                  imgs.push(shortUrl(ims[j].getAttribute('href') || ims[j].getAttributeNS('http://www.w3.org/1999/xlink', 'href') || ''));
-                }
-                svgs.push({
-                  n: i,
-                  visible: isVis(r, cs),
-                  selector: sel(el),
-                  parents: chain(el).slice(1, 8),
-                  rect: [r1(r.left), r1(r.top), r1(r.width), r1(r.height)],
-                  viewBox: el.getAttribute('viewBox') || undefined,
-                  fill: cs.fill, stroke: cs.stroke, color: cs.color, opacity: cs.opacity,
-                  rowText: rowText(el) || undefined,
-                  uses: uses.length ? uses : undefined,
-                  images: imgs.length ? imgs : undefined,
-                  outerHTML: (el.outerHTML || '').slice(0, 6000)
-                });
-              }
-              svgs.sort(function (a, b) { return (b.visible ? 1 : 0) - (a.visible ? 1 : 0); });
-
-              // ---- image URLs ----
-              var found = [], glyphs = [];
-              function addUrl(kind, u, e, extra) {
-                if (!u || found.length >= 900) return;
-                var q = e.getBoundingClientRect ? e.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
-                found.push({
-                  kind: kind, url: shortUrl(u),
-                  selector: sel(e), rect: [r1(q.left), r1(q.top), r1(q.width), r1(q.height)],
-                  extra: extra || undefined
-                });
-              }
-              var ALLEL = document.getElementsByTagName('*');
-              var PUA = /^[\uE000-\uF8FF]{1,2}$/;
-              for (i = 0; i < ALLEL.length && i < 7000; i++) {
-                el = ALLEL[i];
-                var tg = el.tagName.toLowerCase();
-                if (tg === 'img') {
-                  addUrl('img', el.currentSrc || el.src, el, 'natural=' + el.naturalWidth + 'x' + el.naturalHeight);
-                } else if (tg === 'video' && el.poster) {
-                  addUrl('video-poster', el.poster, el);
-                } else if (tg === 'image') {
-                  addUrl('svg-image', el.getAttribute('href') || el.getAttributeNS('http://www.w3.org/1999/xlink', 'href'), el);
-                } else if (tg === 'source' && el.src) {
-                  addUrl('source', el.src, el);
-                }
-                if (tg === 'script' || tg === 'style' || tg === 'path') continue;
-                cs = getComputedStyle(el);
-                var props = [['background-image', cs.backgroundImage], ['mask-image', cs.webkitMaskImage || cs.maskImage],
-                  ['border-image', cs.borderImageSource], ['list-style-image', cs.listStyleImage], ['content', cs.content]];
-                for (j = 0; j < props.length; j++) {
-                  if (props[j][1] && props[j][1] !== 'none' && props[j][1].indexOf('url(') >= 0) {
-                    urlsIn(props[j][1]).forEach(function (u) { addUrl('css:' + props[j][0], u, el, cs.backgroundSize || undefined); });
-                  }
-                }
-                ['::before', '::after'].forEach(function (ps) {
-                  try {
-                    var pc = getComputedStyle(el, ps);
-                    if (!pc || pc.content === 'none' || pc.content === 'normal') return;
-                    var pv = [pc.backgroundImage, pc.webkitMaskImage || pc.maskImage, pc.content];
-                    pv.forEach(function (s) {
-                      if (s && s.indexOf('url(') >= 0) urlsIn(s).forEach(function (u) { addUrl('pseudo' + ps, u, el); });
-                    });
-                  } catch (e) { }
-                });
-                // icon-font glyphs (private-use characters)
-                var own = '';
-                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) own += c.nodeValue;
-                own = own.trim();
-                if (own && PUA.test(own) && glyphs.length < 300) {
-                  glyphs.push({
-                    codepoints: own.split('').map(function (ch) { return 'U+' + ch.charCodeAt(0).toString(16).toUpperCase(); }).join(' '),
-                    fontFamily: cs.fontFamily, selector: sel(el), rect: rectOf(el), color: cs.color
-                  });
-                }
-              }
-
-              // ---- url() inside stylesheets (sprites, masks, data:image/svg+xml icons) ----
-              var sheetUrls = [], seenSheet = {};
-              function scanRules(rules, label) {
-                for (var a = 0; a < rules.length && sheetUrls.length < 600; a++) {
-                  var rule = rules[a], txt = rule.cssText || '';
-                  if (rule.cssRules && !rule.selectorText) { try { scanRules(rule.cssRules, label); } catch (e) { } continue; }
-                  if (txt.indexOf('url(') < 0) continue;
-                  urlsIn(txt).forEach(function (u) {
-                    var k = (rule.selectorText || '') + '|' + u;
-                    if (seenSheet[k] || /^data:font|\.woff|\.ttf|\.otf/i.test(u)) return;
-                    seenSheet[k] = 1;
-                    sheetUrls.push({ sheet: label, selector: (rule.selectorText || '').slice(0, 160), url: shortUrl(u) });
-                  });
-                }
-              }
-              for (i = 0; i < document.styleSheets.length; i++) {
-                var ss = document.styleSheets[i];
-                try { scanRules(ss.cssRules, ss.href || ('inline #' + i)); } catch (e) { }
-              }
-
-              // ---- <link rel=icon>, meta og:image, resource list ----
-              var links = [];
-              [].forEach.call(document.querySelectorAll('link[rel*="icon"],link[rel="image_src"],meta[property="og:image"]'), function (l) {
-                links.push(l.href || l.content || '');
-              });
-              var res = [];
-              try {
-                performance.getEntriesByType('resource').forEach(function (e) {
-                  if (e.initiatorType === 'img' || e.initiatorType === 'image' ||
-                      /\.(png|jpe?g|webp|gif|svg|ico)(\?|$)/i.test(e.name) || /ytimg|gstatic.*img|ggpht/i.test(e.name)) {
-                    if (res.length < 500) res.push({ type: e.initiatorType, size: e.transferSize || e.decodedBodySize || 0, url: shortUrl(e.name) });
-                  }
-                });
-              } catch (e) { }
-
-              var vis = svgs.filter(function (s) { return s.visible; }).length;
-              var text = 'YTCAP SVG + image URL log\n' + safeJson(head, 1) + '\n\n' +
-                '===== SUMMARY =====\n' +
-                'svg elements: ' + all.length + ' (visible: ' + vis + ')\n' +
-                'image urls found in DOM/CSS: ' + found.length + '\n' +
-                'icon-font glyphs: ' + glyphs.length + '\n' +
-                'stylesheet url() rules: ' + sheetUrls.length + '\n' +
-                'resource entries (images): ' + res.length + '\n\n' +
-                '===== SVG ELEMENTS (visible first) =====\n' + safeJson(svgs, 1) + '\n\n' +
-                '===== IMAGE URLS (img / svg-image / css background / mask / pseudo) =====\n' + safeJson(found, 1) + '\n\n' +
-                '===== ICON-FONT GLYPHS =====\n' + safeJson(glyphs, 1) + '\n\n' +
-                '===== STYLESHEET url() RULES =====\n' + safeJson(sheetUrls, 1) + '\n\n' +
-                '===== LINK / META IMAGES =====\n' + safeJson(links, 1) + '\n\n' +
-                '===== RESOURCE LIST (images) =====\n' + safeJson(res, 1) + '\n';
-              send('svg_images_' + stamp() + '.txt', text);
-            };
-
-            // ---- 1. Pick: tap an item, capture everything stacked at that point ----
-            function capturePoint(x, y) {
-              var stack = document.elementsFromPoint(x, y).slice(0, 14);
-              if (!stack.length) { toast('Nothing found at that point'); return; }
-              flash(stack[0]);
-              var out = header();
-              out.type = 'element-pick';
-              out.point = [Math.round(x), Math.round(y)];
-              out.ancestorsOfTop = chain(stack[0]);
-              out.topOuterHTML = (stack[0].outerHTML || '').slice(0, 1500);
-              out.stackTopToBottom = stack.map(info);
-              out.tectonicConfig = window.tectonicConfig ? JSON.parse(safeJson(window.tectonicConfig)) : null;
-              send('element_' + stamp() + '.txt', safeJson(out, 1));
-            }
-            cap.pick = function () {
-              if (picking) return;
-              picking = true;
-              toast('Tap the item you want to capture');
-              var types = ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend', 'click'];
-              var done = false;
-              function handler(e) {
-                e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
-                if (done) return;
-                if (e.type === 'pointerup' || e.type === 'touchend' || e.type === 'mouseup' || e.type === 'click') {
-                  var t = (e.changedTouches && e.changedTouches[0]) || e;
-                  if (typeof t.clientX !== 'number') return;
-                  done = true;
-                  capturePoint(t.clientX, t.clientY);
-                  setTimeout(function () {
-                    types.forEach(function (n) { window.removeEventListener(n, handler, true); });
-                    picking = false;
-                  }, 600);
-                }
-              }
-              types.forEach(function (n) { window.addEventListener(n, handler, true); });
-            };
-
-            // ---- 2. Dump visible UI: every visible, styled element (use after showing the controls) ----
-            cap.dumpUi = function () {
-              var lines = [], all = document.body.getElementsByTagName('*'), W = innerWidth, H = innerHeight;
-              for (var i = 0; i < all.length && lines.length < 1800; i++) {
-                var el = all[i], r = el.getBoundingClientRect();
-                if (r.width < 8 || r.height < 8 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) continue;
-                var cs = getComputedStyle(el);
-                if (cs.visibility === 'hidden' || cs.display === 'none') continue;
-                var bg = cs.backgroundColor, bgi = cs.backgroundImage, bf = cs.backdropFilter || cs.webkitBackdropFilter;
-                var hasBg = bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
-                var hasImg = bgi && bgi !== 'none';
-                var hasBf = bf && bf !== 'none';
-                var ownText = '';
-                for (var c = el.firstChild; c; c = c.nextSibling) if (c.nodeType === 3) ownText += c.nodeValue;
-                ownText = ownText.trim().slice(0, 40);
-                if (!hasBg && !hasImg && !hasBf && !ownText && el.tagName !== 'VIDEO' && el.tagName !== 'IMG') continue;
-                lines.push(sel(el) + ' | rect=' + [r1(r.left), r1(r.top), r1(r.width), r1(r.height)].join(',') +
-                  (hasBg ? ' | bg=' + bg : '') + (hasImg ? ' | bgimg=' + bgi.slice(0, 90) : '') +
-                  (hasBf ? ' | backdrop=' + bf : '') +
-                  (cs.opacity !== '1' ? ' | opacity=' + cs.opacity : '') +
-                  (cs.borderRadius !== '0px' ? ' | radius=' + cs.borderRadius : '') +
-                  (cs.zIndex !== 'auto' ? ' | z=' + cs.zIndex : '') +
-                  (ownText ? ' | text="' + ownText + '"' : ''));
-              }
-              var text = 'YTCAP visible-UI dump\n' + safeJson(header(), 1) + '\n\n' + lines.join('\n') + '\n';
-              send('ui_' + stamp() + '.txt', text);
-            };
-
-            // ---- 3. Full HTML + all CSS ----
-            cap.dumpDom = function () {
-              var out = ['<!-- YTCAP DOM dump ' + new Date().toISOString() + ' | ' + location.href + ' -->',
-                document.documentElement.outerHTML, '', '/* ===== CSS (all stylesheets) ===== */'];
-              function addSheet(ss, label) {
-                try {
-                  var rules = ss.cssRules, parts = [];
-                  for (var i = 0; i < rules.length; i++) parts.push(rules[i].cssText);
-                  out.push('\n/* --- ' + label + ' (' + rules.length + ' rules) --- */\n' + parts.join('\n'));
-                } catch (e) { out.push('\n/* --- ' + label + ' unreadable (cross-origin) --- */'); }
-              }
-              for (var i = 0; i < document.styleSheets.length; i++) {
-                var ss = document.styleSheets[i];
-                addSheet(ss, ss.href || ('inline #' + i));
-              }
-              try { (document.adoptedStyleSheets || []).forEach(function (ss, i) { addSheet(ss, 'adopted #' + i); }); } catch (e) { }
-              send('dom_' + stamp() + '.txt', out.join('\n'));
-            };
-
-            // ---- 4. Complete JS: inline scripts + every external script the page loaded ----
-            cap.dumpJs = function () {
-              toast('Collecting page JS, please wait...');
-              var urls = [], seen = {};
-              function add(u) { if (u && !seen[u]) { seen[u] = 1; urls.push(u); } }
-              [].forEach.call(document.scripts, function (s) { if (s.src) add(s.src); });
-              try {
-                performance.getEntriesByType('resource').forEach(function (e) {
-                  if (e.initiatorType === 'script' || /\.js(\?|$)/.test(e.name)) add(e.name);
-                });
-              } catch (e) { }
-
-              var out = ['/* YTCAP JS dump ' + new Date().toISOString() + ' */',
-                '/* url: ' + location.href + ' */',
-                '/* ua: ' + navigator.userAgent + ' */',
-                '/* body class: ' + (document.body ? document.body.className : '') + ' */',
-                '/* window._yttv keys: ' + (window._yttv ? Object.keys(window._yttv).join(',') : 'none') + ' */',
-                '/* tectonicConfig: */', safeJson(window.tectonicConfig, 1)];
-              [].forEach.call(document.scripts, function (s, i) {
-                if (!s.src && s.textContent) {
-                  out.push('\n/* ===== inline script #' + i + ' (' + s.textContent.length + ' chars) ===== */\n' + s.textContent);
-                }
-              });
-
-              var total = 0, idx = 0;
-              function next() {
-                if (idx >= urls.length) {
-                  out.push('\n/* total external chars: ' + total + ' in ' + urls.length + ' files */');
-                  send('js_' + stamp() + '.txt', out.join('\n'));
-                  return;
-                }
-                var u = urls[idx++];
-                if (total > 14000000) {
-                  out.push('\n/* ===== ' + u + ' SKIPPED (size cap reached) ===== */');
-                  return next();
-                }
-                fetch(u, { credentials: 'include' })
-                  .then(function (r) { return r.text().then(function (t) { return { s: r.status, t: t }; }); })
-                  .then(function (r) {
-                    total += r.t.length;
-                    out.push('\n/* ===== ' + u + ' [' + r.s + ', ' + r.t.length + ' chars] ===== */\n' + r.t);
-                  })
-                  .catch(function (e) { out.push('\n/* ===== ' + u + ' FAILED: ' + e + ' ===== */'); })
-                  .then(next);
-              }
-              next();
-            };
-          })();
-          EOF
-
-          cat > "$J/MainActivity.java" <<'EOF'
-          package com.local.ytadblock.tv;
-
-          import android.annotation.SuppressLint;
+          import android.Manifest;
           import android.app.Activity;
           import android.content.ContentValues;
-          import android.content.Intent;
-          import android.content.res.AssetFileDescriptor;
+          import android.content.pm.PackageManager;
           import android.graphics.Bitmap;
+          import android.graphics.Canvas;
           import android.graphics.Color;
-          import android.graphics.Matrix;
-          import android.graphics.SurfaceTexture;
+          import android.graphics.Typeface;
           import android.graphics.drawable.GradientDrawable;
-          import android.media.MediaPlayer;
-          import android.net.ConnectivityManager;
-          import android.net.Network;
-          import android.net.NetworkCapabilities;
-          import android.net.NetworkRequest;
           import android.net.Uri;
           import android.os.Build;
           import android.os.Bundle;
           import android.os.Environment;
           import android.os.Handler;
           import android.os.Looper;
-          import android.os.SystemClock;
           import android.provider.MediaStore;
+          import android.util.Log;
           import android.view.Gravity;
           import android.view.KeyEvent;
-          import android.view.MotionEvent;
-          import android.view.Surface;
-          import android.view.TextureView;
+          import android.view.PixelCopy;
           import android.view.View;
           import android.view.ViewGroup;
           import android.view.WindowManager;
+          import android.webkit.ConsoleMessage;
           import android.webkit.CookieManager;
           import android.webkit.JavascriptInterface;
-          import android.webkit.ValueCallback;
+          import android.webkit.RenderProcessGoneDetail;
           import android.webkit.WebChromeClient;
           import android.webkit.WebResourceError;
           import android.webkit.WebResourceRequest;
-          import android.webkit.WebResourceResponse;
           import android.webkit.WebSettings;
           import android.webkit.WebView;
           import android.webkit.WebViewClient;
           import android.widget.FrameLayout;
-          import android.widget.LinearLayout;
           import android.widget.TextView;
           import android.widget.Toast;
 
-          import androidx.core.content.FileProvider;
           import androidx.webkit.WebViewCompat;
           import androidx.webkit.WebViewFeature;
 
-          import java.io.ByteArrayInputStream;
           import java.io.ByteArrayOutputStream;
           import java.io.File;
           import java.io.FileOutputStream;
           import java.io.InputStream;
           import java.io.OutputStream;
-          import java.net.HttpURLConnection;
-          import java.net.URL;
           import java.nio.charset.StandardCharsets;
-          import java.util.ArrayList;
-          import java.util.Collections;
-          import java.util.HashMap;
-          import java.util.List;
-          import java.util.Map;
+          import java.text.SimpleDateFormat;
+          import java.util.Arrays;
+          import java.util.Date;
+          import java.util.HashSet;
+          import java.util.Locale;
 
           public class MainActivity extends Activity {
 
-              // Set to false to remove the CAP button, the capture bridge and WebView remote debugging.
-              private static final boolean DEBUG_TOOLS = true;
-
-              // On-screen remote (Back / arrows / OK / TizenTube settings / Speed) on the left edge - for tablets / phones.
-              // Set to false to remove it.
-              private static final boolean SHOW_REMOTE = true;
-
-              // Splash video (assets/splash.mp4, downloaded at build time) played full-screen at start-up.
-              // Set to false to remove it. If the video was not bundled, the app simply starts without it.
-              private static final boolean SHOW_SPLASH = true;
-
+              private static final String TAG = "TizenTube";
               private static final String START_URL = "https://www.youtube.com/tv";
 
-              // The ONE User-Agent used by the app.
-              private static final String USER_AGENT =
-                      "Mozilla/5.0 (PlayStation 5/SmartTV) AppleWebKit/605.1.15 (KHTML, like Gecko)";
+              // ---- User-Agent presets (chosen at build time: UA_KEY) ----
+              private static final String UA_TV =
+                      "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.5) AppleWebKit/537.36 (KHTML, like Gecko) 85.0.4183.93/6.5 TV Safari/537.36";
+              private static final String UA_AMAZON =
+                      "Mozilla/5.0 (Linux; Android 7.1.2; AFTMM Build/NS6294) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36";
+              private static final String UA_SAFARI =
+                      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/4.0 Safari/605.1.15";
+              private static final String UA_PLAYSTATION =
+                      "Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15";
 
-              // Every white YouTube wordmark the page asks for is answered with the Premium wordmark
-              // (bundled at build time as assets/wordmark_premium.png, downloaded from here if that is missing).
-              private static final String WORDMARK_URL =
-                      "https://www.gstatic.com/youtube/img/branding/livingroom/premium/wordmark_truncated/fullcolor_white_57_2x_v2.png";
-              private static final String WORDMARK_MATCH = "/img/branding/livingroom/youtube/wordmark/fullcolor_white";
-
-              // TizenTube colour keys (Red / Green / Yellow / Blue as the Tizen remote sends them).
-              // Green = TizenTube settings, Blue = playback speed, Red = theme colours.
-              private static final int TT_RED = 403, TT_GREEN = 404, TT_YELLOW = 405, TT_BLUE = 406;
-
-              // Splash: the video always plays to the end; if YouTube is still loading then, its last frame stays
-              // until YouTube is ready (at most SPLASH_HOLD_MS). SPLASH_MAX_MS is a safety net for a stuck video.
-              private static final long SPLASH_HOLD_MS = 4000;
-              private static final long SPLASH_MAX_MS = 15000;
-              private static final String READY_JS =
-                      "(function(){try{var b=document.body;if(!b||!/WEB_PAGE_TYPE_/.test(b.className))return 0;"
-                      + "var l=document.getElementById('loader');if(!l)return 2;"
-                      + "var c=getComputedStyle(l),r=l.getBoundingClientRect();"
-                      + "return(c.display==='none'||c.visibility==='hidden'||parseFloat(c.opacity)<0.05"
-                      + "||r.width<2||r.height<2)?2:1;}catch(e){return 2}})()";
-
-              private WebView web;
-              private FrameLayout root;
-              private LinearLayout panel;
-              private LinearLayout capBox;
-              private LinearLayout remoteBox;
-              private Runnable repeater;
-              private LinearLayout offlineView;
-              private TextView offlineTitle;
-              private TextView retryBtn;
-              private ConnectivityManager.NetworkCallback netCb;
-              private final List<String> scripts = new ArrayList<>();
-              private boolean scriptAtDocumentStart = false;
-              private boolean loadFailed = false;
-              private String failedUrl = null;
-              private long lastBack = 0;
-              private File lastCapture = null;
-              private volatile byte[] wordmark = null;
-              private long wordmarkFailAt = 0;
-              private final Object wordmarkLock = new Object();
               private final Handler ui = new Handler(Looper.getMainLooper());
 
-              private FrameLayout splashBox;
-              private TextureView splashView;
-              private MediaPlayer splashPlayer;
-              private Surface splashSurface;
-              private boolean splashLeaving = false;
-              private boolean splashPrepared = false;
-              private long splashEndedAt = 0;
-              private int splashVideoW = 0, splashVideoH = 0;
+              private FrameLayout root;
+              private WebView web;
+              private TextView capBtn;
 
-              @SuppressLint({"SetJavaScriptEnabled", "AddJavascriptInterface"})
+              private String bootJs;
+              private String capJs;
+              private boolean docStartInjected = false;
+              private boolean offlineShown = false;
+
+              private volatile Bitmap pendingShot;
+              private volatile boolean capBusy = false;
+              private boolean askedStoragePerm = false;
+
+              private boolean backLongHandled = false;
+              private long lastBackPressed = 0;
+
+              private interface ShotCallback {
+                  void done(Bitmap b);
+              }
+
+              // ------------------------------------------------------------------ lifecycle
+
               @Override
               protected void onCreate(Bundle savedInstanceState) {
                   super.onCreate(savedInstanceState);
-                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                          | WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-                  String app = readAsset("app.js");            // hides YouTube's own base64 splash logo
-                  if (!app.isEmpty()) scripts.add(app);
-                  String tt = readAsset("tizentube.js");       // TizenTube userScript (complete UI + features)
-                  if (!tt.isEmpty()) scripts.add(tt);
-                  if (DEBUG_TOOLS) {
-                      String insp = readAsset("inspector.js");
-                      if (!insp.isEmpty()) scripts.add(insp);
-                  }
+                  root = new FrameLayout(this);
+                  root.setBackgroundColor(Color.BLACK);
 
                   web = new WebView(this);
                   web.setBackgroundColor(Color.BLACK);
-                  root = new FrameLayout(this);
-                  root.setBackgroundColor(Color.BLACK);
                   root.addView(web, new FrameLayout.LayoutParams(
                           ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                  buildOfflineView();
-                  setContentView(root, new ViewGroup.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  setContentView(root);
 
-                  WebSettings s = web.getSettings();
-                  s.setJavaScriptEnabled(true);
-                  s.setDomStorageEnabled(true);
-                  s.setMediaPlaybackRequiresUserGesture(false);
-                  s.setUserAgentString(USER_AGENT);
-                  s.setLoadWithOverviewMode(true);
-                  s.setUseWideViewPort(true);
+                  bootJs = buildBootJs();
+                  capJs = readAsset("cap.js");
 
-                  CookieManager cm = CookieManager.getInstance();
-                  cm.setAcceptCookie(true);
-                  cm.setAcceptThirdPartyCookies(web, true);
+                  setupWebView();
 
-                  if (DEBUG_TOOLS) {
-                      WebView.setWebContentsDebuggingEnabled(true);   // chrome://inspect from a PC
-                      web.addJavascriptInterface(new CapBridge(), "YTCap");
-                      buildDebugUi();
-                  }
-                  if (SHOW_REMOTE) buildRemote();
-
-                  // Run before any page script (TizenTube's ad blocker must hook JSON.parse first).
-                  if (!scripts.isEmpty()
-                          && WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-                      for (String js : scripts) {
-                          WebViewCompat.addDocumentStartJavaScript(
-                                  web, js, Collections.singleton("https://*.youtube.com"));
-                      }
-                      scriptAtDocumentStart = true;
+                  if (BuildConfig.CAP_ENABLED) {
+                      addCapButton();
                   }
 
-                  web.setWebChromeClient(new WebChromeClient() {
-                      // Plain black instead of the grey "play" poster WebView shows while a video loads.
-                      @Override
-                      public Bitmap getDefaultVideoPoster() {
-                          Bitmap b = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
-                          b.eraseColor(Color.BLACK);
-                          return b;
-                      }
-
-                      @Override
-                      public View getVideoLoadingProgressView() {
-                          View v = new View(MainActivity.this);
-                          v.setBackgroundColor(Color.BLACK);
-                          return v;
-                      }
-                  });
-
-                  web.setWebViewClient(new WebViewClient() {
-                      @Override
-                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
-                          String scheme = r.getUrl().getScheme();
-                          // true = block. Only http(s) stays inside the app.
-                          return !("https".equals(scheme) || "http".equals(scheme));
-                      }
-
-                      // YouTube wordmark -> Premium wordmark, for every <img> and CSS background in the app.
-                      @Override
-                      public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
-                          try {
-                              String u = r.getUrl().toString();
-                              if (u.contains(WORDMARK_MATCH)) {
-                                  byte[] b = wordmarkBytes();
-                                  if (b != null) {
-                                      Map<String, String> h = new HashMap<>();
-                                      h.put("Access-Control-Allow-Origin", "*");
-                                      h.put("Cache-Control", "public, max-age=604800");
-                                      return new WebResourceResponse("image/png", null, 200, "OK", h,
-                                              new ByteArrayInputStream(b));
-                                  }
-                              }
-                          } catch (Exception ignored) { }
-                          return null;
-                      }
-
-                      @Override
-                      public void onPageStarted(WebView v, String url, Bitmap favicon) {
-                          // Fallback for old WebView versions without document-start scripts.
-                          if (!scriptAtDocumentStart) {
-                              for (String js : scripts) v.evaluateJavascript(js, null);
-                          }
-                      }
-
-                      @Override
-                      public void onPageFinished(WebView v, String url) {
-                          if (!loadFailed && url != null && url.startsWith("http")) hideOffline();
-                      }
-
-                      @SuppressLint("NewApi")
-                      @Override
-                      public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
-                          if (r != null && r.isForMainFrame()) showOffline(r.getUrl().toString());
-                      }
-
-                      @SuppressWarnings("deprecation")
-                      @Override
-                      public void onReceivedError(WebView v, int code, String desc, String failingUrl) {
-                          if (Build.VERSION.SDK_INT < 23) showOffline(failingUrl);
-                      }
-
-                      @Override
-                      public boolean onRenderProcessGone(WebView v,
-                                                         android.webkit.RenderProcessGoneDetail d) {
-                          recreate();
-                          return true;
-                      }
-                  });
-
-                  registerNetworkWatcher();
-
-                  if (SHOW_SPLASH && savedInstanceState == null) showSplash();
-                  if (savedInstanceState != null) {
-                      web.restoreState(savedInstanceState);
-                  } else {
-                      web.loadUrl(START_URL);
-                  }
-                  web.requestFocus();
-
-                  if (!isOnline()) showOffline(START_URL);
-              }
-
-              private byte[] readAssetBytes(String name) {
-                  try (InputStream in = getAssets().open(name)) {
-                      ByteArrayOutputStream out = new ByteArrayOutputStream();
-                      byte[] buf = new byte[8192];
-                      int n;
-                      while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                      return out.toByteArray();
-                  } catch (Exception e) {
-                      return null;
-                  }
-              }
-
-              private String readAsset(String name) {
-                  byte[] b = readAssetBytes(name);
-                  return b == null ? "" : new String(b, StandardCharsets.UTF_8);
-              }
-
-              // ------------------------------------------------------------------
-              // Premium wordmark (served in place of the YouTube wordmark)
-              // ------------------------------------------------------------------
-              private static byte[] download(String url) {
-                  HttpURLConnection c = null;
-                  try {
-                      c = (HttpURLConnection) new URL(url).openConnection();
-                      c.setConnectTimeout(8000);
-                      c.setReadTimeout(8000);
-                      c.setRequestProperty("User-Agent", USER_AGENT);
-                      if (c.getResponseCode() != 200) return null;
-                      try (InputStream in = c.getInputStream()) {
-                          ByteArrayOutputStream out = new ByteArrayOutputStream();
-                          byte[] buf = new byte[8192];
-                          int n;
-                          while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-                          return out.toByteArray();
-                      }
-                  } catch (Exception e) {
-                      return null;
-                  } finally {
-                      if (c != null) c.disconnect();
-                  }
-              }
-
-              /** Called on WebView's network thread (never the UI thread). */
-              private byte[] wordmarkBytes() {
-                  byte[] b = wordmark;
-                  if (b != null) return b;
-                  synchronized (wordmarkLock) {
-                      if (wordmark != null) return wordmark;
-                      b = readAssetBytes("wordmark_premium.png");
-                      if ((b == null || b.length < 100) && SystemClock.uptimeMillis() - wordmarkFailAt > 30000) {
-                          b = download(WORDMARK_URL);
-                          if (b == null || b.length < 100) wordmarkFailAt = SystemClock.uptimeMillis();
-                      }
-                      if (b != null && b.length >= 100) wordmark = b;
-                      return wordmark;
-                  }
-              }
-
-              // ------------------------------------------------------------------
-              // Splash video (assets/splash.mp4) on top of the WebView while YouTube loads underneath
-              // ------------------------------------------------------------------
-              private void showSplash() {
-                  if (splashBox != null) return;
-                  final AssetFileDescriptor afd;
-                  try {
-                      afd = getAssets().openFd("splash.mp4");
-                  } catch (Exception e) {
-                      return;                                      // no video bundled -> start without splash
-                  }
-                  splashLeaving = false;
-                  splashPrepared = false;
-                  splashEndedAt = 0;
-                  splashVideoW = 0;
-                  splashVideoH = 0;
-
-                  splashBox = new FrameLayout(this);
-                  splashBox.setBackgroundColor(Color.BLACK);
-                  splashBox.setClickable(true);                    // swallow touches meant for the WebView
-                  splashView = new TextureView(this);
-                  splashView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-                      @Override
-                      public void onSurfaceTextureAvailable(SurfaceTexture st, int w, int h) {
-                          startSplashPlayer(st, afd);
-                      }
-
-                      @Override
-                      public void onSurfaceTextureSizeChanged(SurfaceTexture st, int w, int h) {
-                          fitSplash();
-                      }
-
-                      @Override
-                      public boolean onSurfaceTextureDestroyed(SurfaceTexture st) {
-                          return true;
-                      }
-
-                      @Override
-                      public void onSurfaceTextureUpdated(SurfaceTexture st) { }
-                  });
-                  splashBox.addView(splashView, new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                  root.addView(splashBox, new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-                  ui.postDelayed(splashSafety, SPLASH_MAX_MS);
-              }
-
-              private void startSplashPlayer(SurfaceTexture st, AssetFileDescriptor afd) {
-                  try {
-                      splashSurface = new Surface(st);
-                      splashPlayer = new MediaPlayer();
-                      splashPlayer.setSurface(splashSurface);
-                      splashPlayer.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-                      afd.close();
-                      splashPlayer.setOnVideoSizeChangedListener(new MediaPlayer.OnVideoSizeChangedListener() {
-                          @Override
-                          public void onVideoSizeChanged(MediaPlayer mp, int w, int h) {
-                              splashVideoW = w;
-                              splashVideoH = h;
-                              fitSplash();
-                          }
-                      });
-                      splashPlayer.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
-                          @Override
-                          public void onPrepared(MediaPlayer mp) {
-                              splashPrepared = true;
-                              mp.start();
-                          }
-                      });
-                      splashPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                          @Override
-                          public void onCompletion(MediaPlayer mp) {
-                              splashEndedAt = SystemClock.uptimeMillis();
-                              splashCheck.run();                   // the last frame stays until YouTube is ready
-                          }
-                      });
-                      splashPlayer.setOnErrorListener(new MediaPlayer.OnErrorListener() {
-                          @Override
-                          public boolean onError(MediaPlayer mp, int what, int extra) {
-                              hideSplash(true);
-                              return true;
-                          }
-                      });
-                      splashPlayer.prepareAsync();
-                  } catch (Exception e) {
-                      try { afd.close(); } catch (Exception ignored) { }
-                      hideSplash(true);
-                  }
-              }
-
-              /** Whole video visible, centred, black bars if the screen has another shape. */
-              private void fitSplash() {
-                  if (splashView == null || splashVideoW <= 0 || splashVideoH <= 0) return;
-                  float vw = splashView.getWidth(), vh = splashView.getHeight();
-                  if (vw <= 0 || vh <= 0) return;
-                  float scale = Math.min(vw / splashVideoW, vh / splashVideoH);
-                  Matrix m = new Matrix();
-                  m.setScale(splashVideoW * scale / vw, splashVideoH * scale / vh, vw / 2f, vh / 2f);
-                  splashView.setTransform(m);
-              }
-
-              private final Runnable splashCheck = new Runnable() {
-                  @Override
-                  public void run() {
-                      if (splashBox == null || splashLeaving || splashEndedAt == 0) return;
-                      if (loadFailed || SystemClock.uptimeMillis() - splashEndedAt >= SPLASH_HOLD_MS) {
-                          hideSplash(false);
-                          return;
-                      }
-                      web.evaluateJavascript(READY_JS, new ValueCallback<String>() {
-                          @Override
-                          public void onReceiveValue(String v) {
-                              if (splashBox == null || splashLeaving) return;
-                              if ("2".equals(v)) {
-                                  hideSplash(false);
-                                  return;
-                              }
-                              ui.postDelayed(splashCheck, 200);
-                          }
-                      });
-                  }
-              };
-
-              private final Runnable splashSafety = new Runnable() {
-                  @Override
-                  public void run() {
-                      hideSplash(false);
-                  }
-              };
-
-              private void hideSplash(boolean instant) {
-                  if (splashBox == null) return;
-                  if (instant) {
-                      removeSplash();
-                      return;
-                  }
-                  if (splashLeaving) return;
-                  splashLeaving = true;
-                  ui.removeCallbacks(splashCheck);
-                  ui.removeCallbacks(splashSafety);
-                  final FrameLayout box = splashBox;
-                  box.animate().alpha(0f).setDuration(280).withEndAction(new Runnable() {
-                      @Override
-                      public void run() {
-                          if (splashBox == box) removeSplash();
-                      }
-                  }).start();
-              }
-
-              private void removeSplash() {
-                  ui.removeCallbacks(splashCheck);
-                  ui.removeCallbacks(splashSafety);
-                  FrameLayout box = splashBox;
-                  splashBox = null;
-                  splashLeaving = false;
-                  if (splashPlayer != null) {
-                      try { splashPlayer.release(); } catch (Exception ignored) { }
-                      splashPlayer = null;
-                  }
-                  if (splashSurface != null) {
-                      try { splashSurface.release(); } catch (Exception ignored) { }
-                      splashSurface = null;
-                  }
-                  splashView = null;
-                  if (box != null) {
-                      try {
-                          box.animate().cancel();
-                          root.removeView(box);
-                      } catch (Exception ignored) { }
-                  }
-                  if (offlineView.getVisibility() != View.VISIBLE) web.requestFocus();
-              }
-
-              // ------------------------------------------------------------------
-              // No internet / load failed -> "Retry" page (instead of WebView's error page)
-              // ------------------------------------------------------------------
-              private int dp(int v) {
-                  return Math.round(v * getResources().getDisplayMetrics().density);
-              }
-
-              private void styleRetry(boolean focused) {
-                  GradientDrawable g = new GradientDrawable();
-                  g.setCornerRadius(dp(26));
-                  g.setColor(focused ? 0xFFF1F1F1 : 0x33FFFFFF);
-                  retryBtn.setBackground(g);
-                  retryBtn.setTextColor(focused ? Color.BLACK : Color.WHITE);
-              }
-
-              private void buildOfflineView() {
-                  offlineView = new LinearLayout(this);
-                  offlineView.setOrientation(LinearLayout.VERTICAL);
-                  offlineView.setGravity(Gravity.CENTER);
-                  offlineView.setBackgroundColor(Color.BLACK);
-                  offlineView.setClickable(true);          // swallow touches meant for the WebView
-                  offlineView.setVisibility(View.GONE);
-
-                  offlineTitle = new TextView(this);
-                  offlineTitle.setText("No internet connection");
-                  offlineTitle.setTextColor(Color.WHITE);
-                  offlineTitle.setTextSize(22);
-                  offlineTitle.setGravity(Gravity.CENTER);
-                  LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                  tp.bottomMargin = dp(8);
-                  offlineView.addView(offlineTitle, tp);
-
-                  TextView msg = new TextView(this);
-                  msg.setText("Check your connection and try again");
-                  msg.setTextColor(0xFFAAAAAA);
-                  msg.setTextSize(14);
-                  msg.setGravity(Gravity.CENTER);
-                  LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                  mp.bottomMargin = dp(28);
-                  offlineView.addView(msg, mp);
-
-                  retryBtn = new TextView(this);
-                  retryBtn.setText("Retry");
-                  retryBtn.setTextSize(16);
-                  retryBtn.setGravity(Gravity.CENTER);
-                  retryBtn.setPadding(dp(40), dp(12), dp(40), dp(12));
-                  retryBtn.setFocusable(true);
-                  retryBtn.setFocusableInTouchMode(true);
-                  retryBtn.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-                      @Override
-                      public void onFocusChange(View v, boolean hasFocus) {
-                          styleRetry(hasFocus);
-                      }
-                  });
-                  retryBtn.setOnClickListener(new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          retry();
-                      }
-                  });
-                  styleRetry(false);
-                  offlineView.addView(retryBtn, new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-                  root.addView(offlineView, new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-              }
-
-              private void showOffline(String url) {
-                  failedUrl = url;
-                  loadFailed = true;
-                  hideSplash(true);
-                  offlineTitle.setText(isOnline() ? "Couldn't load YouTube" : "No internet connection");
-                  retryBtn.setText("Retry");
-                  offlineView.setVisibility(View.VISIBLE);
-                  offlineView.bringToFront();
-                  if (capBox != null) capBox.bringToFront();
-                  web.clearFocus();
-                  retryBtn.requestFocus();
-              }
-
-              private void hideOffline() {
-                  if (offlineView.getVisibility() == View.VISIBLE) {
-                      offlineView.setVisibility(View.GONE);
-                      web.requestFocus();
-                  }
-              }
-
-              private void retry() {
-                  if (!isOnline()) {
-                      retryBtn.setText("Still offline - Retry");
-                      return;
-                  }
-                  retryBtn.setText("Retrying...");
-                  loadFailed = false;
-                  web.loadUrl(failedUrl != null && failedUrl.startsWith("http") ? failedUrl : START_URL);
-              }
-
-              @SuppressWarnings("deprecation")
-              private boolean isOnline() {
-                  try {
-                      ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-                      if (cm == null) return true;
-                      if (Build.VERSION.SDK_INT >= 23) {
-                          Network n = cm.getActiveNetwork();
-                          if (n == null) return false;
-                          NetworkCapabilities c = cm.getNetworkCapabilities(n);
-                          return c != null && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
-                      }
-                      android.net.NetworkInfo ni = cm.getActiveNetworkInfo();
-                      return ni != null && ni.isConnected();
-                  } catch (Exception e) {
-                      return true;
-                  }
-              }
-
-              /** When the connection comes back while the Retry page is showing, reload automatically. */
-              private void registerNetworkWatcher() {
-                  try {
-                      ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-                      if (cm == null) return;
-                      netCb = new ConnectivityManager.NetworkCallback() {
-                          @Override
-                          public void onAvailable(Network network) {
-                              runOnUiThread(new Runnable() {
-                                  @Override
-                                  public void run() {
-                                      if (offlineView.getVisibility() == View.VISIBLE) retry();
-                                  }
-                              });
-                          }
-                      };
-                      cm.registerNetworkCallback(new NetworkRequest.Builder()
-                              .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), netCb);
-                  } catch (Exception e) {
-                      netCb = null;
-                  }
-              }
-
-              // ------------------------------------------------------------------
-              // TizenTube colour keys: sent to the page as the Tizen key codes TizenTube listens for
-              // ------------------------------------------------------------------
-              private void runJs(String js) {
-                  web.evaluateJavascript("try{" + js + "}catch(e){window.YTCap&&YTCap.toast('Error: '+e)}", null);
-              }
-
-              private void sendTizenKey(int code) {
-                  web.evaluateJavascript("(function(k){function f(t){var e;"
-                          + "try{e=new KeyboardEvent(t,{bubbles:true,cancelable:true});}"
-                          + "catch(x){e=document.createEvent('Event');e.initEvent(t,true,true);}"
-                          + "try{Object.defineProperty(e,'keyCode',{get:function(){return k}});"
-                          + "Object.defineProperty(e,'which',{get:function(){return k}});}catch(x){}"
-                          + "(document.activeElement||document.body||document).dispatchEvent(e);}"
-                          + "f('keydown');f('keyup');})(" + code + ")", null);
-              }
-
-              // ------------------------------------------------------------------
-              // Debug / tools menu: small "CAP" button -> menu
-              // ------------------------------------------------------------------
-              private TextView menuButton(String label, View.OnClickListener l) {
-                  TextView t = new TextView(this);
-                  t.setText(label);
-                  t.setTextColor(Color.WHITE);
-                  t.setTextSize(14);
-                  t.setSingleLine(true);
-                  t.setMinWidth(dp(label.equals("CAP") ? 56 : 250));
-                  t.setPadding(dp(14), dp(10), dp(14), dp(10));
-                  t.setBackgroundColor(0xE6202020);
-                  t.setFocusable(false);
-                  t.setOnClickListener(l);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-                  lp.topMargin = dp(4);
-                  t.setLayoutParams(lp);
-                  return t;
-              }
-
-              private void buildDebugUi() {
-                  capBox = new LinearLayout(this);
-                  capBox.setOrientation(LinearLayout.VERTICAL);
-                  capBox.setGravity(Gravity.END);
-
-                  panel = new LinearLayout(this);
-                  panel.setOrientation(LinearLayout.VERTICAL);
-                  panel.setVisibility(View.GONE);
-
-                  TextView bubble = menuButton("CAP", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(panel.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
-                      }
-                  });
-                  bubble.setAlpha(0.55f);
-
-                  panel.addView(menuButton("1. SVG + image URLs log (in 5 s)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          Toast.makeText(MainActivity.this,
-                                  "Capturing SVG + image URLs in 5 seconds - show the screen with the icons",
-                                  Toast.LENGTH_LONG).show();
-                          ui.postDelayed(new Runnable() {
-                              @Override
-                              public void run() {
-                                  runJs("window.__cap.dumpSvg()");
-                              }
-                          }, 5000);
-                      }
-                  }));
-                  panel.addView(menuButton("2. Pick item (then tap it)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          runJs("window.__cap.pick()");
-                      }
-                  }));
-                  panel.addView(menuButton("3. Dump visible UI (in 5 s)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          Toast.makeText(MainActivity.this,
-                                  "Capturing in 5 seconds - show the screen you want", Toast.LENGTH_LONG).show();
-                          ui.postDelayed(new Runnable() {
-                              @Override
-                              public void run() {
-                                  runJs("window.__cap.dumpUi()");
-                              }
-                          }, 5000);
-                      }
-                  }));
-                  panel.addView(menuButton("4. Save complete page JS", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          runJs("window.__cap.dumpJs()");
-                      }
-                  }));
-                  panel.addView(menuButton("5. Save HTML + CSS", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          runJs("window.__cap.dumpDom()");
-                      }
-                  }));
-                  panel.addView(menuButton("6. Share last capture", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          shareFile(lastCapture);
-                      }
-                  }));
-                  panel.addView(menuButton("7. TizenTube settings (Green key)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          sendTizenKey(TT_GREEN);
-                      }
-                  }));
-                  panel.addView(menuButton("8. Playback speed (Blue key)", new View.OnClickListener() {
-                      @Override
-                      public void onClick(View v) {
-                          panel.setVisibility(View.GONE);
-                          sendTizenKey(TT_BLUE);
-                      }
-                  }));
-
-                  capBox.addView(bubble);
-                  capBox.addView(panel);
-
-                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                          Gravity.TOP | Gravity.END);
-                  lp.setMargins(0, dp(8), dp(8), 0);
-                  root.addView(capBox, lp);
-              }
-
-              // ------------------------------------------------------------------
-              // On-screen remote: Back / Up / Down / Left / Right / OK + TizenTube settings / speed, left edge
-              // ------------------------------------------------------------------
-              private void sendKey(int keyCode, boolean down) {
-                  if (web == null) return;
-                  if (offlineView.getVisibility() == View.VISIBLE) {      // Retry page
-                      if (down && keyCode == KeyEvent.KEYCODE_ENTER) retry();
-                      else if (down && keyCode == KeyEvent.KEYCODE_ESCAPE) finish();
-                      return;
-                  }
-                  web.dispatchKeyEvent(new KeyEvent(
-                          down ? KeyEvent.ACTION_DOWN : KeyEvent.ACTION_UP, keyCode));
-              }
-
-              private void stopRepeat() {
-                  if (repeater != null) {
-                      ui.removeCallbacks(repeater);
-                      repeater = null;
-                  }
-              }
-
-              private void startRepeat(final int keyCode) {
-                  stopRepeat();
-                  repeater = new Runnable() {
-                      @Override
-                      public void run() {
-                          sendKey(keyCode, true);
-                          ui.postDelayed(this, 110);
-                      }
-                  };
-                  ui.postDelayed(repeater, 400);
-              }
-
-              private void styleRemote(TextView t, boolean pressed) {
-                  GradientDrawable g = new GradientDrawable();
-                  g.setShape(GradientDrawable.OVAL);
-                  g.setColor(pressed ? 0xCCF1F1F1 : 0x99202020);
-                  g.setStroke(dp(1), 0x55FFFFFF);
-                  t.setBackground(g);
-                  t.setTextColor(pressed ? Color.BLACK : Color.WHITE);
-              }
-
-              /** keyCode >= 400 = a TizenTube colour key (sent to the page on release). */
-              @SuppressLint("ClickableViewAccessibility")
-              private TextView remoteBtn(String label, final int keyCode, final boolean repeat) {
-                  final TextView t = new TextView(this);
-                  t.setText(label);
-                  t.setTextSize(label.length() > 2 ? 10 : 16);
-                  t.setGravity(Gravity.CENTER);
-                  t.setFocusable(false);
-                  styleRemote(t, false);
-                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(42), dp(42));
-                  lp.setMargins(dp(3), dp(3), dp(3), dp(3));
-                  t.setLayoutParams(lp);
-                  final boolean colour = keyCode >= 400;
-                  t.setOnTouchListener(new View.OnTouchListener() {
-                      @Override
-                      public boolean onTouch(View v, MotionEvent e) {
-                          int a = e.getActionMasked();
-                          if (a == MotionEvent.ACTION_DOWN) {
-                              styleRemote(t, true);
-                              if (!colour) {
-                                  sendKey(keyCode, true);
-                                  if (repeat) startRepeat(keyCode);
-                              }
-                          } else if (a == MotionEvent.ACTION_UP || a == MotionEvent.ACTION_CANCEL) {
-                              styleRemote(t, false);
-                              stopRepeat();
-                              if (!colour) sendKey(keyCode, false);
-                              else if (a == MotionEvent.ACTION_UP) sendTizenKey(keyCode);
-                          }
-                          return true;
-                      }
-                  });
-                  return t;
-              }
-
-              private void buildRemote() {
-                  remoteBox = new LinearLayout(this);
-                  remoteBox.setOrientation(LinearLayout.VERTICAL);
-                  remoteBox.setGravity(Gravity.CENTER_HORIZONTAL);
-                  remoteBox.setAlpha(0.75f);
-
-                  remoteBox.addView(remoteBtn("BACK", KeyEvent.KEYCODE_ESCAPE, false));
-                  remoteBox.addView(remoteBtn("▲", KeyEvent.KEYCODE_DPAD_UP, true));
-
-                  LinearLayout mid = new LinearLayout(this);
-                  mid.setOrientation(LinearLayout.HORIZONTAL);
-                  mid.addView(remoteBtn("◀", KeyEvent.KEYCODE_DPAD_LEFT, true));
-                  mid.addView(remoteBtn("OK", KeyEvent.KEYCODE_ENTER, false));
-                  mid.addView(remoteBtn("▶", KeyEvent.KEYCODE_DPAD_RIGHT, true));
-                  // WRAP_CONTENT is required: a vertical LinearLayout would otherwise squeeze this row to one
-                  // button width and clip OK and Right.
-                  remoteBox.addView(mid, new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-                  remoteBox.addView(remoteBtn("▼", KeyEvent.KEYCODE_DPAD_DOWN, true));
-
-                  LinearLayout extra = new LinearLayout(this);
-                  extra.setOrientation(LinearLayout.HORIZONTAL);
-                  extra.addView(remoteBtn("⚙", TT_GREEN, false));    // TizenTube settings
-                  extra.addView(remoteBtn("SPD", TT_BLUE, false));        // playback speed
-                  remoteBox.addView(extra, new LinearLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                          Gravity.START | Gravity.CENTER_VERTICAL);
-                  lp.setMargins(dp(4), 0, 0, 0);
-                  root.addView(remoteBox, lp);
-              }
-
-              /** Receives capture text from inspector.js in chunks, then saves + shares it. */
-              private class CapBridge {
-                  private final StringBuilder buf = new StringBuilder();
-
-                  @JavascriptInterface
-                  public synchronized void begin() {
-                      buf.setLength(0);
-                  }
-
-                  @JavascriptInterface
-                  public synchronized void chunk(String s) {
-                      buf.append(s);
-                  }
-
-                  @JavascriptInterface
-                  public void end(String name) {
-                      final String text;
-                      synchronized (this) {
-                          text = buf.toString();
-                          buf.setLength(0);
-                      }
-                      final String fileName = name.replaceAll("[^A-Za-z0-9._-]", "_");
-                      new Thread(new Runnable() {
-                          @Override
-                          public void run() {
-                              saveCapture(fileName, text);
-                          }
-                      }).start();
-                  }
-
-                  @JavascriptInterface
-                  public void toast(final String msg) {
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
-                          }
-                      });
-                  }
-
-                  /** Hides / shows the CAP button and the on-screen remote. */
-                  @JavascriptInterface
-                  public void setUiVisible(final boolean visible) {
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              if (capBox != null) capBox.setVisibility(visible ? View.VISIBLE : View.GONE);
-                              if (remoteBox != null) remoteBox.setVisibility(visible ? View.VISIBLE : View.GONE);
-                              if (!visible && panel != null) panel.setVisibility(View.GONE);
-                          }
-                      });
-                  }
-              }
-
-              private void saveCapture(String name, String text) {
-                  try {
-                      byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
-                      File base = getExternalFilesDir(null);
-                      if (base == null) base = getFilesDir();
-                      File dir = new File(base, "captures");
-                      dir.mkdirs();
-                      final File f = new File(dir, name);
-                      try (FileOutputStream o = new FileOutputStream(f)) {
-                          o.write(bytes);
-                      }
-                      lastCapture = f;
-                      String where = f.getAbsolutePath();
-                      if (copyToDownloads(name, bytes)) where = "Downloads/YTCapture/" + name;
-                      final String msg = "Saved " + (bytes.length / 1024) + " KB: " + where;
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show();
-                              shareFile(f);
-                          }
-                      });
-                  } catch (final Exception e) {
-                      runOnUiThread(new Runnable() {
-                          @Override
-                          public void run() {
-                              Toast.makeText(MainActivity.this, "Save failed: " + e, Toast.LENGTH_LONG).show();
-                          }
-                      });
-                  }
-              }
-
-              @SuppressLint("NewApi")
-              private boolean copyToDownloads(String name, byte[] bytes) {
-                  if (Build.VERSION.SDK_INT < 29) return false;
-                  try {
-                      ContentValues v = new ContentValues();
-                      v.put(MediaStore.Downloads.DISPLAY_NAME, name);
-                      v.put(MediaStore.Downloads.MIME_TYPE, "text/plain");
-                      v.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/YTCapture");
-                      Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
-                      if (u == null) return false;
-                      try (OutputStream os = getContentResolver().openOutputStream(u)) {
-                          if (os == null) return false;
-                          os.write(bytes);
-                      }
-                      return true;
-                  } catch (Exception e) {
-                      return false;
-                  }
-              }
-
-              private void shareFile(File f) {
-                  if (f == null || !f.exists()) {
-                      Toast.makeText(this, "No capture saved yet", Toast.LENGTH_SHORT).show();
-                      return;
-                  }
-                  try {
-                      Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
-                      Intent i = new Intent(Intent.ACTION_SEND);
-                      i.setType("text/plain");
-                      i.putExtra(Intent.EXTRA_STREAM, uri);
-                      i.putExtra(Intent.EXTRA_SUBJECT, f.getName());
-                      i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                      startActivity(Intent.createChooser(i, "Send capture"));
-                  } catch (Exception e) {
-                      Toast.makeText(this, "Cannot share: " + e, Toast.LENGTH_LONG).show();
-                  }
-              }
-
-              // ------------------------------------------------------------------
-
-              // Colour keys on an Android TV remote -> TizenTube (Green = settings, Blue = speed ...).
-              // The Menu key also opens the TizenTube settings.
-              @Override
-              public boolean dispatchKeyEvent(KeyEvent event) {
-                  int code;
-                  switch (event.getKeyCode()) {
-                      case KeyEvent.KEYCODE_PROG_RED: code = TT_RED; break;
-                      case KeyEvent.KEYCODE_PROG_GREEN: code = TT_GREEN; break;
-                      case KeyEvent.KEYCODE_PROG_YELLOW: code = TT_YELLOW; break;
-                      case KeyEvent.KEYCODE_PROG_BLUE: code = TT_BLUE; break;
-                      case KeyEvent.KEYCODE_MENU: code = TT_GREEN; break;
-                      default: return super.dispatchKeyEvent(event);
-                  }
-                  if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0
-                          && offlineView.getVisibility() != View.VISIBLE) {
-                      sendTizenKey(code);
-                  }
-                  return true;
-              }
-
-              @Override
-              public boolean onKeyDown(int keyCode, KeyEvent event) {
-                  if (keyCode == KeyEvent.KEYCODE_BACK) {
-                      if (offlineView.getVisibility() == View.VISIBLE) {   // Retry page: Back = exit
-                          finish();
-                          return true;
-                      }
-                      long now = System.currentTimeMillis();
-                      if (now - lastBack < 700) {      // double-press Back = exit app
-                          finish();
-                          return true;
-                      }
-                      lastBack = now;
-                      // YouTube TV expects Escape (keyCode 27) as "back".
-                      web.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ESCAPE));
-                      web.dispatchKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ESCAPE));
-                      return true;
-                  }
-                  return super.onKeyDown(keyCode, event);
-              }
-
-              @Override
-              protected void onSaveInstanceState(Bundle outState) {
-                  super.onSaveInstanceState(outState);
-                  web.saveState(outState);
+                  goImmersive();
+                  web.loadUrl(START_URL);
               }
 
               @Override
               protected void onResume() {
                   super.onResume();
                   web.onResume();
-                  web.resumeTimers();
-                  if (splashPlayer != null && splashPrepared && splashEndedAt == 0) {
-                      try { splashPlayer.start(); } catch (Exception ignored) { }
-                  }
+                  goImmersive();
               }
 
               @Override
               protected void onPause() {
-                  CookieManager.getInstance().flush();
                   web.onPause();
-                  if (splashPlayer != null) {
-                      try { if (splashPrepared && splashPlayer.isPlaying()) splashPlayer.pause(); } catch (Exception ignored) { }
-                  }
+                  CookieManager.getInstance().flush();
                   super.onPause();
               }
 
               @Override
               protected void onDestroy() {
                   ui.removeCallbacksAndMessages(null);
-                  removeSplash();
-                  try {
-                      if (netCb != null) {
-                          ((ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE))
-                                  .unregisterNetworkCallback(netCb);
-                      }
-                  } catch (Exception ignored) { }
                   if (web != null) {
-                      ((ViewGroup) web.getParent()).removeView(web);
+                      root.removeView(web);
                       web.destroy();
                   }
                   super.onDestroy();
               }
+
+              @Override
+              public void onWindowFocusChanged(boolean hasFocus) {
+                  super.onWindowFocusChanged(hasFocus);
+                  if (hasFocus) goImmersive();
+              }
+
+              @SuppressWarnings("deprecation")
+              private void goImmersive() {
+                  getWindow().getDecorView().setSystemUiVisibility(
+                          View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                  | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                                  | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                  | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                  | View.SYSTEM_UI_FLAG_FULLSCREEN
+                                  | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+              }
+
+              // ------------------------------------------------------------------ WebView
+
+              private String pickUserAgent() {
+                  String k = BuildConfig.UA_KEY;
+                  if ("amazon".equals(k)) return UA_AMAZON;
+                  if ("safari".equals(k)) return UA_SAFARI;
+                  if ("playstation".equals(k)) return UA_PLAYSTATION;
+                  return UA_TV;
+              }
+
+              @SuppressWarnings({"deprecation", "SetJavaScriptEnabled"})
+              private void setupWebView() {
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+                  s.setSupportZoom(false);
+                  s.setBuiltInZoomControls(false);
+                  s.setCacheMode(WebSettings.LOAD_DEFAULT);
+                  s.setUserAgentString(pickUserAgent());
+
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.setAcceptCookie(true);
+                  cm.setAcceptThirdPartyCookies(web, true);
+
+                  web.setFocusable(true);
+                  web.setFocusableInTouchMode(true);
+                  web.requestFocus();
+                  web.setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  web.setVerticalScrollBarEnabled(false);
+                  web.setHorizontalScrollBarEnabled(false);
+
+                  web.addJavascriptInterface(new Bridge(), "TTAndroid");
+
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public boolean onConsoleMessage(ConsoleMessage m) {
+                          Log.d("TTWeb", m.message() + " [" + m.sourceId() + ":" + m.lineNumber() + "]");
+                          return true;
+                      }
+
+                      // Plain black instead of the grey WebView video poster.
+                      @Override
+                      public Bitmap getDefaultVideoPoster() {
+                          Bitmap b = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                          b.eraseColor(Color.BLACK);
+                          return b;
+                      }
+                  });
+
+                  // Preferred: run the TizenTube userscript before any YouTube script (needed for ad blocking).
+                  try {
+                      if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                          WebViewCompat.addDocumentStartJavaScript(web, bootJs,
+                                  new HashSet<>(Arrays.asList("https://www.youtube.com", "https://youtube.com")));
+                          docStartInjected = true;
+                      }
+                  } catch (Throwable t) {
+                      Log.w(TAG, "document-start injection unavailable, falling back", t);
+                  }
+
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageStarted(WebView v, String url, Bitmap favicon) {
+                          if (url != null && url.contains("youtube.com")) {
+                              offlineShown = false;
+                              if (!docStartInjected) {
+                                  v.evaluateJavascript(bootJs, null);
+                              }
+                          }
+                      }
+
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                          String host = r.getUrl().getHost();
+                          if (host == null) return true;
+                          return !(host.endsWith("youtube.com")
+                                  || host.endsWith("google.com")
+                                  || host.endsWith("gstatic.com")
+                                  || host.endsWith("googleusercontent.com")
+                                  || host.endsWith("ytimg.com")
+                                  || host.endsWith("youtu.be")
+                                  || host.equals("offline.local"));
+                      }
+
+                      @Override
+                      public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) {
+                          if (r.isForMainFrame() && isNetworkError(e.getErrorCode())) showOffline();
+                      }
+
+                      @Override
+                      @SuppressWarnings("deprecation")
+                      public void onReceivedError(WebView v, int code, String desc, String failingUrl) {
+                          if (Build.VERSION.SDK_INT < 23 && isNetworkError(code)) showOffline();
+                      }
+
+                      @Override
+                      public boolean onRenderProcessGone(WebView v, RenderProcessGoneDetail d) {
+                          ui.post(MainActivity.this::recreate);
+                          return true;
+                      }
+                  });
+              }
+
+              private static boolean isNetworkError(int code) {
+                  return code == WebViewClient.ERROR_HOST_LOOKUP
+                          || code == WebViewClient.ERROR_CONNECT
+                          || code == WebViewClient.ERROR_TIMEOUT
+                          || code == WebViewClient.ERROR_IO;
+              }
+
+              private void showOffline() {
+                  if (offlineShown) return;
+                  offlineShown = true;
+                  String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>"
+                          + "<body style='background:#000;color:#fff;font-family:sans-serif;display:flex;"
+                          + "flex-direction:column;align-items:center;justify-content:center;height:100vh;margin:0'>"
+                          + "<h2 style='margin:0 0 8px'>No internet connection</h2>"
+                          + "<p style='opacity:.7;margin:0 0 28px'>Check your network and try again</p>"
+                          + "<button id='r' autofocus onclick='TTAndroid.retry()' "
+                          + "style='font-size:22px;padding:14px 44px;border-radius:32px;border:0;background:#fff;color:#000'>Retry</button>"
+                          + "<script>document.getElementById('r').focus();</script>"
+                          + "</body></html>";
+                  web.loadDataWithBaseURL("https://offline.local/", html, "text/html", "utf-8", null);
+              }
+
+              /** Wraps the built TizenTube bundle so it runs once, as soon as <body> exists. */
+              private String buildBootJs() {
+                  String bundle = readAsset("userScript.js");
+                  return "(function(){if(window.__ttBoot)return;window.__ttBoot=1;"
+                          + "function run(){if(window.__ttRan)return;window.__ttRan=1;try{\n"
+                          + bundle
+                          + "\n}catch(e){try{TTAndroid.log('TizenTube init failed: '+e)}catch(_){}}}"
+                          + "if(document.body){run();return;}"
+                          + "var mo=new MutationObserver(function(){if(document.body){mo.disconnect();run();}});"
+                          + "mo.observe(document,{childList:true,subtree:true});"
+                          + "document.addEventListener('DOMContentLoaded',run);"
+                          + "})();";
+              }
+
+              private String readAsset(String name) {
+                  try (InputStream in = getAssets().open(name)) {
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[16384];
+                      int n;
+                      while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                      return new String(bo.toByteArray(), StandardCharsets.UTF_8);
+                  } catch (Exception e) {
+                      Log.e(TAG, "asset missing: " + name, e);
+                      return "";
+                  }
+              }
+
+              // ------------------------------------------------------------------ keys
+
+              private static String keyJs(int code, String key) {
+                  return "(function(){var t=document.activeElement||document.body;"
+                          + "['keydown','keyup'].forEach(function(n){"
+                          + "var e=new KeyboardEvent(n,{key:'" + key + "',bubbles:true,cancelable:true});"
+                          + "['keyCode','which'].forEach(function(p){Object.defineProperty(e,p,{get:function(){return " + code + "}})});"
+                          + "t.dispatchEvent(e);});})();";
+              }
+
+              private void sendKey(int code, String key) {
+                  web.evaluateJavascript(keyJs(code, key), null);
+              }
+
+              @Override
+              public boolean dispatchKeyEvent(KeyEvent e) {
+                  int k = e.getKeyCode();
+                  boolean down = e.getAction() == KeyEvent.ACTION_DOWN;
+
+                  // CAP shortcut for remotes: MENU or INFO
+                  if (BuildConfig.CAP_ENABLED && (k == KeyEvent.KEYCODE_MENU || k == KeyEvent.KEYCODE_INFO)) {
+                      if (down && e.getRepeatCount() == 0) startCapture();
+                      return true;
+                  }
+
+                  // Remote colour buttons -> Tizen colour key codes used by TizenTube (settings, speed, ...)
+                  int tizenCode = 0;
+                  if (k == KeyEvent.KEYCODE_PROG_RED) tizenCode = 403;
+                  else if (k == KeyEvent.KEYCODE_PROG_GREEN) tizenCode = 404;
+                  else if (k == KeyEvent.KEYCODE_PROG_YELLOW) tizenCode = 405;
+                  else if (k == KeyEvent.KEYCODE_PROG_BLUE) tizenCode = 406;
+                  if (tizenCode != 0) {
+                      if (down && e.getRepeatCount() == 0) sendKey(tizenCode, "Unidentified");
+                      return true;
+                  }
+
+                  // BACK: short press = Escape (YouTube "back"), long press = exit app
+                  if (k == KeyEvent.KEYCODE_BACK) {
+                      if (down) {
+                          if (e.getRepeatCount() == 0) backLongHandled = false;
+                          if (e.isLongPress() && !backLongHandled) {
+                              backLongHandled = true;
+                              finish();
+                          }
+                      } else if (!backLongHandled) {
+                          handleBackShort();
+                      }
+                      return true;
+                  }
+                  return super.dispatchKeyEvent(e);
+              }
+
+              private void handleBackShort() {
+                  if (offlineShown) {
+                      finish();
+                      return;
+                  }
+                  sendKey(27, "Escape");
+              }
+
+              @Override
+              public void onBackPressed() {
+                  // Touch / gesture back: Escape, double back within 0.6s exits
+                  long now = System.currentTimeMillis();
+                  if (offlineShown || now - lastBackPressed < 600) {
+                      finish();
+                      return;
+                  }
+                  lastBackPressed = now;
+                  sendKey(27, "Escape");
+              }
+
+              // ------------------------------------------------------------------ CAP (UI capture)
+
+              private int dp(int v) {
+                  return Math.round(v * getResources().getDisplayMetrics().density);
+              }
+
+              private void addCapButton() {
+                  capBtn = new TextView(this);
+                  capBtn.setText("CAP");
+                  capBtn.setTextColor(Color.WHITE);
+                  capBtn.setTextSize(12f);
+                  capBtn.setTypeface(Typeface.DEFAULT_BOLD);
+                  capBtn.setGravity(Gravity.CENTER);
+                  capBtn.setPadding(dp(14), dp(8), dp(14), dp(8));
+                  GradientDrawable bg = new GradientDrawable();
+                  bg.setColor(0x99000000);
+                  bg.setCornerRadius(dp(20));
+                  bg.setStroke(dp(1), 0x66FFFFFF);
+                  capBtn.setBackground(bg);
+                  capBtn.setAlpha(0.75f);
+                  capBtn.setFocusable(false);
+                  capBtn.setOnClickListener(v -> startCapture());
+
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                          ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                          Gravity.TOP | Gravity.END);
+                  lp.setMargins(0, dp(16), dp(16), 0);
+                  root.addView(capBtn, lp);
+              }
+
+              private boolean hasLegacyStoragePerm() {
+                  return Build.VERSION.SDK_INT >= 29
+                          || checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+              }
+
+              private void startCapture() {
+                  if (capBusy) return;
+
+                  if (Build.VERSION.SDK_INT >= 23 && !hasLegacyStoragePerm() && !askedStoragePerm) {
+                      askedStoragePerm = true;
+                      requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 77);
+                      toast("Allow storage, then press CAP again");
+                      return;
+                  }
+
+                  capBusy = true;
+                  pendingShot = null;
+                  if (capBtn != null) capBtn.setVisibility(View.INVISIBLE);
+                  toast("CAP: capturing...");
+
+                  // watchdog so the button never stays locked
+                  ui.postDelayed(() -> capBusy = false, 20000);
+
+                  ui.postDelayed(() -> takeShot(bmp -> {
+                      pendingShot = bmp;
+                      if (capBtn != null) capBtn.setVisibility(View.VISIBLE);
+                      web.evaluateJavascript(capJs, null);
+                  }), 250);
+              }
+
+              private void takeShot(final ShotCallback cb) {
+                  final View dv = getWindow().getDecorView();
+                  final int w = dv.getWidth();
+                  final int h = dv.getHeight();
+                  if (w <= 0 || h <= 0) {
+                      cb.done(null);
+                      return;
+                  }
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      try {
+                          final Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                          PixelCopy.request(getWindow(), bmp, result -> {
+                              if (result == PixelCopy.SUCCESS) cb.done(bmp);
+                              else cb.done(fallbackShot());
+                          }, ui);
+                          return;
+                      } catch (Throwable t) {
+                          Log.w(TAG, "PixelCopy failed", t);
+                      }
+                  }
+                  cb.done(fallbackShot());
+              }
+
+              private Bitmap fallbackShot() {
+                  try {
+                      Bitmap b = Bitmap.createBitmap(Math.max(1, web.getWidth()), Math.max(1, web.getHeight()), Bitmap.Config.ARGB_8888);
+                      web.draw(new Canvas(b));
+                      return b;
+                  } catch (Throwable t) {
+                      return null;
+                  }
+              }
+
+              private String saveFile(String name, String mime, byte[] data) {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 29) {
+                          ContentValues v = new ContentValues();
+                          v.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+                          v.put(MediaStore.MediaColumns.MIME_TYPE, mime);
+                          v.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/TizenTubeCap");
+                          Uri u = getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, v);
+                          if (u == null) throw new IllegalStateException("MediaStore insert failed");
+                          try (OutputStream o = getContentResolver().openOutputStream(u)) {
+                              o.write(data);
+                          }
+                          return "Download/TizenTubeCap/" + name;
+                      } else {
+                          File dir;
+                          if (hasLegacyStoragePerm()) {
+                              dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "TizenTubeCap");
+                          } else {
+                              dir = new File(getExternalFilesDir(null), "cap");
+                          }
+                          //noinspection ResultOfMethodCallIgnored
+                          dir.mkdirs();
+                          File f = new File(dir, name);
+                          try (FileOutputStream o = new FileOutputStream(f)) {
+                              o.write(data);
+                          }
+                          return f.getAbsolutePath();
+                      }
+                  } catch (Exception e) {
+                      Log.e(TAG, "save failed: " + name, e);
+                      return null;
+                  }
+              }
+
+              private void toast(final String msg) {
+                  ui.post(() -> Toast.makeText(MainActivity.this, msg, Toast.LENGTH_LONG).show());
+              }
+
+              private void finishCapture(String json, String html) {
+                  try {
+                      String ts = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(new Date());
+                      String base = "cap_" + ts;
+                      String where = null;
+                      int saved = 0;
+
+                      Bitmap shot = pendingShot;
+                      if (shot != null) {
+                          ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                          shot.compress(Bitmap.CompressFormat.PNG, 100, bo);
+                          String p = saveFile(base + ".png", "image/png", bo.toByteArray());
+                          if (p != null) { saved++; where = p; }
+                      }
+                      String pj = saveFile(base + ".json", "application/json", json.getBytes(StandardCharsets.UTF_8));
+                      if (pj != null) { saved++; where = pj; }
+                      String ph = saveFile(base + ".html", "text/html", html.getBytes(StandardCharsets.UTF_8));
+                      if (ph != null) { saved++; where = ph; }
+
+                      if (saved == 0) toast("CAP failed: could not save files");
+                      else toast("CAP saved (" + saved + " files)\n" + where.substring(0, where.lastIndexOf('/') + 1) + base + ".*");
+                  } catch (Throwable t) {
+                      Log.e(TAG, "capture failed", t);
+                      toast("CAP failed: " + t.getMessage());
+                  } finally {
+                      pendingShot = null;
+                      capBusy = false;
+                  }
+              }
+
+              // ------------------------------------------------------------------ JS bridge
+
+              private class Bridge {
+                  @JavascriptInterface
+                  public void onCapture(final String json, final String html) {
+                      new Thread(() -> finishCapture(json, html)).start();
+                  }
+
+                  @JavascriptInterface
+                  public void retry() {
+                      ui.post(() -> {
+                          offlineShown = false;
+                          web.loadUrl(START_URL);
+                      });
+                  }
+
+                  @JavascriptInterface
+                  public void log(String msg) {
+                      Log.i(TAG, msg);
+                  }
+              }
           }
-          EOF
+          EOF_JAVA
 
-      - name: Build TizenTube userScript (reisxd/TizenTube @ f99945a)
+          cat > $P/app/src/main/assets/cap.js <<'EOF_CAP'
+          (function () {
+            function send(obj, html) {
+              try {
+                TTAndroid.onCapture(JSON.stringify(obj, null, 1), html || '');
+              } catch (e) {
+                try { TTAndroid.log('CAP send failed: ' + e); } catch (_) {}
+              }
+            }
+            try {
+              var MAX = 3500;
+              var SKIP = { SCRIPT: 1, STYLE: 1, META: 1, LINK: 1, HEAD: 1, NOSCRIPT: 1, TITLE: 1, BASE: 1,
+                           PATH: 1, DEFS: 1, CIRCLE: 1, RECT: 1, G: 1, USE: 1, LINEARGRADIENT: 1, STOP: 1, CLIPPATH: 1 };
+              var vw = window.innerWidth, vh = window.innerHeight;
+
+              function cls(el) {
+                var c = el.className;
+                return (typeof c === 'string' ? c : (c && c.baseVal) || '').trim();
+              }
+              function seg(el) {
+                var s = el.tagName.toLowerCase();
+                if (el.id) return s + '#' + el.id;
+                var c = cls(el).split(/\s+/).filter(Boolean).slice(0, 3);
+                if (c.length) s += '.' + c.join('.');
+                if (el.parentElement) {
+                  var i = 1, n = el;
+                  while ((n = n.previousElementSibling)) { if (n.tagName === el.tagName) i++; }
+                  s += ':nth-of-type(' + i + ')';
+                }
+                return s;
+              }
+              function path(el) {
+                var a = [], d = 0;
+                while (el && el.nodeType === 1 && el !== document.documentElement && d < 9) {
+                  a.unshift(seg(el));
+                  if (el.id) break;
+                  el = el.parentElement;
+                  d++;
+                }
+                return a.join(' > ');
+              }
+              function own(el) {
+                var t = '';
+                for (var n = el.firstChild; n; n = n.nextSibling) {
+                  if (n.nodeType === 3) t += n.nodeValue;
+                }
+                return t.replace(/\s+/g, ' ').trim().slice(0, 120);
+              }
+
+              var defaults = {
+                backgroundColor: 'rgba(0, 0, 0, 0)', backgroundImage: 'none', boxShadow: 'none',
+                transform: 'none', backdropFilter: 'none', filter: 'none', opacity: '1', zIndex: 'auto',
+                borderRadius: '0px', position: 'static', overflow: 'visible', textShadow: 'none'
+              };
+              var props = ['color', 'backgroundColor', 'backgroundImage', 'fontFamily', 'fontSize', 'fontWeight',
+                           'opacity', 'display', 'position', 'zIndex', 'borderRadius', 'boxShadow', 'textShadow',
+                           'backdropFilter', 'filter', 'transform', 'overflow'];
+
+              var focusedEl = document.activeElement;
+              var all = document.querySelectorAll('body *');
+              var elements = [];
+              var total = all.length;
+
+              for (var i = 0; i < all.length && elements.length < MAX; i++) {
+                var el = all[i];
+                if (SKIP[el.tagName.toUpperCase()]) continue;
+                var r = el.getBoundingClientRect();
+                if (r.width < 1 || r.height < 1) continue;
+                if (r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) continue;
+                var cs = window.getComputedStyle(el);
+                if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') continue;
+
+                var st = {};
+                for (var p = 0; p < props.length; p++) {
+                  var k = props[p];
+                  var v = cs[k];
+                  if (v === undefined || v === '' || v === defaults[k]) continue;
+                  st[k] = v.length > 160 ? v.slice(0, 160) + '...' : v;
+                }
+                var item = {
+                  n: elements.length,
+                  tag: el.tagName.toLowerCase(),
+                  id: el.id || undefined,
+                  cls: cls(el) || undefined,
+                  sel: path(el),
+                  rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)],
+                  text: own(el) || undefined,
+                  focused: (el === focusedEl || /(^|\s)(focused|zylon-focus)(\s|$)/.test(cls(el))) || undefined,
+                  style: st
+                };
+                var ar = el.getAttribute('aria-label'); if (ar) item.aria = ar.slice(0, 80);
+                var rl = el.getAttribute('role'); if (rl) item.role = rl;
+                var src = el.getAttribute('src'); if (src) item.src = src.slice(0, 140);
+                var tb = el.getAttribute('tabindex'); if (tb !== null) item.tabindex = tb;
+                elements.push(item);
+              }
+
+              var videos = [];
+              var vids = document.querySelectorAll('video');
+              for (var j = 0; j < vids.length; j++) {
+                var vd = vids[j];
+                videos.push({
+                  src: (vd.currentSrc || vd.src || '').slice(0, 140),
+                  paused: vd.paused, time: vd.currentTime, duration: vd.duration,
+                  w: vd.videoWidth, h: vd.videoHeight
+                });
+              }
+
+              var cfg = null;
+              try { cfg = JSON.parse(window.localStorage['ytaf-configuration']); } catch (e) {}
+
+              var out = {
+                capturedAt: new Date().toISOString(),
+                url: location.href,
+                title: document.title,
+                userAgent: navigator.userAgent,
+                viewport: { w: vw, h: vh, dpr: window.devicePixelRatio },
+                focusedPath: focusedEl ? path(focusedEl) : null,
+                bodyClass: document.body ? document.body.className : null,
+                totalDomElements: total,
+                visibleElementsCaptured: elements.length,
+                videos: videos,
+                tizentubeConfig: cfg,
+                elements: elements
+              };
+
+              var html = '';
+              try {
+                var c = document.documentElement.cloneNode(true);
+                var rm = c.querySelectorAll('script,link,noscript');
+                for (var a = 0; a < rm.length; a++) rm[a].parentNode.removeChild(rm[a]);
+                var sty = c.querySelectorAll('style');
+                for (var b = 0; b < sty.length; b++) {
+                  var tx = sty[b].textContent || '';
+                  if (tx.length > 30000) sty[b].textContent = '/* trimmed ' + tx.length + ' chars */';
+                }
+                html = '<!DOCTYPE html>\n' + c.outerHTML;
+                if (html.length > 4000000) html = html.slice(0, 4000000) + '\n<!-- truncated -->';
+              } catch (e) {
+                html = '<!-- html snapshot failed: ' + e + ' -->';
+              }
+
+              send(out, html);
+            } catch (err) {
+              send({ error: String(err), stack: err && err.stack }, '');
+            }
+          })();
+          EOF_CAP
+
+      - name: Add userscript and icons
         run: |
-          ASSETS="$GITHUB_WORKSPACE/_android/app/src/main/assets"
-          OUT="$ASSETS/tizentube.js"
-          TT="$GITHUB_WORKSPACE/_tizentube"
-          BUILT=0
-          if git clone --quiet https://github.com/reisxd/TizenTube.git "$TT"; then
-            cd "$TT"
-            if ! git checkout --quiet f99945a; then
-              echo "::warning::Commit f99945a not found - building TizenTube from the default branch."
-            fi
-            echo "TizenTube source: $(git log -1 --format='%h %s')"
-            cd mods
-            if (npm ci --no-audit --no-fund || npm install --no-audit --no-fund) && npx rollup -c rollup.config.js \
-               && [ -s "$TT/dist/userScript.js" ]; then
-              cp "$TT/dist/userScript.js" "$OUT"
-              BUILT=1
-            fi
-          fi
-          if [ "$BUILT" != "1" ]; then
-            echo "::warning::Building TizenTube failed - using the published @foxreis/tizentube build from jsDelivr."
-            curl -fsSL --retry 3 --max-time 120 -o "$OUT" \
-              "https://cdn.jsdelivr.net/npm/@foxreis/tizentube/dist/userScript.js"
-          fi
-          if [ ! -s "$OUT" ] || [ "$(stat -c %s "$OUT")" -lt 50000 ]; then
-            echo "::error::No TizenTube userScript - stopping."
-            exit 1
-          fi
-          ls -l "$OUT"
-
-      - name: Fetch app logos
-        run: |
-          P="$GITHUB_WORKSPACE/_android"
-          RES="$P/app/src/main/res"
-          TMP="$(mktemp -d)"
-          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-          BANNER_URL="https://www.gstatic.com/youtube/img/promos/growth/YTP_logo_social_1200x630.png"
-          ICON_URL="https://upload.wikimedia.org/wikipedia/commons/e/ef/Youtube_logo.png"
-
-          if ! command -v magick >/dev/null 2>&1 && ! command -v convert >/dev/null 2>&1; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
-          fi
-          IM="convert"
-          if command -v magick >/dev/null 2>&1; then IM="magick"; fi
-
-          BANNER_OK=0
-          ICON_OK=0
-          ASSETS="$P/app/src/main/assets"
-
-          # Premium wordmark -> assets (served in place of the YouTube wordmark).
-          # If this fails the app downloads it at runtime instead.
-          WORDMARK_URL="https://www.gstatic.com/youtube/img/branding/livingroom/premium/wordmark_truncated/fullcolor_white_57_2x_v2.png"
-          WM="$ASSETS/wordmark_premium.png"
-          if curl -fsSL --retry 3 --max-time 60 -A "$UA" -o "$WM" "$WORDMARK_URL" \
-             && [ "$(head -c 4 "$WM" | od -An -tx1 | tr -d ' \n')" = "89504e47" ]; then
-            echo "premium wordmark ok ($(stat -c %s "$WM") bytes)"
-          else
-            rm -f "$WM"
-            echo "::warning::Could not fetch the Premium wordmark - the app will download it at runtime."
-          fi
-
-          # Splash video -> assets/splash.mp4 (played full-screen at start-up).
-          # If this fails the app starts without a splash.
-          SPLASH_URL="https://raw.githubusercontent.com/Ayush8481Lab/Mm/refs/heads/main/vidssave.com%2028%20November%202026%20720P.mp4"
-          SV="$ASSETS/splash.mp4"
-          if curl -fsSL --retry 3 --max-time 180 -o "$SV" "$SPLASH_URL" \
-             && [ "$(dd if="$SV" bs=1 skip=4 count=4 2>/dev/null)" = "ftyp" ]; then
-            echo "splash video ok ($(stat -c %s "$SV") bytes)"
-          else
-            rm -f "$SV"
-            echo "::warning::Could not fetch the splash video - the app will start without a splash."
-          fi
-
-          # Landscape logo -> Android TV banner (640x360, padded with the image's own corner colour)
-          if curl -fsSL --retry 3 --max-time 60 -A "$UA" -o "$TMP/banner_src.png" "$BANNER_URL"; then
-            BG="$($IM "$TMP/banner_src.png" -format '%[pixel:p{4,4}]' info: 2>/dev/null || true)"
-            case "$BG" in
-              ""|none|*transparent*|srgba*,0\)|rgba*,0\)) BG="#0F0F0F" ;;
-            esac
-            if $IM "$TMP/banner_src.png" -background "$BG" -alpha remove -alpha off \
-                 -resize 640x360 -gravity center -extent 640x360 "$RES/drawable-nodpi/banner.png"; then
-              BANNER_OK=1
-            fi
-          fi
-
-          # Square logo -> launcher icon (256x256 on white)
-          if curl -fsSL --retry 3 --max-time 60 -A "$UA" -o "$TMP/icon_src.png" "$ICON_URL"; then
-            if $IM "$TMP/icon_src.png" -background white -alpha remove -alpha off \
-                 -resize 190x190 -gravity center -extent 256x256 "$RES/drawable-nodpi/ic_launcher.png"; then
-              ICON_OK=1
-            fi
-          fi
-
-          # Built-in fallbacks so the build never fails because of a download
-          if [ "$ICON_OK" != "1" ]; then
-            echo "::warning::Could not fetch/convert the square logo - using built-in icon."
-            cat > "$RES/drawable/ic_launcher.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="96dp" android:height="96dp"
-              android:viewportWidth="96" android:viewportHeight="96">
-              <path android:fillColor="#FF0000" android:pathData="M0,0h96v96h-96z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M38,28L38,68L70,48z" />
-          </vector>
-          EOF
-          fi
-
-          if [ "$BANNER_OK" != "1" ]; then
-            echo "::warning::Could not fetch/convert the landscape logo - using built-in banner."
-            cat > "$RES/drawable/banner.xml" <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="320dp" android:height="180dp"
-              android:viewportWidth="320" android:viewportHeight="180">
-              <path android:fillColor="#0F0F0F" android:pathData="M0,0h320v180h-320z" />
-              <path android:fillColor="#FF0000" android:pathData="M120,60h80a16,16 0 0 1 16,16v28a16,16 0 0 1 -16,16h-80a16,16 0 0 1 -16,-16v-28a16,16 0 0 1 16,-16z" />
-              <path android:fillColor="#FFFFFF" android:pathData="M150,78L150,102L174,90z" />
-          </vector>
-          EOF
-          fi
-
-          echo "banner ok=$BANNER_OK icon ok=$ICON_OK"
-          ls -l "$RES/drawable" "$RES/drawable-nodpi"
+          set -e
+          P=android-app/app/src/main
+          cp dist/userScript.js $P/assets/userScript.js
+          command -v convert >/dev/null 2>&1 || (sudo apt-get update -y && sudo apt-get install -y imagemagick)
+          convert standalone/icon.png -resize 192x192 $P/res/mipmap-xxxhdpi/ic_launcher.png
+          convert standalone/icon_16b9.png -resize 320x180! $P/res/drawable-xhdpi/banner.png
+          ls -lh $P/assets $P/res/mipmap-xxxhdpi $P/res/drawable-xhdpi
 
       - name: Prepare signing key
-        env:
-          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
-          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
-          KS_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KS_KEYPASS: ${{ secrets.KEY_PASSWORD }}
         run: |
-          KS="$GITHUB_WORKSPACE/_android/app/release.jks"
-          if [ -n "$KS_B64" ]; then
-            echo "$KS_B64" | base64 -d > "$KS"
-            echo "KEYSTORE_PASSWORD=$KS_PASS" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=${KS_KEYPASS:-$KS_PASS}" >> "$GITHUB_ENV"
-          else
-            echo "::warning::No KEYSTORE_BASE64 secret set. Using a throwaway key: this APK cannot be installed over a previous build signed with a different key (uninstall first)."
-            keytool -genkeypair -v -keystore "$KS" -storepass android -keypass android \
-              -alias key -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=YtAdBlockTv, O=Local, C=US"
-            echo "KEYSTORE_PASSWORD=android" >> "$GITHUB_ENV"
-            echo "KEY_ALIAS=key" >> "$GITHUB_ENV"
-            echo "KEY_PASSWORD=android" >> "$GITHUB_ENV"
-          fi
-          echo "KEYSTORE_PATH=$KS" >> "$GITHUB_ENV"
+          echo "MIIKWgIBAzCCCgQGCSqGSIb3DQEHAaCCCfUEggnxMIIJ7TCCBbQGCSqGSIb3DQEHAaCCBaUEggWhMIIFnTCCBZkGCyqGSIb3DQEMCgECoIIFQDCCBTwwZgYJKoZIhvcNAQUNMFkwOAYJKoZIhvcNAQUMMCsEFC+8zdRhwds7qzkZy8d/NrY7BYy9AgInEAIBIDAMBggqhkiG9w0CCQUAMB0GCWCGSAFlAwQBKgQQqJsUYgLyiykbiGuO8a1DAASCBNBU7Kz970DQ/931WNsHqP/foIpjhe1/iWlToOL7cE5sDERPXlzFR0XB1TpAKGKV0ko39azC+yzysRvZuxk5+u3Ek1oB/96zZ+BCE5cy5qInMuIWDab/k7SsrmZIYmuKORWrYytlQ3VdN5Zq+Yzva0ByEi8ql0P9dKHf6N902ldXJ5BU9QQu0gIU3cjtRlesWEpp2QZY40/BozrRZE6j45tFuwpTKeDlf5FKio4LwABZluqpEasIwo4j1769Z60zRJlvXFzHehhG1ZbxT+mybJoHxsrdNDXaROXF3PUdc8jcqaswsowQ7eS8FcOis7OGwUf9T5H/gmscUcs6igo68xehjx6ivyC0lTNCMG25u6+Wvme9QCXk7O8G60aioUMHr/mjqAsyN8JziSCGjoTy4G0CUyV9xKcGahq+fFDVpnqbzQXqMSm1mZJ+yz7LNNHpT0QZ8fJGokyhvnDWJWaHnf3t43XDifSbs4lk6s26S7ve5lVn9V/mtuQlPuVWtqdsZdmZlSBD8tp7xTiNcRqIsipWL4Zmd3lxNRhrmi5ySRDmt1f8Is1ZLGHnGHRiilWzod+izbbhkrbQYHpQ2O1wLKVcJU05k6X+oUxWJAIJ+vJtJlApmMWpV0wUzPiMy17ylz9AZlctp4HZZRzYmD7AFrfqXDDkuO5FBnTcNcW+b0rx8m6unmzIVUOX+qFPfxbYwmEbXEZ+S332kZNU7jSCkcBkgeA7E7RWR/CQn9++oR675W0nV88n73rJLxzA35VF4G1StrXTu8j0alB/QepvjAMB187sgKeqiDprtuUr1MYyd9Ys8u9E3COjpmtwI0LAGFE0uKFLxhdnn7Y79vNE+Ig+OFtScxxy55CWWIVNY64EL2tkLO0Cxz8pAosd6r/os94j/nTsf5BJEStIFbJ2F+nWlGFqkKO/xNkDS+vBvzRktxPTo/RxktyoyI/lrPLd/Z+MMfXoNYs+UsX10CR6OeU5FvKs6AVUi6vNYL6QWPfwar/Erk4/YTPG9AxDHHFQY8/jtX1m/EAs7h/NeIH/015Lz5ts0kyL2vkXZQq591X2ief7X/KBKyYz0EPh+ORcV0NElXjP8HDpgHo1RNuJHoodRncztbbUItw99HE5SHDxomoyVoKZYXtshlPBnRAA/k4rPo/vVJAdRDca4vltTL4fLqkXqxZQGeDR6dGDBWnMuQlF37JBgIn8SrlrG/5NnFDoQcuI3vK/T3aBd94JBatqQhHm1j0jgVAC6Lst6/rNJOP1tazexMmJso/95KJlVzNuTqI7IcmLIuJTTZHUr5O2VZCLaHmMRNzm/6HjteVUrTBCxpCmh4hru2JwuzWOYqR6gsiTrHT1kGS9XsbP/wkrRqsYoWXw1qcL0oSTCk0N6zborVYlK4XmSUlWjwiI4ZbWEFMHAB2oGwOEZ+nMo3wztqnvPCFjpJQLT2AdGmq+GMwHUlHwBJLRYeJJoLQMpTrX6yO6hYgQiMQID4WtNkrNITDJT84/EuyBovUyD5jj46cbvFS2d76/gh0OnZeMMdiZ/C/4PK466Tbfqhzdsfb+RMgZm3G0mMVPESfSxylpXe1Xl3AYpMQy8fdOOGzQnphSu9g7tfI17AIc0WgJivX3yVbi4RVox9i5FGAkS4UxrzFGMCEGCSqGSIb3DQEJFDEUHhIAdABpAHoAZQBuAHQAdQBiAGUwIQYJKoZIhvcNAQkVMRQEElRpbWUgMTc5NTg0ODM1OTc1NTCCBDEGCSqGSIb3DQEHBqCCBCIwggQeAgEAMIIEFwYJKoZIhvcNAQcBMGYGCSqGSIb3DQEFDTBZMDgGCSqGSIb3DQEFDDArBBT/tDUMXZNTo0NC2KoOuE0xCWppTgICJxACASAwDAYIKoZIhvcNAgkFADAdBglghkgBZQMEASoEEBJlog2uqvCMwt8Cpy3oGNaAggOgTbmUVd7n/i2R+B/rpUHStww1G+F0qnHYz5NH97qCsVfbuM4iMG0Y2VbHPV3NXCkkq5FAa7LZ+ORo06B5pl8cgFfeGxCArbdRp6TuScTHzA0XQ8gDntmcyOLq58AkfjaQ7IjcUrGMXr5eUxIKE2qw7seSBooD/jCsBFxQ8WIEOrKfIPB7tDTmyuiNxzPzbNNiVi2U21V09DR+mQD8SuOFnldTqoWKBVs3iCuoXb492SwZFcfDcDbvRk2/fx6dYSHpiSVTJpnIVCeklPZb2xZWuVIbO6JMsHV+ZzNA9fhsXO6kkJocj137W56m6LTQqLhsm9mm0U3z2YY9xeEPgkWJrA5ZWmHP8p8X8oGafvAfloTE1H/E/yvuh1/0ShmlHRHJD5WBktm+XZwKB75x+KS5FTGg2XPmslvZCqtmcK12ddxS2jJnI7clrnhyZoY7o1KaZy8g5AOgv0rH+8XNH558GD4cTCZ14X+/irZAEe5jPADGyWkqtcG5iwkpyLMenybWWcXP24suCDo4qa9eXkx0vsZiY+Bmj+fczGal4rz0PYeZ9BnoooWm2QZknOA6CqCEG9np02L4/9mJxF+KUxqoXUQPueAT+10ojXOEIZg0+Gg1bN2ZXp8KUUrgyeZ+uA+kfhfwTm6OF2BPRkjakBGT7vS++mAngYd7qfcuP3cMl5IAjzb7bjT7nH0ZBG6/RiwG6Ko4/7jzlUcqbD9lifiTFiIIFOSJI6RVDymVQtmzJCgK8VmZGGhGUDDJwqwTT/fwOz99zcKHR0fPO2QG8/F8e5cMfv6fzFJou8h3GqtcYsJYfsdw91qIQ8vz3WO/ihj36bOoqfkZs2joUtOrN/pGGFufdF/wKu+BPw+4C8i3qXqcXUgV5fAldUo2m+9TZRE/2Z5aPSwvZ0p2mQvu9vBqn0rLA5JiDSO4Se+kFNZMPP6ehyqSJSbQ/Cqc45AK2ZcPTZB/JXYJGIOH9HHMAj9x1mi8v6eClHvtxsoYIZfp7YJsePg52jaTkfH62u2+v8EnKfwoUav5bV/PXAroyVlQjQAypsjkfNG3mCcQZM5/FE8Z3BRXZG9xApaCmfEfj7Cy2xnojE8+vngxONxtqY5NS6rWb0sos787XiKfCldoYHjn83VPvcGQGxZ0qVjKQUrT6vS7WYYnsh52pgnOfSYb68ZLxzngOWLNcNcrCaBaxrwcZkph9DqlIDAjOkfm9pa9nZqLfP1TeaYChourUt2hUTBNMDEwDQYJYIZIAWUDBAIBBQAEIBww8mqKfEBi0BIwjUV0IoCUUnZjeoCntUrFbmU7w05iBBT28WpVDjilSf+vLiUbevAibt+uagICJxA=" | base64 -d > "$RUNNER_TEMP/tizentube.p12"
+          echo "KS_FILE=$RUNNER_TEMP/tizentube.p12" >> "$GITHUB_ENV"
+          echo "KS_PASS=tizentube" >> "$GITHUB_ENV"
+          echo "KS_ALIAS=tizentube" >> "$GITHUB_ENV"
 
       - name: Build release APK
-        run: gradle -p "$GITHUB_WORKSPACE/_android" assembleRelease --no-daemon --stacktrace
+        run: |
+          gradle -p android-app assembleRelease --no-daemon --stacktrace \
+            -PverName="$APP_VER" \
+            -PverCode="${{ github.run_number }}" \
+            -PcapEnabled="$CAP_ENABLED" \
+            -PuaKey="$UA_KEY"
 
       - name: Collect APK
         run: |
-          mkdir -p dist
-          cp _android/app/build/outputs/apk/release/app-release.apk dist/YouTube-AdBlock-TV.apk
-          ls -l dist
+          mkdir -p out
+          APK=android-app/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          cp "$APK" "out/TizenTube-Android-v${APP_VER}-b${{ github.run_number }}.apk"
+          ls -lh out
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: YouTube-AdBlock-TV-apk
-          path: dist/YouTube-AdBlock-TV.apk
-
-      - name: Publish GitHub release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/YouTube-AdBlock-TV.apk
+          name: TizenTube-Android-APK
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 30
